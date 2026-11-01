@@ -64,7 +64,11 @@ function placeById(id) { return S.db.places.find(p => p.id === id); }
 function cuisineOf(p) { return Array.isArray(p.cuisine) ? p.cuisine : (p.cuisine ? [p.cuisine] : []); }
 function colorOf(p) { if (p.type === 'spot') return SPOT_COLOR; const c = cuisineOf(p)[0]; return CUISINE_COLOR[c] || '#7f8c8d'; }
 function hasCoord(p) { return typeof p.lat === 'number' && typeof p.lng === 'number'; }
-function distFromBase(p) { return hasCoord(p) && S.base ? haversine(S.base, p) : null; }
+function baseFor(p) {                                        // 장소 나라에 맞는 거점: 국내 장소는 집, 해외는 그 지역 거점 (나트랑 여행 보던 중 국내 장소 열어도 '깜란 출발' 안 뜨게)
+  const b = S.base; if (!p || !b || b.country === p.country) return b;
+  return S.db.bases.find(x => x.default_for === p.region) || S.db.bases.find(x => x.country === p.country) || b;
+}
+function distFromBase(p) { const b = baseFor(p); return hasCoord(p) && b ? haversine(b, p) : null; }
 function regionsInDb() {
   const set = new Map();
   for (const p of S.db.places) set.set(p.region, (set.get(p.region) || 0) + 1);
@@ -530,7 +534,7 @@ function openDetail(id) {
   const cover = img
     ? `<div class="cover" style="--cat:${catColor(p)};background-image:url('${img}')"><div class="handle"></div><span class="cat-chip">${esc(kind)}</span><span class="nph">${familyPhoto(p) ? '우리 가족 사진' : '사진 한국관광공사'}${nPhotos > 1 ? ` · ${nPhotos}장` : ''}</span></div>`
     : `<div class="cover info" style="--cat:${catColor(p)}"><div class="handle"></div><span class="cat-chip">${esc(kind)}</span>
-        <div class="stat3"><div><small>${esc(baseShort())}에서</small><b>${di ? fmtKm(di.km) + '<small>km</small>' : '—'}</b></div><div><small>차로</small><b>${di ? minText(di.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>') : '—'}</b></div><div><small>오늘</small><b>${todayHrs ? `<span class="mono" style="font-size:18px">${esc(todayHrs)}</span><small> ${os === 'dayoff' ? '' : os === 'open' ? '영업중' : '오픈'}</small>` : '<small>영업 미입력</small>'}</b></div></div>
+        <div class="stat3"><div><small>${esc(baseShort(p))}에서</small><b>${di ? fmtKm(di.km) + '<small>km</small>' : '—'}</b></div><div><small>차로</small><b>${di ? minText(di.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>') : '—'}</b></div><div><small>오늘</small><b>${todayHrs ? `<span class="mono" style="font-size:18px">${esc(todayHrs)}</span><small> ${os === 'dayoff' ? '' : os === 'open' ? '영업중' : '오픈'}</small>` : '<small>영업 미입력</small>'}</b></div></div>
         <div class="tags">${(p.tags || []).slice(0, 3).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
         <div class="nophoto"><span>아직 사진이 없어요</span><button class="rw" data-act="visitlog">+ 첫 사진 올리기</button></div></div>`;
   openSheet(`
@@ -541,7 +545,7 @@ function openDetail(id) {
       <h1>${esc(p.name)}</h1>
       <div class="rt">${n.rating ? `<span><span class="nv">N</span> <span class="mono">${n.rating}</span>${n.reviews ? ` <span class="mono cnt">(${n.reviews.toLocaleString()})</span>` : ''}</span>` : ''}${p.google?.rating ? `<span><span class="gg">G</span> <span class="mono">${p.google.rating}</span>${p.google.reviews ? ` <span class="mono cnt">(${p.google.reviews.toLocaleString()})</span>` : ''}</span>` : ''}${ratingOf(p) ? `<span class="us">우리 ★${ratingOf(p)}.0</span>` : ''}${p.wish ? '<span class="us">★ 가고싶다</span>' : ''}${!n.rating && !p.google?.rating && !ratingOf(p) ? '<span style="color:var(--text-3)">평점 미입력 — 아래 더보기에서 입력</span>' : ''}</div>
     </div>
-    ${roBanner()}${!hasCoord(p) ? nocoordHtml(p) : S.base ? `<div class="distbox${di?.real ? ' real' : ''}"><div><small>직선</small><b>${fmtKm(d)}<small>km</small></b></div><div><small>도로${di?.real ? '' : ' 추정'}</small><b>${di ? fmtKm(di.km) : '—'}<small>km</small></b></div><div><small>소요</small><b class="t">${di ? minText(di.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>') : '—'}</b></div></div><p class="dist-cap">${esc(S.base.name)} 출발 · ${di?.real ? '카카오 실경로' : '지금 기준 추정'}</p>` : ''}
+    ${roBanner()}${!hasCoord(p) ? nocoordHtml(p) : baseFor(p) ? `<div class="distbox${di?.real ? ' real' : ''}"><div><small>직선</small><b>${fmtKm(d)}<small>km</small></b></div><div><small>도로${di?.real ? '' : ' 추정'}</small><b>${di ? fmtKm(di.km) : '—'}<small>km</small></b></div><div><small>소요</small><b class="t">${di ? minText(di.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>') : '—'}</b></div></div><p class="dist-cap">${esc(baseFor(p).name)} 출발 · ${di?.real ? '카카오 실경로' : '지금 기준 추정'}</p>` : ''}
     <div class="d-tags rw-chips">${tagPool.map(t => `<span class="chip ${(p.tags || []).includes(t) ? 'tag' : 'off'}" data-tag="${esc(t)}">#${esc(t)}</span>`).join('')}${extraTags.map(t => `<span class="chip tag" data-tag="${esc(t)}">#${esc(t)}</span>`).join('')}<span class="chip plus" data-act="tagedit">＋ 태그</span></div>
     <div class="d-grid">
       <span>영업</span><div class="hrs">${h && (h.open || (h.closed || []).length) ? `${ol ? `<b class="${ol[1]}">${ol[0]}</b>` : '<b class="off">시간 등록</b>'}${h.lastOrder ? ` · ${esc(h.lastOrder)} 라스트오더` : h.close && os === 'open' ? ` · ${esc(h.close)} 마감` : ''}<p>${(h.closed || []).length ? `휴무 ${esc(h.closed.join('·'))} · ` : '매일 '}${esc(h.open || '?')}–${esc(h.close || '?')}${h.breakStart ? ` · 브레이크 ${esc(h.breakStart)}–${esc(h.breakEnd || '?')}` : ''}</p>` : '<span style="color:var(--text-3)">미입력</span>'} <button class="mini rw" data-act="hours">${h ? '수정' : '입력'}</button></div>
@@ -1188,8 +1192,8 @@ function drawRoute(path) {
 }
 /* 상세 거리 박스를 실경로로 교체 */
 async function refineDetailRoute(p) {
-  if (!S.base || !hasCoord(p) || p.country !== 'KR' || S.base.country !== 'KR' || !kakaoRestKey()) return;
-  const r = await kakaoRoute(S.base, p, true); if (!r || S.sel !== p.id) return;
+  const b = baseFor(p); if (!b || !hasCoord(p) || p.country !== 'KR' || b.country !== 'KR' || !kakaoRestKey()) return;
+  const r = await kakaoRoute(b, p, true); if (!r || S.sel !== p.id) return;
   const box = $('.distbox'); if (!box) return;
   box.children[1].innerHTML = `<small>도로</small><b>${fmtKm(r.km)}<small>km</small></b>`;
   box.children[2].innerHTML = `<small>소요</small><b class="t">${minText(r.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>')}</b>`;
@@ -1461,15 +1465,15 @@ const ICO = {
 };
 // 거점 기준 거리·소요 (카카오 경로 캐시 → 도로 추정 → 엑셀 집 기준 거리)
 function distInfo(p) {
-  const base = S.base; if (!base) return null;
+  const base = baseFor(p); if (!base) return null;
   if (!hasCoord(p)) return base.id === 'b_home' && p.dist_home_km != null ? { km: p.dist_home_km, min: Math.round(p.dist_home_km / 55 * 60) + 5, real: false } : null;
   const ck = [base.lat, base.lng, p.lat, p.lng].map(x => (+x).toFixed(4)).join(','); const rt = LS.get('routes', {})[ck];
   if (rt && rt.km != null) return { km: rt.km, min: rt.min, real: true };
   const d = haversine(base, p); const e = roadEst(d, p.country); return e ? { km: e.road, min: e.min, real: false } : null;
 }
 function minText(m) { return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60 ? m % 60 + '분' : ''}`.trim() : `${m}분`; }
-function baseShort() { return (S.base?.name || '거점').replace(/^집\s*\((.*)\)$/, '$1').replace(/\s*\(.*\)/, ''); }
-function distText(p) { const d = distInfo(p); return d ? `${baseShort()}에서 ${fmtKm(d.km)}km · 차로 ${minText(d.min)}` : '위치 없음'; }
+function baseShort(p) { return ((p ? baseFor(p) : S.base)?.name || '거점').replace(/^집\s*\((.*)\)$/, '$1').replace(/\s*\(.*\)/, ''); }
+function distText(p) { const d = distInfo(p); return d ? `${baseShort(p)}에서 ${fmtKm(d.km)}km · 차로 ${minText(d.min)}` : '위치 없음'; }
 function catDot(p) { return p.type === 'spot' ? '휴양지' + ((p.tags || [])[0] ? ' · ' + p.tags[0] : '') : cuisineOf(p).join(' · ') || '식당'; }
 function starsTxt(n) { return n ? '★'.repeat(n) + '☆'.repeat(5 - n) : ''; }
 function homeData() {
