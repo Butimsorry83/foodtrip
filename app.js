@@ -1000,11 +1000,14 @@ function buildPlan(cfg) {
     const forced = cfg.dayOrders && cfg.dayOrders[di];
     if (forced) { todays = forced.map(id => pool.find(p => p.id === id) || extra.find(p => p.id === id)).filter(Boolean); }
     else {
-      const k = Math.min(cfg.maxSpots, Math.max(1, Math.ceil(pool.length / (cfg.days - di))));
-      todays = bestSubset(S0, pool, Math.min(k, pool.length), E0);
-      const want = Math.min(cfg.maxSpots, 2);
-      if (cfg.autoFill && todays.length < want && extra.length) {   // 모자라면 같은 지역에서 동선상 가장 싸게 끼워 넣을 수 있는 곳 보충
-        while (todays.length < want && extra.length) { let bi = -1, bc = Infinity; extra.forEach((e, i) => { const c = routeCost(S0, bestOrder(S0, [...todays, e], E0), E0); if (c < bc) { bc = c; bi = i; } }); if (bi < 0 || bc - routeCost(S0, todays, E0) > 90) break; const e = extra.splice(bi, 1)[0]; autoIds.add(e.id); todays.push(e); }
+      const bf = ((base.country !== 'KR' || cfg.lodging === 'stay') && cfg.breakfast && di > 0) ? 50 : 0;
+      const avail = (stayMode ? 18 * 60 + 30 : dayEndMin) - cfg.startMin - bf;                 // 숙박일은 저녁(18시) 전, 귀가일은 복귀 시각까지
+      const fits = l => { if (!l.length) return true; const o = bestOrder(S0, l, E0); return l.reduce((s, x) => s + stayOf(x), 0) + routeCost(S0, o, E0) + 75 <= avail; };
+      let k = Math.min(cfg.maxSpots, pool.length > cfg.maxSpots * (cfg.days - di - 1) ? cfg.maxSpots : Math.ceil(pool.length / (cfg.days - di)), pool.length);
+      todays = bestSubset(S0, pool, k, E0);
+      while (k > 1 && !fits(todays)) { k--; todays = bestSubset(S0, pool, k, E0); }   // 시간 안에 들어가는 만큼만
+      if (cfg.autoFill && todays.length < cfg.maxSpots && extra.length) {   // 하루 최대까지 같은 지역에서 동선상 가장 싸게 끼워 넣을 수 있는 곳 보충 (시간 허락하는 만큼)
+        while (todays.length < cfg.maxSpots && extra.length) { let bi = -1, bc = Infinity; extra.forEach((e, i) => { const c = routeCost(S0, bestOrder(S0, [...todays, e], E0), E0); if (c < bc) { bc = c; bi = i; } }); if (bi < 0 || bc - routeCost(S0, todays, E0) > 90 || !fits([...todays, extra[bi]])) break; const e = extra.splice(bi, 1)[0]; autoIds.add(e.id); todays.push(e); }
         todays = bestOrder(S0, todays, E0);
       }
     }
@@ -1109,9 +1112,9 @@ function openPlanner(prefill = {}) {
   let spots = anchor ? allSpots.map(x => ({ ...x, km: haversine(anchor, withCoord(x.s)) })).filter(x => x.km <= radiusKm && local(x)).sort((a, b) => ((areaKey(a.s) === area ? 0 : 1) - (areaKey(b.s) === area ? 0 : 1)) || (a.km - b.km)) : inArea;   // 숙소 기준: 같은 시·군 → 가까운 순
   const noCoord = S.db.places.filter(p => p.type === 'spot' && p.region === region && !approxCoord(p)).length;
   const nApprox = spots.filter(x => x.approx).length;
-  const wantN = (prefill.days || 1) * Math.min(prefill.maxSpots || 3, 2);
+  const wantN = (prefill.days || 1) * (prefill.maxSpots || 3);
   const autoLocal = anchor && spots.length < wantN && !prefill.spots;                           // 저장한 곳이 모자라면 현지 관광지를 자동으로 불러옴
-  const preN = (prefill.days || 1) * Math.min(prefill.maxSpots || 3, 2);
+  const preN = (prefill.days || 1) * (prefill.maxSpots || 3);
   const pre = prefill.spots ? new Set(prefill.spots) : new Set([...(prefill.with ? [prefill.with] : []), ...spots.filter(x => x.s.wish).map(x => x.s.id), ...spots.slice(0, preN).map(x => x.s.id)].slice(0, preN + 1));   // 지역을 고르면 그 지역 상위 휴양지만 자동 선택
   openSheet(`<div class="sheet-head"><div><h2>여행 플래너</h2><div class="help">${REGION_LABEL[region] || region} · 거점 ${esc(base?.name || '없음')} · ${season}</div></div><button class="close" data-act="close">✕</button></div>
     <form class="form" id="plf">
@@ -1147,7 +1150,7 @@ function openPlanner(prefill = {}) {
       return `<label class="pick-row"><input type="checkbox" value="${id}" ${i < need ? 'checked' : ''}><span class="pick-main"><b>${esc(h.name)}</b> <span class="bd" style="background:var(--kakao);color:var(--on-kakao)">${esc(h.src)} 추천</span><span class="sub">${esc([h.cat, '숙소에서 ' + fmtKm(haversine(anchor, h)) + 'km'].filter(Boolean).join(' · '))}</span></span></label>`; }).join('');
     if (box) box.outerHTML = `<div class="help">${esc(area !== 'all' ? area : '숙소')} 현지 관광지 ${Math.min(hits.length, 8)}곳 (저장 안 된 곳 · 일정 저장 시 휴양지로 추가)</div>`;
     $('#pick').insertAdjacentHTML('afterbegin', rows);
-    const fd = $('#plf'); const want = Math.max(2, (+fd?.days?.value || 1) * Math.min(+fd?.maxSpots?.value || 3, 2));
+    const fd = $('#plf'); const want = Math.max(2, (+fd?.days?.value || 1) * (+fd?.maxSpots?.value || 3));
     const all = $$('#pick input'); const rank = i => { const p = placeById(i.value); return p?.tmp ? 1 : areaKey(p) === area ? 0 : 2; };
     all.slice().sort((a, b) => rank(a) - rank(b)).forEach((i, k) => { i.checked = k < want; });   // 같은 시·군 저장분 → 현지 관광지 → 그 외
   })();
@@ -1219,7 +1222,7 @@ function openPlanner(prefill = {}) {
       const d = Object.fromEntries(new FormData($('#plf')));
       let ids = $$('#pick input:checked').map(i => i.value);
       if (!ids.length) {                                          // 미선택 → 추천 상위 자동 (없으면 새 후보 찾기)
-        const want = Math.max(1, (+d.days || 1) * Math.min(+d.maxSpots || 3, 2));
+        const want = Math.max(1, (+d.days || 1) * (+d.maxSpots || 3));
         const cand = $$('#pick input').map(i => placeById(i.value)).filter(Boolean).map(withCoord);
         const auto = []; if (cand.length) { let cur = cand[0]; auto.push(cur.id);                     // 1순위 + 그 근처(40km)부터 이어 붙임 → 하루에 서로 가까운 곳끼리
           while (auto.length < want) { const nx = cand.filter(p => !auto.includes(p.id) && hasCoord(p)).map(p => [haversine(cur, p), p]).sort((a, b) => a[0] - b[0])[0]; if (!nx || nx[0] > 40 * Math.max(1, (+d.days || 1) - 0.5)) break; auto.push(nx[1].id); cur = nx[1]; } }
