@@ -1153,7 +1153,7 @@ function drawPlanMap(plan, di) {                                  // 동선 미�
   if (S.plMap) { S.plMap.remove(); S.plMap = null; }
   if (pts.length < 1) { el.insertAdjacentHTML('beforeend', '<div class="help" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">좌표 있는 일정이 없어 지도를 못 그립니다</div>'); return; }
   const m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 18 }).addTo(m);
+  L.tileLayer(tileUrl(), { maxZoom: 18, attribution: '&copy; OpenStreetMap contributors' }).addTo(m);
   const path = (S.planPaths && S.planPaths[di]) || pts;
   L.polyline(path, { color: '#024968', weight: 4, lineCap: 'round' }).addTo(m);
   for (const mk of marks) L.marker(mk.ll, { icon: L.divIcon({ className: '', html: `<span class="pl-pin" style="background:${mk.color};${mk.base ? 'color:#000' : ''}">${mk.n}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(m);
