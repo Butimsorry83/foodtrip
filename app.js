@@ -256,12 +256,12 @@ function setSync(st) { const el = $('#sync'); el.className = 'sync ' + st; el.ti
 /* ---------------- 지도 ---------------- */
 let map;
 function isDark() { const t = LS.get('theme', 'auto'); return t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches); }
-function tileUrl() { return `https://{s}.basemaps.cartocdn.com/rastertiles/${isDark() ? 'dark_all' : 'voyager'}/{z}/{x}/{y}{r}.png`; }   // 다크모드 = 어두운 지도
+function tileUrl() { return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'; }   // CARTO가 키를 요구(2026)해 OSM 표준 타일로 교체 · 다크모드는 CSS 필터(style.css .dark-tiles)
 function initMap() {
   map = L.map('map', { zoomControl: false, attributionControl: true }).setView([36.5, 127.8], 7);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
   S.tiles = L.tileLayer(tileUrl(), {
-    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }).addTo(map);
   S.cluster = L.markerClusterGroup({ maxClusterRadius: 42, showCoverageOnHover: false, spiderfyOnMaxZoom: true, disableClusteringAtZoom: 13,
     iconCreateFunction: c => { const ms = c.getAllChildMarkers(); const sp = ms.filter(m => m.options.kind === 'spot').length; const n = ms.length;
@@ -1900,7 +1900,7 @@ function openItemForm(t) {
 const FAM_COLORS = ['var(--primary)', 'var(--primary-2)', '#2a6fb8', '#2e8b57', '#b5651d', '#7d3c98'];
 function maskKey(k) { k = (k || '').trim(); if (!k) return ''; return k.length > 10 ? k.slice(0, 4) + '••••' + k.slice(-4) : '••••'; }
 function themePref() { return LS.get('theme', 'auto'); }
-function applyTheme() { const t = themePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (S.tiles) S.tiles.setUrl(tileUrl()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
+function applyTheme() { const t = themePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
 function seasonPref() { return LS.get('season', 'auto'); }
 function seasonHome() { const s = seasonPref(); return s === 'auto' ? seasonNow() : s; }
 const KEY_DEFS = {                                         // 키 입력 화면(행 탭): 입력칸 + 붙여넣기 + 연결 확인
