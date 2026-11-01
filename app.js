@@ -949,6 +949,7 @@ function isFamous(p) { const n = p.naver || {}, g = p.google || {}; return /미�
 function mealPick(origin, when, used, ctx, radiusKm) {
   if (ctx.force) { const fp = placeById(ctx.force); if (fp) return { place: fp, score: 0, reasons: ['직접 선택'], km: haversine(withCoord(origin), withCoord(fp)) }; }
   const list = recommendFromDb({ ...ctx, origin: withCoord(origin), mode: 'plan', allowApprox: true }, 40).filter(x => !used.has(x.place.id) && !(ctx.skip || new Set()).has(x.place.id) && x.km != null && (hasCoord(x.place) ? (x.km <= radiusKm || (isFamous(x.place) && x.km <= Math.max(radiusKm * 3, 10))) : (x.km <= radiusKm + 2 && !!origin.si && siMatch(x.place.si, [origin.si]))));   // 반경 안만 · 유명 맛집만 반경×3까지 예외 · 좌표 없는 식당은 같은 시·군일 때만
+  if (ctx.meal === 'dinner') for (let i = list.length - 1; i >= 0; i--) if (/양식|카페|브런치|피자|파스타/.test(cuisineOf(list[i].place).join() + (list[i].place.name || ''))) list.splice(i, 1);   // 저녁은 양식 제외 (점심은 OK)
   for (const x of list) if (x.km > radiusKm) x.reasons = [`유명 맛집 (${fmtKm(x.km)}km)`, ...x.reasons];
   if (ctx.toward && hasCoord(withCoord(ctx.toward))) { const o = withCoord(origin), tw = withCoord(ctx.toward), base0 = haversine(o, tw);   // 다음 장소 가는 길에 가까운 곳 우선
     list.sort((a, b) => { const da = haversine(o, withCoord(a.place)) + haversine(withCoord(a.place), tw) - base0, db = haversine(o, withCoord(b.place)) + haversine(withCoord(b.place), tw) - base0; return (da - db) * 3 - (a.score - b.score) * 0.2; }); }
@@ -1013,7 +1014,7 @@ function buildPlan(cfg) {
     const push = (time, activity, place, ex = {}) => items.push({ time: hhmm(time), activity, place: place?.name || null, place_id: place?.id || null, ...ex });
     const move = (to, label) => { const L = leg(cur, to); t += L.min; km += L.km; mv += L.min; push(t, label || '이동 → ' + to.name, null, { kind: 'move', from: cur, to, km: L.km, min: L.min, note: `약 ${L.min}분 (${fmtKm(L.km)}km)` }); cur = to; };
     const hrs = m => `${Math.round(m / 60 * 10) / 10}h`;
-    const lunch = (lt, near, toward) => { const m = mealPick(near, at(lt), used, { ...ctx, toward, force: cfg.forceMeals && cfg.forceMeals[di + ':lunch'] }, cfg.mealKm || 3);
+    const lunch = (lt, near, toward) => { const m = mealPick(near, at(lt), used, { ...ctx, toward, meal: 'lunch', force: cfg.forceMeals && cfg.forceMeals[di + ':lunch'] }, cfg.mealKm || 3);
       if (m) { used.add(m.place.id); push(lt, '중식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':lunch', near }); } else push(lt, '중식', null, candMeal(cfg, di + ':lunch', near) || { kind: 'meal', slot: di + ':lunch', near, note: '근처 식당 찾는 중…' });
       lunchDone = true; return lt + 75; };
     push(t, di > 0 && cfg.lodging === 'stay' ? '숙소 출발' : '출발', S0.id && S0 === home ? S0 : null, { kind: 'base', place: di > 0 && cfg.lodging === 'stay' && !lodge ? `전일 숙소 (${S0.name} 인근)` : S0.name });
@@ -1045,13 +1046,16 @@ function buildPlan(cfg) {
     }
     if (!lunchDone && t <= 15 * 60 && items.some(x => x.kind === 'spot' && x.place_id)) t = lunch(Math.max(t, 11 * 60 + 30), cur);
     // ③ 저녁 · 숙소/귀가
-    const leaveEarly = lastDay && lodge && homeLeg >= 120 && t <= 17 * 60 + 30;
+    const goingHome = !stayMode && E0 === home && home.country === 'KR';               // 집으로 돌아가는 날: 집 앞에서 저녁 X
+    const dt0 = Math.max(t, 18 * 60);
+    const localDinnerOK = goingHome && cur !== home && dt0 + 80 + leg(cur, home).min <= cfg.endMin && leg(cur, home).min > 25;   // 복귀 시각 안에 현지에서 먹고 출발 가능할 때만
+    const leaveEarly = (lastDay && lodge && homeLeg >= 120 && t <= 17 * 60 + 30) || (goingHome && !localDinnerOK);
     if (t < dayEndMin && !leaveEarly) {
       const farHome = E0 && cur !== E0 && leg(cur, E0).min >= 120;
-      const dinnerNear = stayMode && lodge ? lodge : (t >= 17 * 60 + 30 || stayMode || farHome || !E0) ? cur : E0;
+      const dinnerNear = stayMode && lodge ? lodge : (goingHome || t >= 17 * 60 + 30 || stayMode || farHome || !E0) ? cur : E0;
       const dt = Math.max(t, 18 * 60);
       if (dinnerNear !== cur) move(dinnerNear, dinnerNear === lodge ? '이동 → 숙소 방향' : '이동 → 거점 방향');
-      const m = mealPick(dinnerNear, at(dt), used, { ...ctx, force: cfg.forceMeals && cfg.forceMeals[di + ':dinner'] }, cfg.mealKm || 3);
+      const m = mealPick(dinnerNear, at(dt), used, { ...ctx, meal: 'dinner', force: cfg.forceMeals && cfg.forceMeals[di + ':dinner'] }, cfg.mealKm || 3);
       if (m) { used.add(m.place.id); push(Math.max(t, dt), '석식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':dinner', near: dinnerNear }); }
       else push(Math.max(t, dt), '석식', null, candMeal(cfg, di + ':dinner', dinnerNear) || { kind: 'meal', slot: di + ':dinner', near: dinnerNear, note: '근처 식당 찾는 중…' });
       t = Math.max(t, dt) + 80;
@@ -1061,7 +1065,7 @@ function buildPlan(cfg) {
       else { push(t, '숙소 체크인', null, { kind: 'base', place: `숙소 미정 (${cur.name} 인근)`, note: '플래너에서 숙소 지정 가능' }); prevEnd = cur; }
     } else {
       if (cur !== E0) move(E0, E0 === home ? '이동 → 집' : '이동 → 거점');
-      push(t, E0.country === 'KR' && E0.id === 'b_home' ? '귀가' : '숙소 복귀', E0, { kind: 'base', note: leaveEarly ? '저녁은 휴게소 또는 집에서' : '' });
+      push(t, E0.country === 'KR' && E0.id === 'b_home' ? '귀가' : '숙소 복귀', E0, { kind: 'base', note: leaveEarly ? '저녁은 집에서 (복귀 시각 우선)' : '' });
     }
     days.push({ label: dayLabel(cfg.start, di), items, totalKm: Math.round(km), totalMin: mv, over: t > cfg.endMin });
   }
@@ -1174,7 +1178,7 @@ function openPlanner(prefill = {}) {
     const need = plan.days.flatMap(d => d.items).filter(it => it.kind === 'meal' && !it.place_id && !it.cand && it.slot && it.near && !tried.has(it.slot));
     if (!need.length) return; need.forEach(it => tried.add(it.slot));
     cfg.candPick ||= {}; const usedNames = new Set(Object.values(cfg.candPick).map(c => c.name)); let got = 0;
-    for (const it of need) { const list = await nearCands(it.near); const c = list.find(x => !usedNames.has(x.name)); if (c) { cfg.candPick[it.slot] = c; usedNames.add(c.name); got++; } }
+    for (const it of need) { const list = await nearCands(it.near); const c = list.find(x => !usedNames.has(x.name) && !(/dinner/.test(it.slot) && /양식|카페|기타/.test(x.cuisine || '') && /피자|파스타|카페|커피|브런치|버거|핫도그/.test(x.name + (x.category || ''))) && !(/dinner/.test(it.slot) && x.cuisine === '양식')); if (c) { cfg.candPick[it.slot] = c; usedNames.add(c.name); got++; } }
     if (got) { plan = buildPlan(cfg); showDay(curDi); }
     else { $$('.pl-row.meal .cap').forEach(el => { el.innerHTML = el.innerHTML.replace('근처 식당 찾는 중…', cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 식당 없음 — 현지 선택' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'); }); }
   };
