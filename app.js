@@ -947,12 +947,16 @@ function dayLabel(iso, i) { const d = addDays(iso, i); return d ? `${d.getMonth(
 function leg(a, b) { const km = haversine(a, b); const r = roadEst(km, (a.country || b.country || 'KR')); return r ? { km: r.road, min: r.min } : { km: 0, min: 0 }; }
 function mealPick(origin, when, used, ctx, radiusKm) {
   if (ctx.force) { const fp = placeById(ctx.force); if (fp) return { place: fp, score: 0, reasons: ['직접 선택'], km: haversine(withCoord(origin), withCoord(fp)) }; }
-  const list = recommendFromDb({ ...ctx, origin: withCoord(origin), mode: 'plan', allowApprox: true }, 40).filter(x => !used.has(x.place.id) && !(ctx.skip || new Set()).has(x.place.id) && x.km != null && x.km <= (hasCoord(x.place) ? radiusKm : radiusKm + 10));
+  const list = recommendFromDb({ ...ctx, origin: withCoord(origin), mode: 'plan', allowApprox: true }, 40).filter(x => !used.has(x.place.id) && !(ctx.skip || new Set()).has(x.place.id) && x.km != null && (hasCoord(x.place) ? x.km <= radiusKm : (x.km <= radiusKm + 2 && !!origin.si && siMatch(x.place.si, [origin.si]))));   // 좌표 없는 식당은 같은 시·군일 때만 (먼 곳 끌어오기 방지)
   for (const x of list) {               // 영업시간 있는 곳은 그 시각에 열려 있어야
     const os = openState(x.place, when); if (os === 'closed' || os === 'dayoff' || os === 'break') continue;
     return x;
   }
   return null;
+}
+function candMeal(cfg, slot, near) {                            // 등록 식당이 없을 때: 근처 새 후보(카카오·구글)로 채움
+  const c = cfg.candPick && cfg.candPick[slot]; if (!c) return null;
+  return { kind: 'meal', slot, near, cand: c, place: c.name, note: [`${c.src || '카카오'} 추천`, c.cuisine, c.km != null ? fmtKm(c.km) + 'km' : ''].filter(Boolean).join(' · ') };
 }
 function buildPlan(cfg) {
   const home = cfg.base, lodge = cfg.lodge && hasCoord(cfg.lodge) && cfg.lodging === 'stay' ? cfg.lodge : null;   // 집 거점 = 출발·귀가, 숙소 = 현지 기준점
@@ -993,15 +997,19 @@ function buildPlan(cfg) {
       const crosses = t < 12 * 60 && t + stay > 13 * 60;
       if (!lunchDone && (lunchWindow || crosses)) {
         const hrs = m => `${Math.round(m / 60 * 10) / 10}h`;
-        const lunch = lt => { const m = mealPick(spot, at(lt), used, { ...ctx, force: cfg.forceMeals && cfg.forceMeals[di + ':lunch'] }, 7); if (m) { used.add(m.place.id); push(lt, '중식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':lunch', near: spot }); } else push(lt, '중식', null, { kind: 'meal', slot: di + ':lunch', near: spot, note: '근처 등록 식당 없음 — 현지 선택' }); lunchDone = true; return lt + 70; };
+        const lunch = lt => { const m = mealPick(spot, at(lt), used, { ...ctx, force: cfg.forceMeals && cfg.forceMeals[di + ':lunch'] }, 7); if (m) { used.add(m.place.id); push(lt, '중식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':lunch', near: spot }); } else push(lt, '중식', null, candMeal(cfg, di + ':lunch', spot) || { kind: 'meal', slot: di + ':lunch', near: spot, note: '근처 식당 찾는 중…' }); lunchDone = true; return lt + 70; };
         if (lunchWindow) { t = lunch(t); push(t, spot.name, spot, { kind: 'spot', note: hrs(stay) }); t += stay; }
-        else { const lt = 12 * 60 + 15, part1 = lt - t; push(t, spot.name + ' (1부)', spot, { kind: 'spot', note: hrs(part1) }); t = lunch(lt); const part2 = Math.max(45, stay - part1); push(t, spot.name + ' (2부)', spot, { kind: 'spot', note: hrs(part2) }); t += part2; }
+        else {                                                     // 체류가 점심을 걸치면: 한 줄로 두고, 끝나는 시각이 14:30 전이면 끝난 뒤 점심, 아니면 체류 중 근처 점심(+1h)
+          push(t, spot.name, spot, { kind: 'spot', note: hrs(stay) });
+          if (t + stay <= 14 * 60 + 30) { t += stay; t = lunch(t); }
+          else { const tEnd = t + stay; lunch(12 * 60 + 15); const last = items[items.length - 1]; if (last?.kind === 'meal') last.note = ['체류 중 근처', last.note].filter(Boolean).join(' · '); t = tEnd + 60; }
+        }
       } else {
         push(t, spot.name, spot, { kind: 'spot', note: `${Math.round(stay / 60 * 10) / 10}h${next.auto ? ' · 자동 추천' : ''}` });
         t += stay;
         if (!lunchDone && t >= 11 * 60 + 30 && t <= 14 * 60 + 30) {                   // 체류 끝난 시각이 점심대면 근처에서 중식
           const m = mealPick(spot, at(t), used, { ...ctx, force: cfg.forceMeals && cfg.forceMeals[di + ':lunch'] }, 7);
-          if (m) { used.add(m.place.id); push(t, '중식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':lunch', near: spot }); } else push(t, '중식', null, { kind: 'meal', slot: di + ':lunch', near: spot, note: '근처 등록 식당 없음' });
+          if (m) { used.add(m.place.id); push(t, '중식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':lunch', near: spot }); } else push(t, '중식', null, candMeal(cfg, di + ':lunch', spot) || { kind: 'meal', slot: di + ':lunch', near: spot, note: '근처 식당 찾는 중…' });
           t += 80; lunchDone = true;
         }
       }
@@ -1021,7 +1029,7 @@ function buildPlan(cfg) {
       if (dinnerNear !== cur) { const L = leg(cur, dinnerNear); t += L.min; km += L.km; mv += L.min; push(t, dinnerNear === lodge ? '이동 → 숙소 방향' : '이동 → 거점 방향', null, { kind: 'move', from: cur, to: dinnerNear, km: L.km, min: L.min, note: `약 ${L.min}분 (${fmtKm(L.km)}km)` }); cur = dinnerNear; }
       const m = mealPick(dinnerNear, at(dt), used, { ...ctx, force: cfg.forceMeals && cfg.forceMeals[di + ':dinner'] }, dinnerNear === endAt || dinnerNear === lodge ? 10 : 7);
       if (m) { used.add(m.place.id); push(Math.max(t, dt), '석식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':dinner', near: dinnerNear }); t = Math.max(t, dt) + 80; }
-      else { push(Math.max(t, dt), '석식', null, { kind: 'meal', slot: di + ':dinner', near: dinnerNear, note: '근처 등록 식당 없음' }); t = Math.max(t, dt) + 80; }
+      else { push(Math.max(t, dt), '석식', null, candMeal(cfg, di + ':dinner', dinnerNear) || { kind: 'meal', slot: di + ':dinner', near: dinnerNear, note: '근처 식당 찾는 중…' }); t = Math.max(t, dt) + 80; }
     }
     if (stayMode) {
       if (lodge) { if (cur !== lodge) { const L = leg(cur, lodge); t += L.min; km += L.km; mv += L.min; push(t, '이동 → 숙소', null, { kind: 'move', from: cur, to: lodge, km: L.km, min: L.min, note: `약 ${L.min}분 (${fmtKm(L.km)}km)` }); cur = lodge; } push(t, '숙소 체크인', null, { kind: 'base', place: lodge.name, note: lodge.approx ? '동네 기준 (대략)' : '' }); prevEnd = lodge; }
@@ -1033,7 +1041,7 @@ function buildPlan(cfg) {
     }
     days.push({ label: dayLabel(cfg.start, di), items, totalKm: Math.round(km), totalMin: mv, over: t > cfg.endMin });
   }
-  return { days, leftover: pool.map(p => p.s) };
+  return { days, leftover: pool.map(p => p.s), lodge, home };
 }
 
 /* 화면 */
@@ -1098,14 +1106,31 @@ function openPlanner(prefill = {}) {
   f.querySelector('[name=start]').addEventListener('change', e => { const sv = seasonNow(new Date(e.target.value + 'T00:00:00')); f.querySelector('[name=season]').value = sv; });   // 계절은 출발일로 자동
   const reopen = (f0, patch) => { const d = Object.fromEntries(new FormData(f0)); openPlanner({ ...prefill, spots: null, title: /^\d{4} .+ 가족 여행( 일정)?$/.test(d.title) ? '' : d.title, start: d.start, days: +d.days || 1, maxSpots: +d.maxSpots, radiusKm: +d.radiusKm || 30, area: d.area, lodge, ...patch }); };
   const bindArea = f0 => { f0.querySelector('[name=area]')?.addEventListener('change', e => reopen(f0, { area: e.target.value, lodge: null }));
+    f0.querySelector('#lq')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); f0.querySelector('[data-act=lsearch]')?.click(); } });
     f0.querySelector('[name=radiusKm]')?.addEventListener('change', e => reopen(f0, { radiusKm: +e.target.value }));
     f0.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.act === 'lsearch') { const q = $('#lq').value.trim(); if (!q) return; b.textContent = '검색 중…'; const hits = await geoSearch(q, regionCountry(region) || 'KR', area !== 'all' ? area : ''); b.textContent = '검색'; showHits($('#lhits'), hits, h => reopen(f0, { lodge: { name: h.name, lat: h.lat, lng: h.lng, address: h.address, country: regionCountry(region) || 'KR' } })); }
+      if (b.dataset.act === 'lsearch') { const q = $('#lq').value.trim(); if (!q) return toast('동네명이나 숙소 이름을 입력하세요'); b.textContent = '검색 중…'; let hits = []; try { hits = await geoSearch(q, regionCountry(region) || 'KR', area !== 'all' ? area : ''); if (!hits.length && area !== 'all') hits = await osmSearch(`${area} ${q}`, regionCountry(region) || 'KR'); } catch (err) { toast('검색 실패: ' + err.message); } b.textContent = '검색'; showHits($('#lhits'), hits, h => reopen(f0, { lodge: { name: h.name, lat: h.lat, lng: h.lng, address: h.address, country: regionCountry(region) || 'KR' } })); }
       if (b.dataset.lodgebase) { const bb = S.db.bases.find(x => x.id === b.dataset.lodgebase); reopen(f0, { lodge: { name: bb.name, lat: bb.lat, lng: bb.lng, country: bb.country, baseId: bb.id } }); } }); };
   bindArea(f);
   let curDi = 0; const formHtml = $('#sheet-inner').innerHTML;
   const showForm = () => { const html = $('#sheet-inner').innerHTML; if (!$('#plf')) { $('#sheet-inner').innerHTML = formHtml; rebind(); } };
-  const showDay = di => { curDi = di; $('#sheet-inner').innerHTML = `<div class="pl-sheet">${renderPlan(plan, cfg, di)}</div>`; drawPlanMap(plan, di); bindDrag(di); };
+  const showDay = di => { curDi = di; $('#sheet-inner').innerHTML = `<div class="pl-sheet">${renderPlan(plan, cfg, di)}</div>`; drawPlanMap(plan, di); bindDrag(di); fillNear(); };
+  const nearCache = S.nearCache ||= {}; const tried = new Set();
+  const nearCands = async near => {                              // 근처 식당 후보 (위치별 캐시)
+    const o = withCoord(near); if (!hasCoord(o)) return [];
+    const k = o.lat.toFixed(3) + ',' + o.lng.toFixed(3); if (nearCache[k]) return nearCache[k];
+    const ctx2 = { season: cfg.season, family: famProfile(), country: cfg.base.country, mode: 'plan' };
+    let r = []; try { r = (cfg.base.country === 'KR' ? await recommendNearbyKakao(o, ctx2, 3000) : await recommendNearbyGoogle(o, ctx2, 3000)).map(x => ({ ...x.candidate, km: x.km, score: x.score, src: cfg.base.country === 'KR' ? '카카오' : '구글', cuisine: Array.isArray(x.candidate.cuisine) ? x.candidate.cuisine[0] : x.candidate.cuisine })); } catch {}
+    return (nearCache[k] = r);
+  };
+  const fillNear = async () => {                                 // '찾는 중' 식사 칸을 근처 새 후보로 채우고 다시 그림
+    const need = plan.days.flatMap(d => d.items).filter(it => it.kind === 'meal' && !it.place_id && !it.cand && it.slot && it.near && !tried.has(it.slot));
+    if (!need.length) return; need.forEach(it => tried.add(it.slot));
+    cfg.candPick ||= {}; const usedNames = new Set(Object.values(cfg.candPick).map(c => c.name)); let got = 0;
+    for (const it of need) { const list = await nearCands(it.near); const c = list.find(x => !usedNames.has(x.name)); if (c) { cfg.candPick[it.slot] = c; usedNames.add(c.name); got++; } }
+    if (got) { plan = buildPlan(cfg); showDay(curDi); }
+    else { $$('.pl-row.meal .cap').forEach(el => { el.innerHTML = el.innerHTML.replace('근처 식당 찾는 중…', cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 식당 없음 — 현지 선택' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'); }); }
+  };
   const bindDrag = di => {                                       // 휴양지 순서 끌어서 바꾸기 (≡)
     const list = $('.pl-list'); if (!list) return; let dragIdx = null;
     list.addEventListener('dragstart', e => { const r = e.target.closest('.pl-row[draggable]'); if (!r) return; dragIdx = +r.dataset.idx; e.dataTransfer.effectAllowed = 'move'; r.classList.add('dragging'); });
@@ -1143,12 +1168,15 @@ function openPlanner(prefill = {}) {
       const d = Object.fromEntries(new FormData($('#plf')));
       let ids = $$('#pick input:checked').map(i => i.value);
       if (!ids.length) {                                          // 미선택 → 추천 상위 자동 (없으면 새 후보 찾기)
-        const auto = $$('#pick input').map(i => i.value).slice(0, Math.max(2, (+d.days || 1) * Math.min(+d.maxSpots || 3, 2)));
+        const want = Math.max(1, (+d.days || 1) * Math.min(+d.maxSpots || 3, 2));
+        const cand = $$('#pick input').map(i => placeById(i.value)).filter(Boolean).map(withCoord);
+        const auto = []; if (cand.length) { let cur = cand[0]; auto.push(cur.id);                     // 1순위 + 그 근처(40km)부터 이어 붙임 → 하루에 서로 가까운 곳끼리
+          while (auto.length < want) { const nx = cand.filter(p => !auto.includes(p.id) && hasCoord(p)).map(p => [haversine(cur, p), p]).sort((a, b) => a[0] - b[0])[0]; if (!nx || nx[0] > 40 * Math.max(1, (+d.days || 1) - 0.5)) break; auto.push(nx[1].id); cur = nx[1]; } }
         if (!auto.length) { toast('등록된 휴양지가 없어요 — 새 후보를 찾는 중'); $('#plf [data-act=findnew]')?.click(); return; }
         ids = auto; auto.forEach(id => { const cb = $(`#pick input[value="${id}"]`); if (cb) cb.checked = true; }); toast(`선택이 없어 추천 ${auto.length}곳으로 만들었어요`);
       }
       cfg = { title: d.title.trim(), start: d.start, days: +d.days || 1, season: d.season, base, startMin: toMin(d.startT) ?? 540, endMin: toMin(d.endT) ?? 1200, maxSpots: +d.maxSpots, hopKm: 40, breakfast: !!d.breakfast, rest: !!d.rest, lodging: (+d.days > 1 ? d.lodging : 'return'), spots: ids.map(placeById), autoFill: !!d.autoFill, saveLodge: !!d.saveLodge, area, lodge, radiusKm, extra: spots.filter(x => !ids.includes(x.s.id)).map(x => x.s) };
-      cfg.dayOrders = prefill.dayOrders || {}; cfg.skipMeals = []; cfg.stayOverride = prefill.stayOverride || {}; cfg.forceMeals = prefill.forceMeals || {}; plan = buildPlan(cfg); showDay(0);
+      tried.clear(); cfg.dayOrders = prefill.dayOrders || {}; cfg.skipMeals = []; cfg.candPick = prefill.candPick || {}; cfg.stayOverride = prefill.stayOverride || {}; cfg.forceMeals = prefill.forceMeals || {}; plan = buildPlan(cfg); showDay(0);
     }
     if (b.dataset.act === 'plan-back') { showForm(); return; }
     if (b.dataset.act === 'plan-prev') { const di = +b.dataset.di; if (di === 0) showForm(); else showDay(di - 1); return; }
@@ -1159,8 +1187,12 @@ function openPlanner(prefill = {}) {
       if (row.nextElementSibling?.classList.contains('pl-cands')) { row.nextElementSibling.remove(); return; }
       const near = it.near || (it.place_id && placeById(it.place_id)); const ctx2 = { season: cfg.season, family: famProfile(), country: cfg.base.country, mode: 'plan', allowApprox: true, origin: near ? withCoord(near) : cfg.base };
       const cands = recommendFromDb(ctx2, 20).filter(x => x.place.id !== it.place_id).slice(0, 3);
-      row.insertAdjacentHTML('afterend', `<div class="pl-cands">${cands.map(x => `<button class="rc-row" data-pick-meal="${x.place.id}" data-slot="${esc(it.slot || '')}">${thumbHtml(x.place, 'tile')}<div class="m"><b>${esc(x.place.name)}</b><p class="cap">${esc([cuisineOf(x.place)[0], x.km != null ? (x.approx && x.km < 0.5 ? '같은 지역' : fmtKm(x.km) + 'km') : areaOf(x.place), x.reasons.filter(r => !/km$/.test(r))[0]].filter(Boolean).join(' · '))}</p></div></button>`).join('') || '<div class="help">근처 등록 식당이 더 없습니다</div>'}</div>`); return; }
-    if (b.dataset.pickMeal) { cfg.forceMeals[b.dataset.slot] = b.dataset.pickMeal; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경'); return; }
+      row.insertAdjacentHTML('afterend', `<div class="pl-cands">${cands.map(x => `<button class="rc-row" data-pick-meal="${x.place.id}" data-slot="${esc(it.slot || '')}">${thumbHtml(x.place, 'tile')}<div class="m"><b>${esc(x.place.name)}</b><p class="cap">${esc([cuisineOf(x.place)[0], x.km != null ? (x.approx && x.km < 0.5 ? '같은 지역' : fmtKm(x.km) + 'km') : areaOf(x.place), x.reasons.filter(r => !/km$/.test(r))[0]].filter(Boolean).join(' · '))}</p></div></button>`).join('') || '<div class="help">근처 등록 식당 없음</div>'}<div class="pl-cnew"><span class="bd" style="background:var(--${cfg.base.country === 'KR' ? 'kakao' : 'google'});color:${cfg.base.country === 'KR' ? 'var(--on-kakao)' : '#fff'}">${cfg.base.country === 'KR' ? '카카오' : '구글'}</span> 근처 새 후보 불러오는 중…</div></div>`);
+      const box = row.nextElementSibling; const list = near ? await nearCands(near) : []; S.swapCands = list.filter(c => c.name !== it.place).slice(0, 5);
+      const nb = box.querySelector('.pl-cnew'); if (nb) nb.outerHTML = S.swapCands.length ? S.swapCands.map((c, k) => `<button class="rc-row" data-pick-cand="${k}" data-slot="${esc(it.slot || '')}"><span class="tile" style="--cat:var(--cat-${CAT_VAR[c.cuisine] || 'etc'})">${esc(CAT_GLYPH[c.cuisine] || '·')}</span><div class="m"><b>${esc(c.name)} <span class="bd" style="background:var(--${c.src === '구글' ? 'google' : 'kakao'});color:${c.src === '구글' ? '#fff' : 'var(--on-kakao)'}">${esc(c.src)}</span></b><p class="cap">${esc([c.cuisine, c.km != null ? fmtKm(c.km) + 'km' : '', c.google?.reviews ? '리뷰 ' + c.google.reviews : ''].filter(Boolean).join(' · '))}</p></div></button>`).join('') : `<div class="help">${cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 새 후보 없음' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'}</div>`;
+      return; }
+    if (b.dataset.pickMeal) { cfg.forceMeals[b.dataset.slot] = b.dataset.pickMeal; if (cfg.candPick) delete cfg.candPick[b.dataset.slot]; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경'); return; }
+    if (b.dataset.pickCand != null) { const c = (S.swapCands || [])[+b.dataset.pickCand]; if (!c) return; cfg.candPick ||= {}; cfg.candPick[b.dataset.slot] = c; delete cfg.forceMeals[b.dataset.slot]; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경 · ' + c.name); return; }
     if (b.dataset.stay) { const [id, delta] = b.dataset.stay.split(':'); const p = placeById(id); const cur = cfg.stayOverride[id] ?? stayMin(p); cfg.stayOverride[id] = Math.max(30, cur + +delta); plan = buildPlan(cfg); showDay(curDi); return; }
     if (b.dataset.act === 'refine' && plan) { b.disabled = true; b.textContent = '실경로 조회 중…'; refinePlanRoutes(plan).then(n => { showDay(curDi); toast(n ? `${n}개 구간 실경로 반영` : '실경로 조회 실패 — 키 확인'); }); return; }
     if (b.dataset.act === 'saveplan' && plan) {
@@ -1168,7 +1200,7 @@ function openPlanner(prefill = {}) {
       t.title = cfg.title; t.year = +(cfg.start || today()).slice(0, 4); t.items = [];
       for (const day of plan.days) for (const it of day.items) if (it.kind !== 'move') t.items.push({ day: day.label, time: it.time, activity: it.activity, place: it.place, note: it.note || null, place_id: it.place_id || null });
         else t.items.push({ day: day.label, time: it.time, activity: it.activity, place: null, note: it.note, place_id: null });
-      t.plan = { start: cfg.start, days: cfg.days, maxSpots: cfg.maxSpots, lodging: cfg.lodging, breakfast: cfg.breakfast, rest: cfg.rest, startMin: cfg.startMin, endMin: cfg.endMin, spots: cfg.spots.map(x => x.id), dayOrders: cfg.dayOrders, stayOverride: cfg.stayOverride, forceMeals: cfg.forceMeals, region, area: cfg.area, autoFill: cfg.autoFill, lodge: cfg.lodge, radiusKm: cfg.radiusKm };   // 플래너로 다시 열기용
+      t.plan = { start: cfg.start, days: cfg.days, maxSpots: cfg.maxSpots, lodging: cfg.lodging, breakfast: cfg.breakfast, rest: cfg.rest, startMin: cfg.startMin, endMin: cfg.endMin, spots: cfg.spots.map(x => x.id), dayOrders: cfg.dayOrders, stayOverride: cfg.stayOverride, forceMeals: cfg.forceMeals, region, area: cfg.area, autoFill: cfg.autoFill, lodge: cfg.lodge, radiusKm: cfg.radiusKm, candPick: cfg.candPick || {} };   // 플래너로 다시 열기용
       if (cfg.saveLodge && cfg.lodge && !cfg.lodge.baseId && hasCoord(cfg.lodge)) {     // 숙소 → 거점 목록 (중복 좌표 200m 이내는 재사용)
         let lb = S.db.bases.find(x => hasCoord(x) && haversine(x, cfg.lodge) < 0.2);
         if (!lb) { lb = { id: uid('b'), name: cfg.lodge.name, country: cfg.lodge.country || 'KR', lat: cfg.lodge.lat, lng: cfg.lodge.lng, note: `숙소 · ${cfg.title}`, si: cfg.area !== 'all' ? cfg.area : null, address: cfg.lodge.address || null }; S.db.bases.push(lb); }
@@ -1190,7 +1222,7 @@ function renderPlan(plan, cfg, di = 0) {                        // 시안 08c: �
     if (it.kind === 'rest') return `<div class="pl-row rest"><span class="num rk" style="background:var(--text-3)">☾</span><div style="flex:1"><b>${esc(it.activity)}</b><p class="cap">${esc(it.time)} · 1시간 30분</p></div></div>`;
     k++; const isMeal = it.kind === 'meal'; const p = it.place_id && placeById(it.place_id); const apx = p && !hasCoord(p) ? '<span class="apx">대략</span>' : '';
     const dur = it.note && /h$/.test(it.note) ? it.note.replace(/(\d+(?:\.\d+)?)h/, (m, h) => `${+h >= 1 ? Math.floor(+h) + '시간' : ''}${Math.round((+h % 1) * 60) ? ' ' + Math.round((+h % 1) * 60) + '분' : ''}`.trim()) : (isMeal ? '1시간 20분' : '');
-    return `<div class="pl-row${isMeal ? ' meal' : ''}" data-idx="${i}" ${!isMeal && it.place_id ? 'draggable="true"' : ''}><span class="num rk" style="background:${colorOfIt(it)}">${k}</span><div style="flex:1;min-width:0"><b>${isMeal ? `${esc(it.activity)} · ${p ? esc(p.name) : '자동 추천'}` : esc(it.activity)}${apx}</b><p class="cap">${esc(it.time)}${dur ? ' · ' + dur : ''}${isMeal ? (p ? ` · ${esc(cuisineOf(p)[0] || '')}${it.note ? ' · ' + esc((apx && /^0\.\dkm$|^0km$/.test(it.note.split(' · ')[0])) ? '같은 지역' : it.note.split(' · ')[0]) : ''}` : ' · ' + esc(it.note || '')) : esc(tagsOf(it))}</p></div>${isMeal ? `<button class="chip" data-swap="${i}">바꾸기</button>` : (it.place_id ? `<span class="stayctl"><button data-stay="${it.place_id}:-30">−</button><button data-stay="${it.place_id}:30">＋</button></span><span class="cap3 grip">≡</span>` : '')}</div>`;
+    return `<div class="pl-row${isMeal ? ' meal' : ''}" data-idx="${i}" ${!isMeal && it.place_id ? 'draggable="true"' : ''}><span class="num rk" style="background:${colorOfIt(it)}">${k}</span><div style="flex:1;min-width:0"><b>${isMeal ? `${esc(it.activity)} · ${p ? esc(p.name) : it.cand ? esc(it.cand.name) : '자동 추천'}` : esc(it.activity)}${apx}</b><p class="cap">${esc(it.time)}${dur ? ' · ' + dur : ''}${isMeal ? (p ? ` · ${esc(cuisineOf(p)[0] || '')}${it.note ? ' · ' + esc((apx && /^0\.\dkm$|^0km$/.test(it.note.split(' · ')[0])) ? '같은 지역' : it.note.split(' · ')[0]) : ''}` : ' · ' + esc(it.note || '')) : esc(tagsOf(it))}</p></div>${isMeal ? `<button class="chip" data-swap="${i}">바꾸기</button>` : (it.place_id ? `<span class="stayctl"><button data-stay="${it.place_id}:-30">−</button><button data-stay="${it.place_id}:30">＋</button></span><span class="cap3 grip">≡</span>` : '')}</div>`;
   }).join('');
   return `<div class="pl-hd"><button class="back" data-act="plan-back">‹</button><b>자동 동선 · D${di + 1}</b><span class="cap">${di + 1} / ${n}</span></div>
     <div class="pl-prog">${plan.days.map((x, i) => `<span class="${i <= di ? 'on' : ''}"></span>`).join('')}</div>
@@ -1202,7 +1234,7 @@ function renderPlan(plan, cfg, di = 0) {                        // 시안 08c: �
 }
 function drawDetailMap(p, path) {                               // 상세 작은 지도 (시안 외 추가): 거점 → 장소, 실경로 있으면 경로선
   const el = $('#d-map'); if (!el || !window.L || !hasCoord(p)) return;
-  if (S.dMap) { S.dMap.remove(); S.dMap = null; }
+  if (S.dMap) { try { S.dMap.remove(); } catch {} S.dMap = null; }
   const b = baseFor(p); const m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false });
   L.tileLayer(tileUrl(), { maxZoom: 18 }).addTo(m);
   const pts = [[p.lat, p.lng]];
@@ -1212,23 +1244,23 @@ function drawDetailMap(p, path) {                               // 상세 작은
     L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: '<span class="pl-pin" style="background:var(--accent);color:#000">⌂</span>', iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(m);
   }
   L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<span class="pl-pin" style="background:${catColor(p)}">${esc(catGlyph(p))}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(m);
-  if (pts.length > 1) m.fitBounds(pts, { padding: [26, 26], maxZoom: 14 }); else m.setView(pts[0], 14);
-  S.dMap = m; setTimeout(() => m.invalidateSize(), 60);
+  if (pts.length > 1) m.fitBounds(pts, { padding: [26, 26], maxZoom: 14, animate: false }); else m.setView(pts[0], 14, { animate: false });
+  S.dMap = m; setTimeout(() => { if (S.dMap === m && m._container?.isConnected) m.invalidateSize(false); }, 60);
   el.onclick = () => { closeSheet(); showView('map'); map.setView([p.lat, p.lng], 14); selectOnMap(p.id); };
 }
 function drawPlanMap(plan, di) {                                  // 동선 미니 지도 (Leaflet)
   const el = $('#pl-map'); if (!el || !window.L) return;
   const d = plan.days[di]; const pts = []; const marks = [];
   let k = 0;
-  for (const it of d.items) { const p = it.kind === 'base' ? (it.place_id ? placeById(it.place_id) : null) : (it.place_id && placeById(it.place_id)); const c = p && approxCoord(p) ? approxCoord(p) : (it.kind === 'base' && hasCoord(S.base || {}) ? S.base : null); if (!c) continue; if (it.kind !== 'move') { pts.push([c.lat, c.lng]); if (it.kind !== 'base') { k++; marks.push({ ll: [c.lat, c.lng], n: k, color: it.kind === 'meal' ? (p ? catColor(p) : 'var(--cat-seafood)') : 'var(--cat-spot)' }); } else marks.push({ ll: [c.lat, c.lng], n: '⌂', color: 'var(--pin)', base: true }); } }
-  if (S.plMap) { S.plMap.remove(); S.plMap = null; }
+  for (const it of d.items) { const p = it.kind === 'base' ? (it.place_id ? placeById(it.place_id) : null) : (it.place_id && placeById(it.place_id)); const c = p && approxCoord(p) ? approxCoord(p) : it.cand && hasCoord(it.cand) ? it.cand : it.kind === 'base' ? (plan.lodge && /숙소/.test(it.activity) ? plan.lodge : hasCoord(plan.home || S.base || {}) ? (plan.home || S.base) : null) : null; if (!c) continue; if (it.kind !== 'move') { pts.push([c.lat, c.lng]); if (it.kind !== 'base') { k++; marks.push({ ll: [c.lat, c.lng], n: k, color: it.kind === 'meal' ? (p ? catColor(p) : it.cand ? `var(--cat-${CAT_VAR[it.cand.cuisine] || 'etc'})` : 'var(--cat-seafood)') : 'var(--cat-spot)' }); } else marks.push({ ll: [c.lat, c.lng], n: '⌂', color: 'var(--pin)', base: true }); } }
+  if (S.plMap) { try { S.plMap.remove(); } catch {} S.plMap = null; }
   if (pts.length < 1) { el.insertAdjacentHTML('beforeend', '<div class="help" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">좌표 있는 일정이 없어 지도를 못 그립니다</div>'); return; }
   const m = L.map(el, { zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false });
   L.tileLayer(tileUrl(), { maxZoom: 18, attribution: '&copy; OpenStreetMap contributors' }).addTo(m);
   const path = (S.planPaths && S.planPaths[di]) || pts;
   L.polyline(path, { color: '#024968', weight: 4, lineCap: 'round' }).addTo(m);
   for (const mk of marks) L.marker(mk.ll, { icon: L.divIcon({ className: '', html: `<span class="pl-pin" style="background:${mk.color};${mk.base ? 'color:#000' : ''}">${mk.n}</span>`, iconSize: [28, 28], iconAnchor: [14, 14] }) }).addTo(m);
-  m.fitBounds(pts, { padding: [28, 28], maxZoom: 13 }); S.plMap = m; setTimeout(() => m.invalidateSize(), 50);
+  m.fitBounds(pts, { padding: [28, 28], maxZoom: 13, animate: false }); S.plMap = m; setTimeout(() => { if (S.plMap === m && m._container?.isConnected) m.invalidateSize(false); }, 50);
 }
 /* ---------------- 실경로 (카카오모빌리티 REST) ----------------
  * 키는 이 기기 브라우저에만 저장 (공개 저장소 db.json에 넣지 않음). 결과는 30일 캐시.
@@ -1904,7 +1936,7 @@ function renderTrips() {
     if (b.dataset.act === 'txlsx') exportXlsx({ trip: t });
     if (b.dataset.act === 'guide') exportGuideJson(t);
     if (b.dataset.act === 'journal') openJournal({ tripId: t.id });
-    if (b.dataset.act === 'replan') openPlanner({ tripId: t.id, title: t.title, region: t.plan.region, start: t.plan.start, days: t.plan.days, maxSpots: t.plan.maxSpots, spots: t.plan.spots, dayOrders: t.plan.dayOrders, stayOverride: t.plan.stayOverride, forceMeals: t.plan.forceMeals, area: t.plan.area, autoFill: t.plan.autoFill, lodge: t.plan.lodge, radiusKm: t.plan.radiusKm });
+    if (b.dataset.act === 'replan') openPlanner({ tripId: t.id, title: t.title, region: t.plan.region, start: t.plan.start, days: t.plan.days, maxSpots: t.plan.maxSpots, spots: t.plan.spots, dayOrders: t.plan.dayOrders, stayOverride: t.plan.stayOverride, forceMeals: t.plan.forceMeals, area: t.plan.area, autoFill: t.plan.autoFill, lodge: t.plan.lodge, radiusKm: t.plan.radiusKm, candPick: t.plan.candPick });
     if (b.dataset.edititem != null) openItemEdit(t, +b.dataset.edititem);
   };
 }
