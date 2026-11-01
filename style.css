@@ -495,6 +495,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .tl-card .num.ok { font-size: 12px; color: var(--success); font-weight: 700; } .tl-card .num.off, .tl-card .num.warn { font-size: 12px; color: var(--text-3); font-weight: 700; }
 .tl-card .lnk { background: none; border: 0; color: var(--primary-2); font-size: 18px; padding: 0 2px; }
 .tl2 .mv { display: flex; justify-content: center; } .tl2 .mv span { width: 0; border-left: 2px dashed var(--line-strong); min-height: 22px; } .tl2 .mvt { padding: 0 0 12px; font-size: 12px; color: var(--text-2); }
+.tp-acts button.danger { color: var(--danger); border-color: var(--danger-soft); }
 .tp-acts { display: flex; gap: 6px; padding: 10px 18px 90px; flex-wrap: wrap; } .tp-acts button { border: 1px solid var(--line); background: var(--panel); color: var(--text-1); border-radius: 10px; padding: 7px 12px; font-size: 13px; }
 .fab-add { position: fixed; right: 18px; bottom: calc(var(--nav-h) + 20px + env(safe-area-inset-bottom, 0px)); height: 52px; padding: 0 18px; border-radius: 999px; background: var(--accent); color: #000; border: 0; font-weight: 700; box-shadow: var(--sh-float); z-index: 50; }
 @media (min-width: 861px) { .fab-add { bottom: 24px; right: calc(50% - 260px + 18px); } #view-trips .wrap { margin-top: 20px; border-radius: 22px; overflow: hidden; box-shadow: var(--sh-card); background: var(--panel); } .tp-hero { border-radius: 22px 22px 0 0; } }

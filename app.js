@@ -2013,7 +2013,7 @@ function renderTrips() {
     <div class="daytabs">${days.map((d, i) => { const m2 = d.match(/(\d{1,2})\/(\d{1,2})/); return `<button data-day="${i}" class="${i === S.tripDay ? 'on' : ''}">D${i + 1}<b class="num">${m2 ? `${m2[1].padStart(2, '0')}.${m2[2].padStart(2, '0')}` : esc(d)}</b></button>`; }).join('')}</div>
     <div class="tl-wrap"><div class="legend"><span class="chip"><i style="background:var(--cat-spot)"></i>휴양지</span><span class="chip"><i style="background:var(--cat-seafood)"></i>식사</span><span class="chip"><i class="dash"></i>이동</span></div>
       <div class="tl2">${rows || '<div class="help">이 날 일정이 없습니다.</div>'}</div></div>
-    <div class="tp-acts">${t.plan ? '<button class="rw" data-act="replan">플래너로 다시 열기</button>' : ''}<button data-act="region">${REGION_LABEL[region] || region} 식당 보기</button><button data-act="txlsx">엑셀</button><button data-act="journal">여행기</button><button data-act="guide">안내서 만들기</button></div>
+    <div class="tp-acts">${t.plan ? '<button class="rw" data-act="replan">플래너로 다시 열기</button>' : ''}<button data-act="region">${REGION_LABEL[region] || region} 식당 보기</button><button data-act="txlsx">엑셀</button><button data-act="journal">여행기</button><button data-act="guide">안내서 만들기</button><button class="rw danger" data-act="deltrip">여행 삭제</button></div>
     <button class="fab-add rw" data-act="additem">+ 일정 추가</button>`;
   el.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -2026,8 +2026,9 @@ function renderTrips() {
     if (b.dataset.act === 'edit-trip') openTripEdit(t);
     if (b.dataset.act === 'tshare') shareLink('t', t.id, t.title);
     if (b.dataset.act === 'txlsx') exportXlsx({ trip: t });
-    if (b.dataset.act === 'guide') exportGuideJson(t);
+    if (b.dataset.act === 'guide') openGuideMenu(t);
     if (b.dataset.act === 'journal') openJournal({ tripId: t.id });
+    if (b.dataset.act === 'deltrip') { if (b.dataset.c) { trashPut('trip', t); S.db.trips = S.db.trips.filter(x => x !== t); markDirty(); S.trip = null; renderTrips(); toast('여행 삭제 — 설정 › 휴지통에서 30일 안에 복원 가능'); } else { b.dataset.c = 1; b.textContent = '정말 삭제? (한 번 더)'; setTimeout(() => { if (b.isConnected) { delete b.dataset.c; b.textContent = '여행 삭제'; } }, 4000); } return; }
     if (b.dataset.act === 'replan') openPlanner({ tripId: t.id, title: t.title, region: t.plan.region, start: t.plan.start, days: t.plan.days, maxSpots: t.plan.maxSpots, spots: t.plan.spots, dayOrders: t.plan.dayOrders, stayOverride: t.plan.stayOverride, forceMeals: t.plan.forceMeals, area: t.plan.area, autoFill: t.plan.autoFill, lodge: t.plan.lodge, radiusKm: t.plan.radiusKm, candPick: t.plan.candPick, mealKm: t.plan.mealKm });
     if (b.dataset.edititem != null) openItemEdit(t, +b.dataset.edititem);
   };
@@ -2054,7 +2055,7 @@ function openTripEdit(t) {
   f.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'close') closeSheet(); if (b.dataset.del != null) { t.items.splice(+b.dataset.del, 1); markDirty(); openTripEdit(t); } if (b.dataset.act === 'deltrip') { if (b.dataset.c) { trashPut('trip', t); S.db.trips = S.db.trips.filter(x => x !== t); markDirty(); closeSheet(); S.trip = null; renderTrips(); } else { b.dataset.c = 1; b.textContent = '정말 삭제? (다시 클릭)'; } } });
 }
 // 안내서 스킬(trip-guide-html)용 JSON 내보내기
-function exportGuideJson(t) {                                    // trip-guide-html v2 입력 스키마(2-1절)에 맞춘 내보내기
+function guideData(t) {                                          // trip-guide-html v2 입력 스키마(2-1절)
   const region = t.plan?.region || tripRegion(t);
   const lodge = t.plan?.lodge && hasCoord(t.plan.lodge) ? t.plan.lodge : null;
   const base = lodge || S.db.bases.find(b => b.default_for === region) || baseFor({ country: t.country, region }) || S.base;
@@ -2074,6 +2075,110 @@ function exportGuideJson(t) {                                    // trip-guide-h
   const trip = { id: t.id, title: t.title, city: tripCity(t), country: t.country, year: t.year, planned: !!t.planned, start: t.plan?.start || iso(start), end: iso(end), travelers: familyNames(), interests: t.interests || [],
     items: t.items.map(i => ({ day: i.day, time: i.time, activity: i.activity, place: i.place, note: i.note || null, place_id: i.place_id || null })) };
   const out = { trip, places, base: base ? { name: base.name, lat: base.lat, lng: base.lng, addr: base.address || base.note || '' } : null, family: { ...(S.db.meta.family || {}) }, mode: t.country === 'KR' ? 'domestic' : 'overseas' };
+  return { out, base, trip, places };
+}
+/* ---------------- 간이 안내서 (앱에서 바로 HTML · trip-guide-html v2 템플릿, 조사 섹션 없이) ---------------- */
+const G_MON = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+const G_COUNTRY_KO = { AU: '호주', VN: '베트남', JP: '일본', TH: '태국', US: '미국', GU: '괌', KR: '한국' };
+async function toDataUri(src, side = 1600, q = 0.82) {          // 사진 → data URI (크면 축소)
+  if (!src) return ''; if (src.startsWith('data:') && src.length < 400000) return src;
+  try {
+    const r = await fetch(src); if (!r.ok) return ''; const blob = await r.blob();
+    const bmp = await createImageBitmap(blob); const k = Math.min(1, side / Math.max(bmp.width, bmp.height));
+    if (k === 1 && blob.size < 450000) return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', q);
+  } catch { return ''; }
+}
+async function textOf(path, embedKey) { if (window[embedKey]) return window[embedKey]; const r = await fetch(path); if (!r.ok) throw new Error(path + ' ' + r.status); return r.text(); }
+async function buildGuideHtml(t, onStep = () => {}) {
+  const { out } = guideData(t); const trip = out.trip, base = out.base || {}, OV = out.mode === 'overseas';
+  const hoursText = h => !h ? '' : typeof h === 'string' ? h : h.text || [h.open && h.close ? `${h.open}–${h.close}` : '', (h.closed || []).length ? `휴무 ${h.closed.join('·')}` : ''].filter(Boolean).join(' · ');
+  const hasLL = p => typeof p.lat === 'number' && typeof p.lng === 'number';
+  // 사진: 가족 사진 → 관광공사 → (여행 표지 · 계절 사진)
+  const coverKey = Object.keys(TRIP_COVER).find(k => (trip.city || '').includes(k));
+  onStep('표지 사진');
+  const heroImg = await toDataUri(asset(coverKey ? `assets/trip-cover-${TRIP_COVER[coverKey]}.jpg` : `assets/hero-${SEASON_EN[seasonNow(trip.start ? new Date(trip.start + 'T00:00:00') : new Date())]}.jpg`), 2560, 0.84);
+  const P = {}; const byName = {};
+  const itemIds = new Set(trip.items.map(i => i.place_id).filter(Boolean));
+  let n = 0; const total = out.places.filter(p => p.type !== 'restaurant').length;
+  for (const p of out.places) {
+    let photo = '', credit = '';
+    if (p.type !== 'restaurant' || itemIds.has(p.id)) {             // 식당 사진은 일정에 있는 곳만 (용량)
+      if (p.type !== 'restaurant') onStep(`사진 ${++n}/${total}`);
+      if (p.photo) { photo = await toDataUri(p.photo); credit = photo ? '가족 사진' : ''; }
+      if (!photo && p.basePhoto?.path) { photo = await toDataUri(p.basePhoto.path); credit = photo ? '한국관광공사' : ''; }
+    }
+    const q = { ...p, _photo: photo, _credit: credit }; P[p.id] = q; byName[p.name] = q;
+  }
+  // 일정
+  const order = [], days = {}; for (const it of trip.items) { const lab = it.day || 'Day 1'; if (!days[lab]) { days[lab] = []; order.push(lab); } days[lab].push(it); }
+  const itin = [], dayPhotos = [], appear = {};
+  order.forEach((lab, di) => { const evs = [], route = []; let photo = '';
+    for (const it of days[lab]) { const p = it.place_id ? P[it.place_id] : byName[it.place || ''];
+      const desc = [it.place && !(it.activity || '').includes(it.place) ? it.place : '', it.note || ''].filter(Boolean).join(' · ');
+      const visited = !!(p && (p.visitLog || []).length); evs.push(visited ? [it.time || '', it.activity || '', desc, true] : [it.time || '', it.activity || '', desc]);
+      if (p) { appear[p.id] ||= `DAY ${di + 1} · ${lab}`; if (!route.includes(p.name)) route.push(p.name); photo ||= p._photo; } }
+    itin.push({ title: evs.filter(e => e[1] && !/^(출발|귀가|숙소|이동)/.test(e[1])).slice(0, 2).map(e => e[1]).join(' · ') || evs.slice(0, 2).map(e => e[1]).join(' · '), level: '', events: evs, route: base.name && route.length ? [base.name, ...route, base.name] : route, notes: '' });
+    dayPhotos.push(photo || heroImg); });
+  const start = trip.start || '', end = trip.end || start;
+  // 목적지
+  const guide = Object.values(P).filter(p => p.type !== 'restaurant' && (itemIds.has(p.id) || !OV)).map(p => ({ tab: p.name.split(' · ')[0].slice(0, 14), name: p.name, en: '', when: appear[p.id] || (p.tags || []).join(' · '),
+    dest: p.name + (p.addr ? ' ' + p.addr : ''), lat: hasLL(p) ? p.lat : null, lng: hasLL(p) ? p.lng : null, img: p._photo || heroImg,
+    intro: [p.signature, p.addr, p._credit ? `사진 ${p._credit}` : ''].filter(Boolean), facts: [p.hours ? { k: '영업', v: hoursText(p.hours) } : null, !OV && p.parking?.type ? { k: '주차', v: p.parking.type } : null, (p.tags || []).length ? { k: '태그', v: p.tags.map(x => '#' + x).join(' ') } : null].filter(Boolean),
+    how: [], see: [], tip: (p.visitLog || []).slice(-1).map(v => v.memo ? `우리 기록: “${v.memo}”` : '')[0] || '', booking: [], bookingNote: '' }));
+  // 식당
+  const rest = Object.values(P).filter(p => p.type === 'restaurant').map(p => { const km = p.km ?? (hasLL(p) && base.lat != null ? Math.round(haversine(base, p) * 10) / 10 : null);
+    return [p.area || trip.city || '', p.name, p.name, p.cuisine ? p.cuisine.split(', ') : ['기타'], p.signature || '', p.addr || '', km, p.min ?? (km != null ? Math.round(km * 3 + 3) : null), (p.tags || []).join(' · '), p.q || p.name, hasLL(p) ? p.lat : null, hasLL(p) ? p.lng : null]; });
+  const rcats = [...new Set(rest.flatMap(r => r[3]))].sort();
+  const parking = OV ? [] : Object.values(P).filter(p => p.parking?.type).map(p => ({ k: p.name, v: [p.parking.type, p.parking.fee].filter(Boolean).join(' · ') || '주차 정보', sub: [p.parking.crowd, p.parking.note, (p.parking.lots || []).map(l => typeof l === 'string' ? l : l.name).join(' / ')].filter(Boolean).join(' · ') }));
+  // 표지·브랜드
+  onStep('로고·글꼴');
+  const d2 = s => { const d = s ? new Date(s + 'T00:00:00') : null; return d && !isNaN(d) ? d : null; }; const sd = d2(start), ed = d2(end);
+  const hrange = sd && ed ? `${String(sd.getDate()).padStart(2, '0')} ${G_MON[sd.getMonth()]} — ${String(ed.getDate()).padStart(2, '0')} ${G_MON[ed.getMonth()]} ${ed.getFullYear()}` : '';
+  const FLIGHT = /\b([A-Z]{2}|[A-Z]\d|\d[A-Z])\s?\d{2,4}\b/;
+  const tt = trip.items.filter(it => it.time && FLIGHT.test(`${it.activity || ''} ${it.note || ''}`)).slice(0, 8).map(it => ({ k: it.activity, v: it.time, d: it.day }));
+  const nights = sd && ed ? Math.max(0, Math.round((ed - sd) / 864e5)) : 0;
+  const who = [trip.travelers?.length ? `${trip.travelers.length}명 (${trip.travelers.join(' + ')})` : '', sd && ed ? `${trip.city} ${nights}박` : '', base.name || ''].filter(Boolean).join(' · ');
+  const brand = { logo: await toDataUri(asset('assets/logo-header.png'), 600), globe: OV ? await toDataUri(asset('assets/mark-globe.png'), 600) : '', stamp: await toDataUri(asset('assets/mark-stamp.png'), 600) }; brand.noStamp = !brand.stamp;
+  const img = {}; for (const k of ['hero', 'prepare', 'phrases', 'missions', 'info', 'restaurants', 'tickets', 'docs']) img[k] = heroImg || dayPhotos[0] || '';
+  const pages = [['Home', 0], ['Before You Go', 3], ['Itinerary', 1]]; if (guide.length) pages.push(['Destinations', 2]); if (rest.length) pages.push(['Restaurants', 7]); pages.push(['Info', 6]);
+  const view = { brand, img, heroRange: hrange, heroCity: trip.city || '', heroTagline: trip.title || '', heroDesc: '', heroFoot: who, timetable: tt,
+    planLabel: '계획 기준', transitFoot: '요금·소요시간은 대략값 · 지도 버튼은 인터넷 연결 필요', hasTransit: false, gMapLabel: '숙소에서 길찾기 ↗', eatNote: '영업시간·위치는 방문 전 지도 앱에서 재확인',
+    prepareSub: '날씨·준비물은 출발 전 확인', hasBio: false, bioEn: '', bioTitle: '', bioNote: '', budgetSub: '현지 지출 기준', budgetNote: '', principles: [], principlesSub: '이번 일정의 기준',
+    phrasesTitle: '', phrasesSub: '', missionTitle: '여행 미션', missionSub: '여행하면서 하나씩 체크',
+    transfers: base.name ? [{ k: '숙소', title: base.name, lines: [base.addr].filter(Boolean), note: '', link: '', linkLabel: '' }] : [], transfersSub: '이동은 편하게, 예약은 명확하게',
+    hasPay: false, payTitle: '', paySub: '', payNote: '', hasParking: !!parking.length, parkingNote: '주차 요금·혼잡도는 방문 전 지도 앱에서 재확인', sosNote: '휴대폰에 저장 + 종이로 한 장 출력해 가방에 보관',
+    hasOps: false, opsTitle: '운영 확인', opsText: '', opsLinks: [], foodTitle: 'Local Food', foodSub: '꼭 먹어 볼 음식', foodNote: '맛집 위치는 Restaurants 탭 참고',
+    restTitle: '구역별 식당 정리 · 일정이 바뀌어도 근처에서 고르기', restSub: '상호·주소 옆 복사 버튼 → 지도·택시 앱에 붙여넣기', distHead: '숙소에서', restFoot: '영업시간·위치는 방문 전 지도 앱에서 재확인',
+    ticketGroups: [], ticketsSub: '', docLead: '', visaEn: '', visaTitle: '', visaSource: '', returnTitle: '귀국', hasVisa: false, hasArrival: false, hasPax: false, hasDecl: false, hasReturn: false, hasRefs: false,
+    footCity: trip.city || '', footRange: (start ? start.replace(/-/g, '.') + '–' + (end || '').slice(5).replace(/-/g, '.') : '') + (trip.title ? ' · ' + trip.title : ''), footCredits: '사진: 우리 가족 · 한국관광공사 · 준준 TRIP' };
+  const TRIP = { id: trip.id || 'trip', mode: out.mode, start, end, itin, labels: order, dayPhotos, tasks: [], tasksDone: [], pack: [], missions: [], facts: [], bio: [], budget: [],
+    fx: OV ? { cur: '', rate: 1 } : { cur: '', rate: 1 }, contacts: [], rest, rcats, hotel: base.name || '', guide, guideFood: {}, phrases: [], transit: {}, infoTabs: [{ key: 'move', label: '이동 · 숙소' }, { key: 'sos', label: '비상 연락' }],
+    extras: [], pay: [], parking, food: [], football: { title: '', lead: '', intro: '', labels: {}, record: [], history: [], clubs: [], players: [], legends: [], korea: [], recordNote: '', playersNote: '' },
+    arrivalCard: [], travelers: [], declarations: [], refs: [], returnInfo: [], eta: { summary: '', tips: '', steps: [] }, docNote: '', pages, view };
+  onStep('템플릿');
+  let html = await textOf('guide/template.html', 'EMBED_GUIDE_TPL'); const tokens = await textOf('tokens.css', 'EMBED_TOKENS').catch(() => '');
+  html = html.replace('__TRIP_DATA__', () => JSON.stringify(TRIP).replace(/<\//g, '<\\/')).replace('__TITLE__', () => (trip.title || trip.city || '여행 안내서').replace(/</g, '')).replace('/*__TOKENS_OVERRIDE__*/', () => tokens);
+  return { html, fname: `${today().replace(/-/g, '.')}_${(trip.city || 'Trip').replace(/[\\/:*?"<>|\s]+/g, '_')}_Travel_Offline_간이.html` };
+}
+async function exportGuideHtml(t, btn) {
+  const lab = btn?.textContent; const step = s => { if (btn) btn.textContent = `만드는 중… ${s}`; };
+  if (btn) btn.disabled = true;
+  try { const { html, fname } = await buildGuideHtml(t, step); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' })); a.download = fname; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 4000); toast(`간이 안내서 저장: ${fname} (${(html.length / 1e6).toFixed(1)}MB)`, 3500); }
+  catch (err) { toast('안내서 만들기 실패: ' + err.message, 4000); }
+  if (btn) { btn.disabled = false; btn.textContent = lab; }
+}
+function openGuideMenu(t) {                                      // 안내서: 간이(앱에서 바로 HTML) / 완성본(클로드 + 스킬)
+  openSheet(`<div class="ks-sheet"><div class="hd"><button class="back" data-act="close">‹</button><div style="flex:1"><p class="cap3">${esc(tripCity(t))} · 오프라인 HTML</p><b>안내서 만들기</b></div></div>
+    <div class="ks-body">
+      <div class="grp" style="margin:0"><div style="flex-direction:column;align-items:stretch;gap:8px"><span><b>간이 안내서 · 바로 받기</b><p class="cap3">일정 · 목적지 · 식당 · 주차 · 우리 기록 · 사진(가족 → 관광공사 → 여행 표지). 인터넷 없이 열림. 준비물·현지 정보 같은 조사 내용은 없음</p></span><button class="btn pri" data-act="ghtml">HTML 바로 받기</button></div>
+        <div style="flex-direction:column;align-items:stretch;gap:8px"><span><b>완성본 · 클로드에게 맡기기</b><p class="cap3">간이 내용 + 준비물·날씨·교통·현지 정보·관심사 탭까지 조사해서 시드니 안내서 수준으로. JSON 받아 클로드 대화에 첨부</p></span><button class="btn line" data-act="gjson">JSON + 요청문 받기</button></div></div>
+    </div></div>`);
+  $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'close') closeSheet(); if (b.dataset.act === 'ghtml') exportGuideHtml(t, b); if (b.dataset.act === 'gjson') exportGuideJson(t); };
+}
+function exportGuideJson(t) {                                    // 안내서용 JSON (클로드 + trip-guide-html 스킬로 완성본)
+  const { out, base, trip, places } = guideData(t);
   const fname = `${today().replace(/-/g, '.')}_${tripCity(t)}_guide.json`;
   const blob = new Blob([JSON.stringify(out, null, 1)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fname; a.click();
   const prompt = `첨부한 ${fname}로 trip-guide-html 스킬을 써서 ${tripCity(t)} 오프라인 여행 안내서를 만들어줘.\n- 모드: ${out.mode === 'domestic' ? '국내' : '해외'} / 기간: ${trip.start || '?'} ~ ${trip.end || '?'} / 숙소: ${base?.name || '미정'}\n- guide 블록은 출처 있는 정보만, 없는 값은 지어내지 말 것\n- 여권·예약번호는 넣지 말 것\n- 결과 HTML 하나로 (사진·폰트 내장)`;
