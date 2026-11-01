@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="JJ TRIP">
+<title>준준 TRIP</title>
+<link rel="icon" href="assets/icon-192.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Nanum+Myeongjo:wght@400;700;800&family=IBM+Plex+Mono:wght@500;600&family=Inria+Sans:wght@400&family=Odor+Mean+Chey&display=swap">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<link rel="stylesheet" href="vendor/MarkerCluster.css">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <button class="brand" id="brand-btn" title="홈">
+      <img src="assets/mark-faces.png" alt="" class="faces"><img src="assets/wordmark-white.png" alt="준준 TRIP" class="word">
+    </button>
+    <nav class="topnav" id="tabs">
+      <button data-view="home">홈</button>
+      <button data-view="explore">찾기</button>
+      <button data-view="trips">여행</button>
+      <button data-view="settings">설정</button>
+    </nav>
+    <div class="search">
+      <input id="q-hdr" type="search" placeholder="장소·식당·메뉴 검색" autocomplete="off">
+    </div>
+    <div class="hdr-right">
+      <button id="base-btn" class="base-btn" title="거점 변경"><span class="base-ico">⌂</span> <span id="base-name">거점</span><span class="chev">▾</span></button>
+      <button id="today-btn" class="icon-btn today" title="오늘 뭐 먹지">🍽</button>
+      <button id="add-btn" class="icon-btn rw" title="장소 추가">＋</button>
+      <span id="sync" class="sync" title="저장 상태"></span>
+    </div>
+  </header>
+
+  <!-- 홈 (매거진) -->
+  <section id="view-home" class="page"></section>
+
+  <!-- 찾기 (지도 + 목록) — 시안 02(폰)·W2(PC) -->
+  <main id="main" class="page">
+    <div id="map"></div>
+    <div id="map-top" class="map-top"><label class="mbox"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input id="q" type="search" placeholder="이 근처 맛집 검색" autocomplete="off"></label><button id="base-chip" class="base-chip"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--accent);stroke-width:2.4"><path d="M4 11 12 4l8 7v9H4Z"></path></svg><span id="base-chip-name">거점</span> ▾</button></div>
+    <div id="fab" class="fab"><button id="fab-loc" title="내 위치"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg></button><button id="fab-km" class="mono" title="반경">km</button><button id="fab-add" class="rw" title="장소 추가" style="font-size:22px;font-weight:700">＋</button></div>
+    <div id="km-pills" class="km-pills"><button data-km="10">10km</button><button data-km="30">30km</button><button data-km="60">60km</button></div>
+    <aside id="panel">
+      <div class="grip" id="grip"><span></span></div>
+      <section id="view-list" class="view on">
+        <div class="filters">
+          <label class="mbox pc-search-box"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input id="q-pc" type="search" placeholder="이 근처 맛집 검색" autocomplete="off"></label>
+          <div class="p-title"><div><b><span id="base-name2">거점</span> 기준 <span id="count" class="mono">0</span>곳</b><p id="count-sub">가까운 순</p></div>
+            <div class="seg" id="f-scope"><button data-v="restaurant">식당</button><button data-v="spot">휴양지</button><button data-v="all" class="on">전체</button></div></div>
+          <div class="chips" id="f-season">
+            <button data-v="open">영업중</button><button data-v="unvisited">미방문</button>
+            <button class="dd" id="region-dd">국내 ▾</button><button class="dd" id="season-dd">계절 ▾</button>
+            <button data-v="saved"><b style="color:var(--naver)">N</b>저장✔</button><button data-v="wish">가고싶다★</button>
+            <span id="f-tags" class="tagwrap"></span>
+          </div>
+          <div class="sortrow"><span id="count2"></span><label class="sortsel">정렬 <select id="sort"><option value="dist">가까운 순</option><option value="rating">별점순</option><option value="reviews">네이버 리뷰순</option><option value="name">이름순</option></select></label></div>
+          <div id="f-region" hidden></div>
+        </div>
+        <div id="list" class="list"></div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- 여행 -->
+  <section id="view-trips" class="page"><div class="wrap"><div id="trips"></div></div></section>
+
+  <!-- 설정 -->
+  <section id="view-settings" class="page"><div class="wrap"><div class="settings" id="settings"></div></div></section>
+
+  <nav id="mobile-nav">
+    <button data-view="home"><svg class="i" viewBox="0 0 24 24"><path d="M4 10 12 4l8 6v10H4Z"></path><path d="M10 20v-6h4v6"></path></svg>홈</button>
+    <button data-view="explore"><svg class="i" viewBox="0 0 24 24"><path d="m9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Z"></path></svg>찾기</button>
+    <button data-view="trips"><svg class="i" viewBox="0 0 24 24"><path d="M3 15 21 8l-4 9-5-2-3 4v-5Z"></path></svg>여행</button>
+    <button data-view="settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"></path></svg>설정</button>
+  </nav>
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-inner" id="sheet-inner"></div>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+</div>
+
+<script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet.markercluster.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

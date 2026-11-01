@@ -1,0 +1,116 @@
+/* 준준 TRIP — Design Tokens v1 (2026.10.28)
+   기준: World Tours 남색청록 + 골드로 폰·PC 통일. 스탬프 딥틸 / 지도 핀 앰버 유지.
+   다크모드: <html data-theme="dark"> 또는 OS 설정(prefers-color-scheme) — 같은 변수명. */
+
+
+:root{
+  /* ── 표면 ── */
+  --bg:#ffffff;            /* 앱 바탕 */
+  --bg-subtle:#f5f8f9;     /* 섹션 바탕, 입력칸 */
+  --panel:#ffffff;         /* 카드·시트 */
+  --panel-2:#eef3f5;       /* 선택된 행, 세그먼트 바탕 */
+  --hero:#0e3a4b;          /* 히어로·헤더 진한 바탕 */
+  --scrim:linear-gradient(90deg,rgba(14,58,75,.82),rgba(14,58,75,.5) 40%,rgba(14,58,75,0) 62%);
+
+  /* ── 글자 3단계 ── */
+  --text-1:#0e3a4b;        /* 제목·본문 */
+  --text-2:#4a6074;        /* 보조 */
+  --text-3:#8a9aa6;        /* 캡션·비활성 */
+  --text-on-dark:#ffffff;
+  --text-on-dark-2:rgba(255,255,255,.87);
+
+  /* ── 선 ── */
+  --line:#e3e8ea;
+  --line-strong:#c5d0d4;
+
+  /* ── 포인트 / 강조 ── */
+  --primary:#024968;       /* 남색청록 (deep sea) — 주 버튼·활성 탭 */
+  --primary-2:#288d9d;     /* 청록 (lagoon) — 링크·보조 강조 */
+  --primary-soft:#e8f3f5;
+  --on-primary:#ffffff;
+  --accent:#ffbc00;        /* 골드 — CTA·활성 밑줄·별점 */
+  --accent-soft:#fff4d1;
+  --on-accent:#000000;
+  --pin:#f59e0b;           /* 지도 거점 마커·거리 링 */
+  --stamp:#0f766e;         /* 방문 스탬프 (mark-stamp-teal.png) */
+  --star:#d89a00;
+
+  /* ── 상태 ── */
+  --success:#16794a;  --success-soft:#e6f4ef;   /* 영업중 */
+  --warning:#b45309;  --warning-soft:#fdf1dc;   /* 곧 마감·브레이크 */
+  --danger:#c0392b;   --danger-soft:#fbe6e3;    /* 오류·영업종료 */
+  --info:#2471a3;     --info-soft:#e7f0f8;
+
+  /* ── 외부 브랜드 (길찾기 버튼 등) ── */
+  --naver:#03c75a; --kakao:#fee500; --on-kakao:#3c1e1e; --google:#4285f4;
+
+  /* ── 음식 종류별 색 ── */
+  --cat-korean:#c0392b;     /* 한식 */
+  --cat-chinese:#d35400;    /* 중식 */
+  --cat-japanese:#7d3c98;   /* 일식 */
+  --cat-western:#2471a3;    /* 양식 */
+  --cat-cafe:#8d6e63;       /* 카페 */
+  --cat-local:#2e8b57;      /* 현지 */
+  --cat-seafood:#0e7490;    /* 해산물 */
+  --cat-pho:#b7791f;        /* 쌀국수 */
+  --cat-bbq:#9c2f1f;        /* BBQ */
+  --cat-etc:#6b7280;        /* 기타 */
+  --cat-spot:#288d9d;       /* 휴양지 */
+
+  /* ── 글꼴 ── */
+  --font-display:"Odor Mean Chey","Nanum Myeongjo",serif;  /* 영문·숫자 디스플레이, 한글은 나눔명조로 대체 */
+  --font-serif:"Nanum Myeongjo",serif;                       /* 한줄평·도시명 */
+  --font-body:"Noto Sans KR",-apple-system,sans-serif;
+  --font-nav:"Inria Sans","Noto Sans KR",sans-serif;
+  --font-num:"IBM Plex Mono","Noto Sans KR",ui-monospace,monospace;   /* 한글이 섞이면 Noto로 (고정폭 한글 대체 글꼴 방지) */         /* 거리·시간·날짜 */
+  --fw-regular:400; --fw-medium:500; --fw-bold:700; --fw-black:900;
+
+  /* ── 크기 단계 (폰 기준 / PC는 ×1.2~1.6) ── */
+  --fs-hero:42px;   --lh-hero:1.2;   /* 히어로 제목 (PC 68px) */
+  --fs-h1:28px;     --lh-h1:1.25;    /* 화면 제목·장소명 */
+  --fs-h2:20px;     --lh-h2:1.3;     /* 섹션 제목 */
+  --fs-h3:16px;     --lh-h3:1.4;     /* 카드 제목 */
+  --fs-body:15px;   --lh-body:1.6;
+  --fs-small:13px;  --lh-small:1.5;
+  --fs-caption:11px;
+  --fs-num-xl:32px; --fs-num-l:24px; --fs-num-m:16px; --fs-num-s:12px;
+
+  /* ── 간격 ── */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:20px; --sp-6:24px; --sp-8:32px; --sp-10:40px;
+  --tap:44px;               /* 최소 터치 영역 */
+
+  /* ── 모서리 ── */
+  --r-xs:3px;               /* PC 버튼·칩 (World Tours 원형) */
+  --r-sm:8px;               /* 작은 썸네일 */
+  --r-md:14px;              /* 폰 버튼·입력칸·목록 썸네일 */
+  --r-lg:18px;              /* 카드 */
+  --r-xl:22px;              /* 여행 표지 */
+  --r-sheet:26px;           /* 바텀시트 상단 */
+  --r-pill:999px;           /* 폰 칩 */
+
+  /* ── 그림자 ── */
+  --sh-card:0 1px 2px rgba(14,58,75,.06),0 4px 14px rgba(14,58,75,.08);
+  --sh-float:0 4px 14px rgba(0,0,0,.14);          /* 지도 위 버튼·검색창 */
+  --sh-sheet:0 -8px 30px rgba(0,0,0,.14);
+  --sh-photo:2px 2px 2px 2px rgba(0,0,0,.25);      /* World Tours 사진 카드 */
+  --sh-featured:1px 1px 2px rgba(40,141,157,.39);
+}
+
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){ color-scheme:dark;
+  --bg:#0b1f27; --bg-subtle:#102a34; --panel:#12303c; --panel-2:#183b48; --hero:#071820;
+  --text-1:#e8f1f4; --text-2:#a9bcc5; --text-3:#6f8792; --line:#1f4351; --line-strong:#2c5666;
+  --primary:#5cc3d1; --primary-2:#7fd3de; --primary-soft:#173f4b; --on-primary:#06222b;
+  --accent:#ffc929; --accent-soft:#3a3010; --pin:#fbb13c; --stamp:#3fb5a9; --star:#ffc929;
+  --success:#4cc38a; --success-soft:#123a2a; --warning:#f0a54a; --warning-soft:#3a2a12; --danger:#ef7a6c; --danger-soft:#3d1d19; --info:#6aa8dc; --info-soft:#152d42;
+  --cat-korean:#e0604f; --cat-chinese:#ec7a33; --cat-japanese:#a66bc0; --cat-western:#4f97cf; --cat-cafe:#b08f83; --cat-local:#4fb07a; --cat-seafood:#2aa3bf; --cat-pho:#d69c3c; --cat-bbq:#c45440; --cat-etc:#8f97a3; --cat-spot:#4fb6c4;
+  --sh-card:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35); --sh-float:0 4px 14px rgba(0,0,0,.5);
+}}
+:root[data-theme="dark"]{ color-scheme:dark;
+  --bg:#0b1f27; --bg-subtle:#102a34; --panel:#12303c; --panel-2:#183b48; --hero:#071820;
+  --text-1:#e8f1f4; --text-2:#a9bcc5; --text-3:#6f8792; --line:#1f4351; --line-strong:#2c5666;
+  --primary:#5cc3d1; --primary-2:#7fd3de; --primary-soft:#173f4b; --on-primary:#06222b;
+  --accent:#ffc929; --accent-soft:#3a3010; --pin:#fbb13c; --stamp:#3fb5a9; --star:#ffc929;
+  --success:#4cc38a; --success-soft:#123a2a; --warning:#f0a54a; --warning-soft:#3a2a12; --danger:#ef7a6c; --danger-soft:#3d1d19; --info:#6aa8dc; --info-soft:#152d42;
+  --cat-korean:#e0604f; --cat-chinese:#ec7a33; --cat-japanese:#a66bc0; --cat-western:#4f97cf; --cat-cafe:#b08f83; --cat-local:#4fb07a; --cat-seafood:#2aa3bf; --cat-pho:#d69c3c; --cat-bbq:#c45440; --cat-etc:#8f97a3; --cat-spot:#4fb6c4;
+  --sh-card:0 1px 2px rgba(0,0,0,.4),0 4px 14px rgba(0,0,0,.35); --sh-float:0 4px 14px rgba(0,0,0,.5);
+}
