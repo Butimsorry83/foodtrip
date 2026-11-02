@@ -601,7 +601,7 @@ function openDetail(id) {
     const unpin = e.target.closest('[data-unpin]');
     if (unpin) { p.parking.lots.splice(+unpin.dataset.unpin, 1); markDirty(); openDetail(id); return; }
     const act = e.target.closest('[data-act]')?.dataset.act; if (!act) return;
-    if (act === 'close') return closeSheet();
+    if (act === 'close') { if (S.returnTo) { const f = S.returnTo; S.returnTo = null; return f(); } return closeSheet(); }   // 플래너에서 열었으면 플래너로 복귀
     if (act === 'tagedit') { const box = sheet.querySelector('.d-tags'); box.classList.toggle('edit'); e.target.textContent = box.classList.contains('edit') ? '완료' : '＋ 태그'; return; }
     if (act === 'share') { shareLink('p', p.id, p.name); return; }
     if (act === 'wish') { p.wish = !p.wish; markDirty(); openDetail(id); toast(p.wish ? '가고싶다 ★' : '해제'); }
@@ -1091,18 +1091,27 @@ async function findAttractions(o, radiusM, country) {           // 근처 관광
   return out.filter(h => !known.has(h.name.replace(/\s/g, '')) && !/(주차장|화장실|매표소|관리사무소)/.test(h.name)).slice(0, 12);
 }
 function openPlanner(prefill = {}) {
-  const region = prefill.region || (S.region === 'all' ? 'domestic' : S.region);
-  const base = S.base || S.db.bases[0];
+  // 국내/해외 구분: 기본은 지금 거점 나라 (덕소면 국내) — 찾기 탭에서 마지막으로 본 지역을 따라가지 않음
+  const homeB = S.db.bases.find(b => b.id === 'b_home') || S.db.bases.find(b => b.country === 'KR') || S.base;
+  const zone = prefill.zone || (prefill.region ? ((regionCountry(prefill.region) || 'KR') === 'KR' ? 'KR' : 'OV') : ((S.base?.country || 'KR') === 'KR' ? 'KR' : 'OV'));
+  const ovCities = LS.get('ovCities', []);                         // 해외 도시 직접 추가분 [{cc, name, lat, lng}]
+  const ovCountries = [...new Set([...S.db.places.filter(p => p.country && p.country !== 'KR').map(p => p.country), ...S.db.bases.filter(b => b.country !== 'KR').map(b => b.country), ...ovCities.map(c => c.cc), 'VN', 'TH', 'JP', 'GU', 'PH', 'TW', 'SG', 'MY', 'ID', 'AU', 'US'])];
+  const cc = zone === 'KR' ? 'KR' : (prefill.country || (S.base?.country !== 'KR' ? S.base?.country : null) || (prefill.region && regionCountry(prefill.region)) || ovCountries[0]);
+  const ovRegions = zone === 'KR' ? [] : [...regionsInDb().filter(([r]) => regionCountry(r) === cc).map(([r, n]) => ({ key: r, label: `${REGION_LABEL[r] || r} (${n})` })), ...ovCities.filter(c => c.cc === cc).map(c => ({ key: 'c:' + c.name, label: c.name + ' (직접 추가)' }))];
+  const region = zone === 'KR' ? 'domestic' : (prefill.region && ovRegions.some(r => r.key === prefill.region) ? prefill.region : ovRegions[0]?.key || 'c:');
+  const custom = region.startsWith('c:') ? ovCities.find(c => c.cc === cc && 'c:' + c.name === region) : null;
+  const base = zone === 'KR' ? (homeB || S.base) : (S.db.bases.find(b => b.default_for === region) || S.db.bases.find(b => b.country === cc) || (custom ? { id: 'c_' + custom.name, name: custom.name + ' 시내', lat: custom.lat, lng: custom.lng, country: cc, approx: true } : S.base));
   const season = prefill.season || seasonNow(new Date((prefill.start || today()) + 'T00:00:00'));
   const ctx = { origin: base, season, family: famProfile() };
   const allSpots = S.db.places.filter(p => p.type === 'spot' && p.region === region && approxCoord(p)).map(s => ({ s, ...scoreSpot(withCoord(s), ctx), approx: !hasCoord(s) })).sort((a, b) => b.score - a.score);
-  const isKR = (regionCountry(region) || 'KR') === 'KR';
+  const isKR = cc === 'KR';
   const siCount = {}; S.db.places.filter(p => (isKR ? p.country === 'KR' : p.region === region) && p.type !== 'restaurant').forEach(p => { const k = areaKey(p) || '기타'; siCount[k] = (siCount[k] || 0) + 1; });   // 저장한 휴양지·우리 장소 수
   const areas = Object.entries(siCount).sort((a, b) => b[1] - a[1]);
   const area = prefill.area && (isKR || siCount[prefill.area]) ? prefill.area : 'all';     // 목적지 시·군 (예: 양평) — 국내는 저장 0곳이어도 선택 가능
   let lodge = prefill.lodge || null;                                                      // 숙소(동네·호텔·펜션) = 현지 기준점. 집 거점은 출발·귀가용
-  const pendingCenter = !lodge && area !== 'all' && !areaCenter(area);
-  if (!lodge && area !== 'all') { const c = areaCenter(area); if (c) lodge = { name: `${area} (동네 미정)`, lat: c.lat, lng: c.lng, country: 'KR', approx: true, si: area }; }
+  const pendingCenter = !lodge && area !== 'all' && !areaCenter(area) && !prefill.noLodge;
+  if (!lodge && custom && !prefill.noLodge) lodge = { name: `${custom.name} (동네 미정)`, lat: custom.lat, lng: custom.lng, country: cc, approx: true };
+  if (!lodge && area !== 'all' && !prefill.noLodge) { const c = areaCenter(area); if (c) lodge = { name: `${area} (동네 미정)`, lat: c.lat, lng: c.lng, country: 'KR', approx: true, si: area }; }
   const radiusKm = prefill.radiusKm || 20;
   const anchor = lodge && hasCoord(lodge) ? lodge : null;
   const inArea = area === 'all' ? allSpots : allSpots.filter(x => areaKey(x.s) === area);
@@ -1116,17 +1125,21 @@ function openPlanner(prefill = {}) {
   const autoLocal = anchor && spots.length < wantN && !prefill.spots;                           // 저장한 곳이 모자라면 현지 관광지를 자동으로 불러옴
   const preN = (prefill.days || 1) * (prefill.maxSpots || 3);
   const pre = prefill.spots ? new Set(prefill.spots) : new Set([...(prefill.with ? [prefill.with] : []), ...spots.filter(x => x.s.wish).map(x => x.s.id), ...spots.slice(0, preN).map(x => x.s.id)].slice(0, preN + 1));   // 지역을 고르면 그 지역 상위 휴양지만 자동 선택
-  openSheet(`<div class="sheet-head"><div><h2>여행 플래너</h2><div class="help">${REGION_LABEL[region] || region} · 거점 ${esc(base?.name || '없음')} · ${season}</div></div><button class="close" data-act="close">✕</button></div>
+  openSheet(`<div class="sheet-head"><div><h2>여행 플래너</h2><div class="help">${zone === 'KR' ? '국내' : '해외 · ' + esc(COUNTRY_EN[cc] || cc)} · 출발 ${esc(base?.name || '없음')} · ${season}</div></div><button class="close" data-act="close">✕</button></div>
     <form class="form" id="plf">
-      <label>제목<input name="title" value="${esc(prefill.title || `${new Date().getFullYear()} ${area !== 'all' ? area : (REGION_LABEL[region] || region)} 가족 여행`)}"></label>
-      <div class="two"><label>목적지 (시·군)<select name="area" id="pl-area"><option value="all">${REGION_LABEL[region] || region} 전체 (${allSpots.length})</option>${isKR ? `<optgroup label="저장한 곳 있는 지역">${areas.filter(([k]) => k !== '기타').map(([k, n]) => `<option value="${esc(k)}"${k === area ? ' selected' : ''}>${esc(k)} (${n})</option>`).join('')}</optgroup>${Object.entries(KR_AREAS).map(([g, l]) => `<optgroup label="${g}">${l.map(k => `<option value="${esc(k)}"${k === area && !siCount[k] ? ' selected' : ''}>${esc(k)}${siCount[k] ? ` (${siCount[k]})` : ''}</option>`).join('')}</optgroup>`).join('')}` : areas.map(([k, n]) => `<option value="${esc(k)}"${k === area ? ' selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></label>
+      <div class="seg pl-zone"><button type="button" data-zone="KR" class="${zone === 'KR' ? 'on' : ''}">국내</button><button type="button" data-zone="OV" class="${zone === 'OV' ? 'on' : ''}">해외</button></div>
+      ${zone === 'OV' ? `<div class="two"><label>나라<select name="cc" id="pl-cc">${ovCountries.map(c => `<option value="${c}"${c === cc ? ' selected' : ''}>${esc((G_COUNTRY_KO[c] || COUNTRY_EN[c] || c))}</option>`).join('')}</select></label>
+        <label>도시·지역<select name="region" id="pl-region">${ovRegions.map(r => `<option value="${esc(r.key)}"${r.key === region ? ' selected' : ''}>${esc(r.label)}</option>`).join('') || '<option value="c:">도시를 추가하세요</option>'}</select></label></div>
+        <div class="inline pl-addcity"><input id="pl-city" placeholder="새 도시 추가 (예: 다낭, 세부, 오사카)"><button type="button" data-act="addcity">＋ 추가</button></div>` : ''}
+      <label>제목<input name="title" value="${esc(prefill.title || `${new Date().getFullYear()} ${area !== 'all' ? area : zone === 'KR' ? '국내' : (REGION_LABEL[region] || custom?.name || '')} 가족 여행`)}"></label>
+      <div class="two"><label>${isKR ? '목적지 (시·군)' : '구역'}<select name="area" id="pl-area"><option value="all">${zone === 'KR' ? '국내' : esc(REGION_LABEL[region] || (custom ? custom.name : region))} 전체 (${allSpots.length})</option>${isKR ? `<optgroup label="저장한 곳 있는 지역">${areas.filter(([k]) => k !== '기타').map(([k, n]) => `<option value="${esc(k)}"${k === area ? ' selected' : ''}>${esc(k)} (${n})</option>`).join('')}</optgroup>${Object.entries(KR_AREAS).map(([g, l]) => `<optgroup label="${g}">${l.map(k => `<option value="${esc(k)}"${k === area && !siCount[k] ? ' selected' : ''}>${esc(k)}${siCount[k] ? ` (${siCount[k]})` : ''}</option>`).join('')}</optgroup>`).join('')}` : areas.map(([k, n]) => `<option value="${esc(k)}"${k === area ? ' selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></label>
         <label>숙소 반경<select name="radiusKm">${[10, 20, 30, 60].map(k => `<option value="${k}"${k === radiusKm ? ' selected' : ''}>${k}km</option>`).join('')}</select></label></div>
       <label>식당 반경 <small style="font-weight:400">(장소·숙소 기준 · 유명 맛집만 예외)</small><select name="mealKm">${[1, 3, 5, 10].map(k => `<option value="${k}"${k === (prefill.mealKm || 3) ? ' selected' : ''}>${k}km 안</option>`).join('')}</select></label>
       <div class="sec">숙소 (동네 또는 호텔·펜션) <span class="sec-note">이 위치 기준으로 근처 휴양지를 고릅니다</span></div>
-      <div class="lodge-box"><div class="lodge-cur">${lodge ? `<b>${esc(lodge.name)}</b>${lodge.approx ? '<span class="apx">대략</span>' : ''}<span class="cap">${lodge.address ? esc(lodge.address) : `${lodge.lat?.toFixed?.(3)}, ${lodge.lng?.toFixed?.(3)}`}</span>` : '<span class="cap">숙소 미정 — 아래에서 검색하거나 시·군을 고르면 동네 중심으로 잡습니다</span>'}</div>
+      <div class="lodge-box"><div class="lodge-cur">${lodge ? `<button type="button" class="lodge-x" data-act="lodgeclear" title="숙소 선택 해제">✕</button><b>${esc(lodge.name)}</b>${lodge.approx ? '<span class="apx">대략</span>' : ''}<span class="cap">${lodge.address ? esc(lodge.address) : `${lodge.lat?.toFixed?.(3)}, ${lodge.lng?.toFixed?.(3)}`}</span>` : '<span class="cap">숙소 미정 — 아래에서 검색하거나 시·군을 고르면 동네 중심으로 잡습니다</span>'}</div>
         ${lodge && !lodge.approx && !lodge.baseId ? '<label class="check"><input name="saveLodge" type="checkbox" checked> 일정 저장 시 이 숙소를 거점 목록에도 저장 (다음 여행·근처 추천에 재사용)</label>' : ''}
         <div class="inline"><input id="lq" placeholder="동네명 또는 호텔·펜션명 (예: 남해 상주, 힐튼 남해)"><button type="button" class="primary" data-act="lsearch">검색</button></div><div class="hits" id="lhits" hidden></div>
-        ${S.db.bases.filter(b => b.id !== 'b_home' && b.country === (regionCountry(region) || 'KR')).length ? `<div class="chips" style="margin-top:6px">${S.db.bases.filter(b => b.id !== 'b_home' && b.country === (regionCountry(region) || 'KR')).map(b => `<button type="button" class="chip" data-lodgebase="${b.id}">▣ ${esc(b.name)}</button>`).join('')}</div>` : ''}</div>
+        ${S.db.bases.filter(b => b.id !== 'b_home' && b.country === cc).length ? `<div class="chips" style="margin-top:6px">${S.db.bases.filter(b => b.id !== 'b_home' && b.country === cc).map(b => `<button type="button" class="chip" data-lodgebase="${b.id}">▣ ${esc(b.name)}</button>`).join('')}</div>` : ''}</div>
       <div class="three"><label>출발일<input name="start" type="date" value="${esc(prefill.start || today())}"></label><label>일수<input name="days" type="number" min="1" max="7" value="${prefill.days || 1}"></label><label>계절 <small style="font-weight:400">(출발일 기준 자동)</small><input name="season" value="${seasonNow(new Date((prefill.start || today()) + 'T00:00:00'))}" readonly style="background:var(--panel-2);color:var(--text-2)"></label></div>
       <div class="three"><label>출발<input name="startT" type="time" value="09:00"></label><label>복귀<input name="endT" type="time" value="20:00"></label><label>하루 최대<select name="maxSpots">${[1, 2, 3, 4].map(n => `<option value="${n}"${n === (prefill.maxSpots || 3) ? ' selected' : ''}>${n}곳</option>`).join('')}</select></label></div>
       <div class="two"><label>숙박<select name="lodging"><option value="return"${base?.country === 'KR' && base?.id === 'b_home' ? '' : ' selected'}>매일 거점 복귀</option><option value="stay"${base?.country === 'KR' && base?.id === 'b_home' ? ' selected' : ''}>${lodge ? `숙소(${esc(lodge.name.split(' (')[0])}) 숙박 · 마지막 날 귀가` : '현지 숙박 (마지막 날 복귀)'}</option></select></label><label class="check" style="align-self:end"><input name="breakfast" type="checkbox" checked> 숙소 조식 포함</label></div>
@@ -1136,17 +1149,17 @@ function openPlanner(prefill = {}) {
       ${autoLocal ? `<div class="help" id="pl-autol">${esc(area !== 'all' ? area : '숙소')} 근처 관광지 불러오는 중…</div>` : ''}
       <div class="pick" id="pick">${spots.map(x => `<label class="pick-row"><input type="checkbox" value="${x.s.id}" ${pre.has(x.s.id) ? 'checked' : ''}><span class="pick-main"><b>${esc(x.s.name)}</b> <span class="mono reco-score">${x.score}</span>${x.approx ? '<span class="apx">대략</span>' : ''}<span class="sub">${[x.km != null ? `숙소에서 ${fmtKm(x.km)}km` : x.s.si, (x.s.seasons || []).join('·'), `${stayMin(x.s) / 60}h`].filter(Boolean).map(esc).join(' · ')}</span><span class="reasons">${x.reasons.slice(0, 3).map(r => `<span class="badge ${/비추|^-/.test(r) ? 'neg' : ''}">${esc(r)}</span>`).join('')}</span></span></label>`).join('') || '<div class="help">이 지역에 등록된 휴양지가 없습니다</div>'}</div>
       ${spots.length ? '' : `<div class="help" style="margin:4px 0">${anchor ? `숙소 ${radiusKm}km 안에 등록된 휴양지가 없어요` : '이 지역에 등록된 휴양지가 없어요'} — 아래에서 새 후보를 찾아 추가하세요</div>`}
-      <div class="pl-new" id="pl-new"><button type="button" class="chip" data-act="findnew">＋ ${(regionCountry(region) || 'KR') === 'KR' ? '카카오' : '구글'}에서 근처 관광지 새로 찾기</button><div id="pl-newl"></div></div>
+      <div class="pl-new" id="pl-new"><button type="button" class="chip" data-act="findnew">＋ ${cc === 'KR' ? '카카오' : '구글'}에서 근처 관광지 새로 찾기</button><div id="pl-newl"></div></div>
       <div class="btns"><button class="primary" data-act="build">동선 생성</button><span class="help" style="align-self:center">선택 안 하면 추천 상위로 자동 구성</span></div>
     </form>
     <div id="plan-out"></div>`);
   const f = $('#plf'); let plan = null, cfg = null;
   if (autoLocal) (async () => {
-    const hits = (await findAttractions(anchor, radiusKm * 1000, regionCountry(region) || 'KR')).filter(h => !awayTrip || haversine(homeP, h) > haversine(anchor, h));
+    const hits = (await findAttractions(anchor, radiusKm * 1000, cc)).filter(h => !awayTrip || haversine(homeP, h) > haversine(anchor, h));
     const box = $('#pl-autol'); if (!$('#plf')) return;
     if (!hits.length) { if (box) box.textContent = window.kakao?.maps?.services ? '근처 관광지를 못 찾았어요 — 반경을 넓혀 보세요' : '카카오 지도 키가 연결되면 현지 관광지를 자동으로 채웁니다'; return; }
     S.tmpPlaces ||= new Map(); const need = Math.max(0, wantN - $$('#pick input:checked').length);
-    const rows = hits.slice(0, 8).map((h, i) => { const id = 'tmp_' + h.name.replace(/\s/g, '').slice(0, 20); if (!S.tmpPlaces.has(id)) S.tmpPlaces.set(id, { id, type: 'spot', country: regionCountry(region) || 'KR', region, name: h.name, lat: h.lat, lng: h.lng, address: h.address || null, si: area !== 'all' ? area : null, do: null, seasons: [], tags: [], rating: 0, visits: 0, visitLog: [], wish: false, naver: {}, kakao: h.url ? { url: h.url } : {}, src: h.src, tmp: true });
+    const rows = hits.slice(0, 8).map((h, i) => { const id = 'tmp_' + h.name.replace(/\s/g, '').slice(0, 20); if (!S.tmpPlaces.has(id)) S.tmpPlaces.set(id, { id, type: 'spot', country: cc, region, name: h.name, lat: h.lat, lng: h.lng, address: h.address || null, si: area !== 'all' ? area : null, do: null, seasons: [], tags: [], rating: 0, visits: 0, visitLog: [], wish: false, naver: {}, kakao: h.url ? { url: h.url } : {}, src: h.src, tmp: true });
       return `<label class="pick-row"><input type="checkbox" value="${id}" ${i < need ? 'checked' : ''}><span class="pick-main"><b>${esc(h.name)}</b> <span class="bd" style="background:var(--kakao);color:var(--on-kakao)">${esc(h.src)} 추천</span><span class="sub">${esc([h.cat, '숙소에서 ' + fmtKm(haversine(anchor, h)) + 'km'].filter(Boolean).join(' · '))}</span></span></label>`; }).join('');
     if (box) box.outerHTML = `<div class="help">${esc(area !== 'all' ? area : '숙소')} 현지 관광지 ${Math.min(hits.length, 8)}곳 (저장 안 된 곳 · 일정 저장 시 휴양지로 추가)</div>`;
     $('#pick').insertAdjacentHTML('afterbegin', rows);
@@ -1157,13 +1170,22 @@ function openPlanner(prefill = {}) {
   if (pendingCenter) { const lc = $('.lodge-cur'); if (lc) lc.innerHTML = `<span class="cap">${esc(area)} 위치 찾는 중…</span>`; geocodeArea(area).then(c => { if (c && $('#plf')) reopen($('#plf'), { area }); else if (lc) lc.innerHTML = '<span class="cap">지역 위치를 못 찾았어요 — 숙소를 직접 검색해 주세요</span>'; }); }
   f.addEventListener('submit', e => e.preventDefault());
   f.querySelector('[name=start]').addEventListener('change', e => { const sv = seasonNow(new Date(e.target.value + 'T00:00:00')); f.querySelector('[name=season]').value = sv; });   // 계절은 출발일로 자동
-  const reopen = (f0, patch) => { const d = Object.fromEntries(new FormData(f0)); openPlanner({ ...prefill, spots: null, title: /^\d{4} .+ 가족 여행( 일정)?$/.test(d.title) ? '' : d.title, start: d.start, days: +d.days || 1, maxSpots: +d.maxSpots, radiusKm: +d.radiusKm || 20, mealKm: +d.mealKm || 3, area: d.area, lodge, ...patch }); };
-  const bindArea = f0 => { f0.querySelector('[name=area]')?.addEventListener('change', e => reopen(f0, { area: e.target.value, lodge: null }));
+  const reopen = (f0, patch) => { const d = Object.fromEntries(new FormData(f0)); openPlanner({ ...prefill, spots: null, title: /^\d{4} .+ 가족 여행( 일정)?$/.test(d.title) ? '' : d.title, start: d.start, days: +d.days || 1, maxSpots: +d.maxSpots, radiusKm: +d.radiusKm || 20, mealKm: +d.mealKm || 3, area: d.area, lodge, zone, country: cc, region, ...patch }); };
+  const bindArea = f0 => { f0.querySelector('[name=area]')?.addEventListener('change', e => reopen(f0, { area: e.target.value, lodge: null, noLodge: false }));
+    f0.querySelector('#pl-cc')?.addEventListener('change', e => reopen(f0, { country: e.target.value, region: null, area: 'all', lodge: null, noLodge: false }));
+    f0.querySelector('#pl-region')?.addEventListener('change', e => reopen(f0, { region: e.target.value, area: 'all', lodge: null, noLodge: false }));
     f0.querySelector('#lq')?.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); f0.querySelector('[data-act=lsearch]')?.click(); } });
     f0.querySelector('[name=radiusKm]')?.addEventListener('change', e => reopen(f0, { radiusKm: +e.target.value }));
     f0.addEventListener('click', async e => { const b = e.target.closest('button'); if (!b) return;
-      if (b.dataset.act === 'lsearch') { const q = $('#lq').value.trim(); if (!q) return toast('동네명이나 숙소 이름을 입력하세요'); b.textContent = '검색 중…'; let hits = []; try { hits = await geoSearch(q, regionCountry(region) || 'KR', area !== 'all' ? area : ''); if (!hits.length && area !== 'all') hits = await osmSearch(`${area} ${q}`, regionCountry(region) || 'KR'); } catch (err) { toast('검색 실패: ' + err.message); } b.textContent = '검색'; showHits($('#lhits'), hits, h => { const ak = isKR ? (Object.values(KR_AREAS).flat().filter(k => (h.address || '').includes(k.replace(/^(경기|강원|경남) /, ''))).sort((a, b) => b.length - a.length)[0] || area) : area;
-        reopen(f0, { area: ak, lodge: { name: h.name, lat: h.lat, lng: h.lng, address: h.address, country: regionCountry(region) || 'KR', si: ak } }); }); }
+      if (b.dataset.zone) { if (b.dataset.zone !== zone) reopen(f0, { zone: b.dataset.zone, region: null, country: null, area: 'all', lodge: null, noLodge: false, title: '' }); return; }
+      if (b.dataset.act === 'lodgeclear') { reopen(f0, { lodge: null, noLodge: true }); return; }
+      if (b.dataset.act === 'addcity') { const q = $('#pl-city').value.trim(); if (!q) return toast('도시 이름을 입력하세요'); b.textContent = '찾는 중…';
+        let hits = []; try { hits = await geoSearch(q, cc); if (!hits.length) hits = await osmSearch(q, cc); } catch {} b.textContent = '＋ 추가';
+        if (!hits.length) return toast('위치를 못 찾았어요 — 영문 이름으로 시도해 보세요');
+        const list = LS.get('ovCities', []).filter(c => !(c.cc === cc && c.name === q)); list.push({ cc, name: q, lat: hits[0].lat, lng: hits[0].lng }); LS.set('ovCities', list);
+        toast(`도시 추가: ${q}`); reopen(f0, { region: 'c:' + q, area: 'all', lodge: null }); return; }
+      if (b.dataset.act === 'lsearch') { const q = $('#lq').value.trim(); if (!q) return toast('동네명이나 숙소 이름을 입력하세요'); b.textContent = '검색 중…'; let hits = []; try { hits = await geoSearch(q, cc, area !== 'all' ? area : ''); if (!hits.length && area !== 'all') hits = await osmSearch(`${area} ${q}`, cc); } catch (err) { toast('검색 실패: ' + err.message); } b.textContent = '검색'; showHits($('#lhits'), hits, h => { const ak = isKR ? (Object.values(KR_AREAS).flat().filter(k => (h.address || '').includes(k.replace(/^(경기|강원|경남) /, ''))).sort((a, b) => b.length - a.length)[0] || area) : area;
+        reopen(f0, { area: ak, lodge: { name: h.name, lat: h.lat, lng: h.lng, address: h.address, country: cc, si: ak } }); }); }
       if (b.dataset.lodgebase) { const bb = S.db.bases.find(x => x.id === b.dataset.lodgebase); reopen(f0, { lodge: { name: bb.name, lat: bb.lat, lng: bb.lng, country: bb.country, baseId: bb.id } }); } }); };
   bindArea(f);
   let curDi = 0; const formHtml = $('#sheet-inner').innerHTML;
@@ -1199,21 +1221,21 @@ function openPlanner(prefill = {}) {
   $('#sheet-inner').onclick = async e => {
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.act === 'close') { closeSheet(); return; }
-    if (b.dataset.go) { openDetail(b.dataset.go); return; }
+    if (b.dataset.go) { const di = curDi, back = $('.pl-sheet') ? () => showDay(di) : null; openDetail(b.dataset.go); S.returnTo = back; return; }   // 일정에서 상세 → 닫으면 일정으로
     if (b.dataset.act === 'findnew') {
       const o = anchor || (area !== 'all' && SI_CENTER[area] ? { lat: SI_CENTER[area][0], lng: SI_CENTER[area][1] } : null) || (base && hasCoord(base) ? base : null);
       const list = $('#pl-newl'); if (!o) { list.innerHTML = '<div class="help">숙소나 목적지를 먼저 정해주세요</div>'; return; }
-      list.innerHTML = skelHtml('근처 관광지 찾는 중…', (regionCountry(region) || 'KR') === 'KR' ? '카카오' : '구글', 0);
-      const hits = await findAttractions(o, radiusKm * 1000, regionCountry(region) || 'KR');
+      list.innerHTML = skelHtml('근처 관광지 찾는 중…', cc === 'KR' ? '카카오' : '구글', 0);
+      const hits = await findAttractions(o, radiusKm * 1000, cc);
       S.plNew = hits;
       list.innerHTML = hits.length ? hits.map((h, i) => `<div class="rc-row nb"><div class="m"><b>${esc(h.name)}</b><p class="cap">${esc([h.cat, h.km != null ? (anchor ? '숙소에서 ' : '') + fmtKm(h.km) + 'km' : '', h.rating ? 'G' + h.rating : ''].filter(Boolean).join(' · '))}</p></div><button type="button" class="chip" data-addnew="${i}">+ 추가</button></div>`).join('')
-        : `<div class="help">${(regionCountry(region) || 'KR') === 'KR' ? (window.kakao?.maps?.services ? '반경 안 관광지 없음' : '카카오 지도 키가 연결돼야 찾을 수 있어요 (설정 › 카카오 JavaScript 키)') : (googleKey() ? '반경 안 관광지 없음' : '설정에서 구글 Places 키를 넣으면 찾을 수 있어요')}</div>`;
+        : `<div class="help">${cc === 'KR' ? (window.kakao?.maps?.services ? '반경 안 관광지 없음' : '카카오 지도 키가 연결돼야 찾을 수 있어요 (설정 › 카카오 JavaScript 키)') : (googleKey() ? '반경 안 관광지 없음' : '설정에서 구글 Places 키를 넣으면 찾을 수 있어요')}</div>`;
       return;
     }
     if (b.dataset.addnew != null) {                               // 새 후보 → 휴양지로 등록 + 선택
       const h = S.plNew?.[+b.dataset.addnew]; if (!h) return;
       let p = S.db.places.find(x => x.name.replace(/\s/g, '') === h.name.replace(/\s/g, ''));
-      if (!p) { p = { id: uid(), type: 'spot', country: regionCountry(region) || 'KR', region, name: h.name, lat: h.lat, lng: h.lng, address: h.address || null, si: area !== 'all' ? area : null, do: null, seasons: [], tags: [], rating: 0, visits: 0, visitLog: [], wish: false, naver: {}, kakao: h.src === '카카오' ? { url: h.url } : {}, google: h.src === '구글' ? { url: h.url, rating: h.rating, reviews: h.reviews } : undefined, src: h.src }; S.db.places.push(p); markDirty(); }
+      if (!p) { p = { id: uid(), type: 'spot', country: cc, region, name: h.name, lat: h.lat, lng: h.lng, address: h.address || null, si: area !== 'all' ? area : null, do: null, seasons: [], tags: [], rating: 0, visits: 0, visitLog: [], wish: false, naver: {}, kakao: h.src === '카카오' ? { url: h.url } : {}, google: h.src === '구글' ? { url: h.url, rating: h.rating, reviews: h.reviews } : undefined, src: h.src }; S.db.places.push(p); markDirty(); }
       if (!$(`#pick input[value="${p.id}"]`)) $('#pick').insertAdjacentHTML('afterbegin', `<label class="pick-row"><input type="checkbox" value="${p.id}" checked><span class="pick-main"><b>${esc(p.name)}</b> <span class="badge">새 후보</span><span class="sub">${esc([h.cat, h.km != null ? fmtKm(h.km) + 'km' : ''].filter(Boolean).join(' · '))}</span></span></label>`);
       else $(`#pick input[value="${p.id}"]`).checked = true;
       b.textContent = '추가됨 ✓'; b.disabled = true; return;
@@ -1250,11 +1272,11 @@ function openPlanner(prefill = {}) {
     if (b.dataset.stay) { const [id, delta] = b.dataset.stay.split(':'); const p = placeById(id); const cur = cfg.stayOverride[id] ?? stayMin(p); cfg.stayOverride[id] = Math.max(30, cur + +delta); plan = buildPlan(cfg); showDay(curDi); return; }
     if (b.dataset.act === 'refine' && plan) { b.disabled = true; b.textContent = '실경로 조회 중…'; refinePlanRoutes(plan).then(n => { showDay(curDi); toast(n ? `${n}개 구간 실경로 반영` : '실경로 조회 실패 — 키 확인'); }); return; }
     if (b.dataset.act === 'saveplan' && plan) {
-      const t = prefill.tripId && S.db.trips.find(x => x.id === prefill.tripId) || { id: 'trip' + uid(''), title: cfg.title, city: cfg.area && cfg.area !== 'all' ? cfg.area : (REGION_LABEL[region] || region), country: base.country, year: +(cfg.start || today()).slice(0, 4), items: [], planned: true };
+      const t = prefill.tripId && S.db.trips.find(x => x.id === prefill.tripId) || { id: 'trip' + uid(''), title: cfg.title, city: cfg.area && cfg.area !== 'all' ? cfg.area : (REGION_LABEL[region] || custom?.name || region), country: base.country, year: +(cfg.start || today()).slice(0, 4), items: [], planned: true };
       t.title = cfg.title; t.year = +(cfg.start || today()).slice(0, 4); t.items = [];
       for (const day of plan.days) for (const it of day.items) if (it.kind !== 'move') t.items.push({ day: day.label, time: it.time, activity: it.activity, place: it.place, note: it.note || null, place_id: it.place_id || null });
         else t.items.push({ day: day.label, time: it.time, activity: it.activity, place: null, note: it.note, place_id: null });
-      t.plan = { start: cfg.start, days: cfg.days, maxSpots: cfg.maxSpots, lodging: cfg.lodging, breakfast: cfg.breakfast, rest: cfg.rest, startMin: cfg.startMin, endMin: cfg.endMin, spots: cfg.spots.map(x => x.id), dayOrders: cfg.dayOrders, stayOverride: cfg.stayOverride, forceMeals: cfg.forceMeals, region, area: cfg.area, autoFill: cfg.autoFill, lodge: cfg.lodge, radiusKm: cfg.radiusKm, candPick: cfg.candPick || {}, mealKm: cfg.mealKm };   // 플래너로 다시 열기용
+      t.plan = { start: cfg.start, days: cfg.days, maxSpots: cfg.maxSpots, lodging: cfg.lodging, breakfast: cfg.breakfast, rest: cfg.rest, startMin: cfg.startMin, endMin: cfg.endMin, spots: cfg.spots.map(x => x.id), dayOrders: cfg.dayOrders, stayOverride: cfg.stayOverride, forceMeals: cfg.forceMeals, region, area: cfg.area, autoFill: cfg.autoFill, lodge: cfg.lodge, radiusKm: cfg.radiusKm, candPick: cfg.candPick || {}, mealKm: cfg.mealKm, zone, country: cc };   // 플래너로 다시 열기용
       for (const day of plan.days) for (const it of day.items) { const tp = it.place_id && S.tmpPlaces?.get(it.place_id); if (tp && !S.db.places.some(p => p.id === tp.id)) { const np = { ...tp }; delete np.tmp; S.db.places.push(np); } }   // 일정에 쓴 현지 관광지 → 휴양지로 등록
       if (cfg.saveLodge && cfg.lodge && !cfg.lodge.baseId && hasCoord(cfg.lodge)) {     // 숙소 → 거점 목록 (중복 좌표 200m 이내는 재사용)
         let lb = S.db.bases.find(x => hasCoord(x) && haversine(x, cfg.lodge) < 0.2);
@@ -1281,7 +1303,7 @@ function renderPlan(plan, cfg, di = 0) {                        // 시안 08c: �
     if (it.kind === 'rest') return `<div class="pl-row rest"><span class="num rk" style="background:var(--text-3)">☾</span><div style="flex:1"><b>${esc(it.activity)}</b><p class="cap">${esc(it.time)} · 1시간 30분</p></div></div>`;
     k++; const isMeal = it.kind === 'meal'; const p = it.place_id && placeById(it.place_id); const apx = p && !hasCoord(p) ? '<span class="apx">대략</span>' : '';
     const dur = it.note && /h$/.test(it.note) ? it.note.replace(/(\d+(?:\.\d+)?)h/, (m, h) => `${+h >= 1 ? Math.floor(+h) + '시간' : ''}${Math.round((+h % 1) * 60) ? ' ' + Math.round((+h % 1) * 60) + '분' : ''}`.trim()) : (isMeal ? '1시간 20분' : '');
-    return `<div class="pl-row${isMeal ? ' meal' : ''}" data-idx="${i}" ${!isMeal && it.place_id ? 'draggable="true"' : ''}><span class="num rk" style="background:${colorOfIt(it)}">${k}</span><div style="flex:1;min-width:0"><b>${isMeal ? `${esc(it.activity)} · ${p ? esc(p.name) : it.cand ? esc(it.cand.name) : '자동 추천'}` : esc(it.activity)}${apx}</b><p class="cap">${esc(it.time)}${dur ? ' · ' + dur : ''}${isMeal ? (p ? ` · ${esc(cuisineOf(p)[0] || '')}${it.note ? ' · ' + esc((apx && /^0\.\dkm$|^0km$/.test(it.note.split(' · ')[0])) ? '같은 지역' : it.note.split(' · ')[0]) : ''}` : ' · ' + esc(it.note || '')) : esc(tagsOf(it))}</p></div>${isMeal ? `<button class="chip" data-swap="${i}">바꾸기</button>` : (it.place_id ? `<span class="stayctl"><button data-stay="${it.place_id}:-30">−</button><button data-stay="${it.place_id}:30">＋</button></span><span class="cap3 grip">≡</span>` : '')}</div>`;
+    return `<div class="pl-row${isMeal ? ' meal' : ''}" data-idx="${i}" ${!isMeal && it.place_id ? 'draggable="true"' : ''}><span class="num rk" style="background:${colorOfIt(it)}">${k}</span><div style="flex:1;min-width:0"><b>${isMeal ? `${esc(it.activity)} · ${p ? `<button type="button" class="pl-go" data-go="${p.id}">${esc(p.name)}</button>` : it.cand ? (it.cand.url ? `<a class="pl-go" href="${esc(it.cand.url)}" target="_blank" rel="noopener">${esc(it.cand.name)} ↗</a>` : esc(it.cand.name)) : '자동 추천'}` : p ? `<button type="button" class="pl-go" data-go="${p.id}">${esc(it.activity)}</button>` : esc(it.activity)}${apx}</b><p class="cap">${esc(it.time)}${dur ? ' · ' + dur : ''}${isMeal ? (p ? ` · ${esc(cuisineOf(p)[0] || '')}${it.note ? ' · ' + esc((apx && /^0\.\dkm$|^0km$/.test(it.note.split(' · ')[0])) ? '같은 지역' : it.note.split(' · ')[0]) : ''}` : ' · ' + esc(it.note || '')) : esc(tagsOf(it))}</p></div>${isMeal ? `<button class="chip" data-swap="${i}">바꾸기</button>` : (it.place_id ? `<span class="stayctl"><button data-stay="${it.place_id}:-30">−</button><button data-stay="${it.place_id}:30">＋</button></span><span class="cap3 grip">≡</span>` : '')}</div>`;
   }).join('');
   return `<div class="pl-hd"><button class="back" data-act="plan-back">‹</button><b>자동 동선 · D${di + 1}</b><span class="cap">${di + 1} / ${n}</span></div>
     <div class="pl-prog">${plan.days.map((x, i) => `<span class="${i <= di ? 'on' : ''}"></span>`).join('')}</div>
@@ -1428,7 +1450,7 @@ async function shareLink(kind, id, title) {
 }
 function handleHash() {
   const m = /^#([ptj])-(.+)$/.exec(location.hash || ''); if (!m) return;
-  if (m[1] === 'j') { showView('home'); openJournal(); return; }
+  if (m[1] === 'j') { showView('journal'); return; }
   if (m[1] === 'p' && placeById(m[2])) { const p = placeById(m[2]); if (p.region !== S.region) { S.region = p.region; renderRegionChips(); renderTagChips(); renderList(); } openDetail(m[2]); }
   if (m[1] === 't') { const t = S.db.trips.find(x => x.id === m[2]); if (t) { S.trip = t; S.tripDay = 0; showView('trips'); renderTrips(); focusTrip(); } }
 }
@@ -1709,7 +1731,7 @@ function renderHomePhone(d) {
   const tripCover = t => `<button class="trip-cover" data-trip="${t.id}" style="${tripCoverStyle(t)}"><span class="yr">${t.year} · ${COUNTRY_EN[t.country] || t.country}</span><span class="city">${esc(tripCity(t))}</span><span class="sub">${esc(tripSub(t))}</span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</button>`;
   return `
     <div class="ph-hero"><div class="dots"></div><div class="sun"></div>
-      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><button class="bell" data-act="settings" title="설정">${ICO.bell}</button></div>
+      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><button class="theme-tg" data-act="theme" title="다크모드">${isDark() ? '☀' : '☾'}</button><button class="bell" data-act="settings" title="설정">${ICO.bell}</button></div>
       <div class="ph-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · ${esc(baseShort())} 기준</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         <p class="sub">${esc(d.famName)} 휴양지 ${d.spots.length}곳, 맛집 ${d.rests.length}곳</p>
@@ -1747,9 +1769,9 @@ function renderHomePC(d) {
     <div class="pc-hero-wrap" style="background-image:linear-gradient(rgba(14,58,75,.78),rgba(14,58,75,.78)),url('${asset('assets/hero-' + SEASON_EN[d.season] + '.jpg')}');background-size:cover;background-position:center"><div class="pc-hero" id="pc-hero">
       <div class="bg" style="background-image:linear-gradient(90deg,rgba(14,58,75,.82) 0%,rgba(14,58,75,.55) 40%,rgba(14,58,75,0) 62%),linear-gradient(180deg,rgba(14,58,75,.55),rgba(14,58,75,0) 30%),linear-gradient(0deg,rgba(14,58,75,.6),rgba(14,58,75,0) 45%),url('${asset('assets/hero-' + SEASON_EN[d.season] + '.jpg')}')"></div>
       <div class="note"><span>${esc(d.season)} 배경 · 계절마다 자동 교체</span>설정 › 사진에서 변경</div>
-      <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '설정'][k]}</button>`).join('')}</div></nav>
+      <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'journal', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '기록', '설정'][k]}</button>`).join('')}</div></nav>
       <div class="pc-logo"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:70px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:112px"></div>
-      <div class="pc-right"><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
+      <div class="pc-right"><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? '☀' : '☾'}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
       <div class="pc-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · 우리 가족 식도락</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         ${fp ? `<p class="body"><span class="nm"><span class="lbl">이번 계절 ${i + 1}순위</span>${esc(fp.name)}</span>${esc(areaOf(fp))} · ${esc(distText(fp))}<span class="why">${d.why(feat).map(w => `<span>${esc(w)}</span>`).join('')}</span></p><div class="cta"><button class="wt-btn" data-reco="${fp.id}">근처 식당 ${d.nearRest(fp)}곳</button></div>` : ''}
@@ -1797,12 +1819,13 @@ function renderHome() {
     if (act === 'feat-prev' || act === 'feat-next') { S.heroIdx = (S.heroIdx + (act === 'feat-next' ? 1 : n - 1)) % n; renderHome(); return; }
     if (act === 'feat-go') { S.heroIdx = (S.heroIdx + +b.dataset.k) % n; renderHome(); return; }
     if (act === 'base') { e.stopPropagation(); baseMenu(b); return; }
+    if (act === 'theme') { LS.set('theme', isDark() ? 'light' : 'dark'); applyTheme(); renderHome(); return; }   // 홈에서 바로 다크/라이트 전환
     if (act === 'settings') showView('settings');
     if (act === 'today') todayPick();
     if (act === 'planner') openPlanner();
     if (act === 'explore') { showView('explore'); fitToVisible(); }
     if (act === 'trips') { S.trip = null; showView('trips'); }
-    if (act === 'explore-visited') return openJournal();
+    if (act === 'explore-visited') return showView('journal');
     if (act === 'wish' || act === 'explore-unvisited') {
       S.flags.clear(); if (act === 'wish') S.flags.add('wish'); if (act === 'explore-unvisited') S.flags.add('unvisited');
       $$('#f-season button').forEach(x => x.classList.toggle('on', S.flags.has(x.dataset.v)));
@@ -2029,7 +2052,7 @@ function renderTrips() {
     if (b.dataset.act === 'guide') openGuideMenu(t);
     if (b.dataset.act === 'journal') openJournal({ tripId: t.id });
     if (b.dataset.act === 'deltrip') { if (b.dataset.c) { trashPut('trip', t); S.db.trips = S.db.trips.filter(x => x !== t); markDirty(); S.trip = null; renderTrips(); toast('여행 삭제 — 설정 › 휴지통에서 30일 안에 복원 가능'); } else { b.dataset.c = 1; b.textContent = '정말 삭제? (한 번 더)'; setTimeout(() => { if (b.isConnected) { delete b.dataset.c; b.textContent = '여행 삭제'; } }, 4000); } return; }
-    if (b.dataset.act === 'replan') openPlanner({ tripId: t.id, title: t.title, region: t.plan.region, start: t.plan.start, days: t.plan.days, maxSpots: t.plan.maxSpots, spots: t.plan.spots, dayOrders: t.plan.dayOrders, stayOverride: t.plan.stayOverride, forceMeals: t.plan.forceMeals, area: t.plan.area, autoFill: t.plan.autoFill, lodge: t.plan.lodge, radiusKm: t.plan.radiusKm, candPick: t.plan.candPick, mealKm: t.plan.mealKm });
+    if (b.dataset.act === 'replan') openPlanner({ tripId: t.id, title: t.title, region: t.plan.region, start: t.plan.start, days: t.plan.days, maxSpots: t.plan.maxSpots, spots: t.plan.spots, dayOrders: t.plan.dayOrders, stayOverride: t.plan.stayOverride, forceMeals: t.plan.forceMeals, area: t.plan.area, autoFill: t.plan.autoFill, lodge: t.plan.lodge, radiusKm: t.plan.radiusKm, candPick: t.plan.candPick, mealKm: t.plan.mealKm, zone: t.plan.zone, country: t.plan.country });
     if (b.dataset.edititem != null) openItemEdit(t, +b.dataset.edititem);
   };
 }
@@ -2398,10 +2421,11 @@ function openJournal(opts = {}) {
   const chip = (k, label, on) => `<button class="chip${on ? ' on' : ''}" ${k}>${label}</button>`;
   const noLog = opts.placeId || t || who ? [] : S.db.places.filter(p => (p.visits || 0) > 0 && !(p.visitLog || []).length && (kind === 'all' || p.type === kind)).sort((a, b) => (b.visits || 0) - (a.visits || 0));   // 다녀왔지만 아직 글·사진 없는 곳
   const noLogHtml = noLog.length ? `<h3 class="jr-month">다녀온 곳 · 아직 기록 없음 <small>${noLog.length}</small></h3><div class="jr-nolog">${noLog.map(p => `<div class="row-nl">${thumbHtml(p, 'tile')}<button class="jr-place" data-go="${p.id}"><span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p), `방문 ${p.visits}회`].join(' · '))}</small></span></button><button class="chip rw" data-addlog="${p.id}">+ 기록</button></div>`).join('')}</div>` : '';
-  openSheet(`<div class="jr-sheet"><div class="hd"><button class="back" data-act="back">‹</button><div style="flex:1;min-width:0"><p class="cap3">방문 ${ents.length} · 사진 ${nPh}</p><b>${esc(title)}</b></div>${t || opts.placeId ? '' : `<button class="chip" data-act="share">공유</button>`}</div>
+  const box = opts.page ? $('#journal') : null;
+  (opts.page ? (h => { box.innerHTML = h; }) : openSheet)(`<div class="jr-sheet"><div class="hd">${opts.page ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">방문 ${ents.length} · 사진 ${nPh}</p><b>${esc(title)}</b></div>${t || opts.placeId ? '' : `<button class="chip" data-act="share">공유</button>`}</div>
     ${opts.placeId ? '' : `<div class="jr-chips">${chip('data-kind="all"', '전체', kind === 'all')}${chip('data-kind="spot"', '휴양지', kind === 'spot')}${chip('data-kind="restaurant"', '식당', kind === 'restaurant')}${chip('data-kind="mine"', '우리 장소', kind === 'mine')}<span class="sep"></span>${familyNames().map(n => chip(`data-who="${esc(n)}"`, esc(n), who === n)).join('')}</div>`}
     <div class="jr-feed">${cards}${noLogHtml}${cards || noLogHtml ? '' : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>아직 기록이 없어요</b><p class="cap">장소 상세 › 「다녀왔어요 · 기록 남기기」로 사진과 한줄평을 남기면 여기에 쌓입니다</p></div>`}</div></div>`);
-  $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+  (box || $('#sheet-inner')).onclick = e => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.act === 'back') { opts.placeId ? openDetail(opts.placeId) : closeSheet(); return; }
     if (b.dataset.kind) return openJournal({ ...opts, kind: b.dataset.kind });
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
@@ -2425,15 +2449,16 @@ function openLightbox(srcs, i = 0, cap = '') {                    // 사진 크�
 function showView(v) {
   const sheetState = v === 'map' ? 'peek' : v === 'list' ? '' : null;
   if (v === 'map' || v === 'list') v = 'explore';
-  S.view = v;
+  S.view = v; S.returnTo = null;
   $$('#tabs button, #mobile-nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
-  const pages = { home: '#view-home', explore: '#main', trips: '#view-trips', settings: '#view-settings' };
+  const pages = { home: '#view-home', explore: '#main', trips: '#view-trips', journal: '#view-journal', settings: '#view-settings' };
   for (const [k, sel] of Object.entries(pages)) $(sel).classList.toggle('on', k === v);
-  document.body.classList.toggle('at-home', v === 'home'); document.body.classList.toggle('at-explore', v === 'explore'); document.body.classList.toggle('at-trips', v === 'trips'); document.body.classList.toggle('at-settings', v === 'settings');
+  document.body.classList.toggle('at-home', v === 'home'); document.body.classList.toggle('at-explore', v === 'explore'); document.body.classList.toggle('at-trips', v === 'trips'); document.body.classList.toggle('at-settings', v === 'settings'); document.body.classList.toggle('at-journal', v === 'journal');
   if (v === 'explore') { setTimeout(() => map.invalidateSize(), 60); if (sheetState != null && $('#panel').setSheet) $('#panel').setSheet(sheetState); }
   if (v === 'home') { renderHome(); S.homeStale = false; } else fitPcHero();
   if (v === 'trips') renderTrips();
   if (v === 'settings') renderSettings();
+  if (v === 'journal') openJournal({ page: true });
   $(pages[v]).scrollTop = 0;
 }
 
