@@ -497,7 +497,7 @@ function renderList() {
 }
 
 /* ---------------- 상세 ---------------- */
-function openSheet(html) { const s = $('#sheet'); $('#sheet-inner').innerHTML = html; s.hidden = false; $('#sheet-inner').scrollTop = 0; const sc = $('#sheet-inner .sheet-scroll'); if (sc) sc.scrollTop = 0; }
+function openSheet(html) { S.sheetDirty = false; const s = $('#sheet'); $('#sheet-inner').innerHTML = html; s.hidden = false; $('#sheet-inner').scrollTop = 0; const sc = $('#sheet-inner .sheet-scroll'); if (sc) sc.scrollTop = 0; }
 function closeSheet() { $('#sheet').hidden = true; }
 function nocoordHtml(p) {                                       // 시안 11c: 좌표 없음
   const ap = approxCoord(p);
@@ -2510,7 +2510,12 @@ function bindOnce() {
   $('#f-region').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.region = b.dataset.v; LS.set('region', S.region); renderRegionChips(); renderTagChips(); const base = S.db.bases.find(x => x.default_for === S.region); if (base) setBase(base.id, true); renderList(); fitToVisible(); };
   $('#f-season').onclick = e => { const b = e.target.closest('button[data-v]'); if (!b || b.closest('#f-tags')) return; const v = b.dataset.v; S.flags.has(v) ? S.flags.delete(v) : S.flags.add(v); b.classList.toggle('on'); renderList(); };
   $('#list').onclick = e => { const eb = e.target.closest('.empty11 button'); if (eb) return emptyAct(eb.dataset.act); const r = e.target.closest('.row'); if (!r) return; const p = placeById(r.dataset.id); if (window.innerWidth > 860 && hasCoord(p)) { map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)); selectOnMap(r.dataset.id); } else openDetail(r.dataset.id); };
-  $('#sheet').onclick = e => { if (e.target.id === 'sheet') closeSheet(); };
+  // 바깥(어두운 영역) 클릭으로 닫기: 누른 곳·뗀 곳이 모두 바깥일 때만 (글자 드래그하다 바깥에서 떼면 안 닫힘) + 입력 중이면 확인
+  let downBg = false;
+  $('#sheet').addEventListener('pointerdown', e => { downBg = e.target.id === 'sheet'; });
+  $('#sheet-inner').addEventListener('input', () => { S.sheetDirty = true; });
+  $('#sheet').onclick = e => { const bg = e.target.id === 'sheet' && downBg; downBg = false; if (!bg) return;
+    if (S.sheetDirty && !confirm('작성 중인 내용이 있습니다. 창을 닫을까요?')) return; closeSheet(); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeSheet(); closeMenu(); } });
   window.addEventListener('resize', () => { map.invalidateSize(); { const m = window.innerWidth <= 860 ? 'phone' : 'pc'; if (S.view === 'home' && m !== S.homeMode) renderHome(); else fitPcHero(); } });
   window.addEventListener('hashchange', handleHash);
