@@ -70,7 +70,7 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .sh h3 { font-size: 20px; font-weight: 900; letter-spacing: -.02em; } .sh a, .sh button.lnk { font-size: 13px; color: var(--primary-2); text-decoration: none; font-weight: 500; background: none; border: 0; padding: 0; }
 :root { --hero-ink: var(--hero); } :root[data-theme="dark"] { --hero-ink: var(--text-1); } @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --hero-ink: var(--text-1); } }   /* 다크: 진한 남색 글자 → 밝은 글자 */
 #view-home button { font: inherit; text-align: left; color: var(--text-1); } #view-home .pc-nav .links button { text-align: center; }
-#view-home .wt-btn, #view-home .cta, #view-home .pc-right button, #view-home .ph-quick button, #view-home .lnk, #view-home .chip, #view-home .theme-tg { text-align: center; justify-content: center; }   /* 버튼 글자는 가운데 */
+#view-home .wt-btn, #view-home button.cta, #view-home .pc-right button, #view-home .ph-quick button, #view-home button.lnk, #view-home button.chip, #view-home .theme-tg { text-align: center; justify-content: center; }   /* 버튼 '안의 글자'만 가운데 (버튼 위치는 그대로) */
 .wt-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; width: auto; min-width: 137px; }
 .ph-top .theme-tg { width: 36px; height: 36px; margin-right: 8px; }
 .theme-tg { width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; font-size: 18px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
