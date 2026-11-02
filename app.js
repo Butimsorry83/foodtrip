@@ -714,7 +714,7 @@ function openVisitForm(p) {                                     // 시안 07: �
     <div class="vf-scroll">
       <div class="vf-place">${thumbHtml(p, 'tile')}<div style="flex:1;min-width:0"><b>${esc(p.name)}</b><p class="cap">${esc(areaOf(p))}${di ? ` · ${fmtKm(di.km)}km` : ''}</p></div></div>
       <div class="vsec"><h4>사진 <span class="cap3">최대 10장 · 첫 장이 표지</span></h4><div class="vgrid" id="vgrid"></div><p class="cap3" style="margin-top:8px">기기에서 1280px로 줄여 저장 · 원본은 올리지 않음${S.token || OFFLINE ? '' : ' · <b>GitHub 토큰 없으면 사진은 이 기기에만 남음</b>'}</p><input type="file" id="vfile" accept="image/*" multiple hidden></div>
-      <div class="vsec"><h4>날짜</h4><label class="field"><span class="num" id="vdate-txt">${dateTxt(today())}</span><input type="date" id="vdate" value="${today()}"><select id="vmeal" class="cap" style="margin-left:auto">${['아침', '점심', '간식', '저녁', '야식'].map(m => `<option${m === mealNow ? ' selected' : ''}>${m}</option>`).join('')}</select></label></div>
+      <div class="vsec"><h4>날짜</h4><label class="field vdate-f"><input type="date" id="vdate" class="num" value="${today()}" max="${today()}"><span class="cap" id="vdate-txt">${dateTxt(today()).slice(-3)}</span><select id="vmeal" class="cap" style="margin-left:auto">${['아침', '점심', '간식', '저녁', '야식'].map(m => `<option${m === mealNow ? ' selected' : ''}>${m}</option>`).join('')}</select></label></div>
       <div class="vsec"><h4>함께 간 사람</h4><div class="chips" id="vwho">${familyNames().map(n => `<button type="button" class="chip on" data-who="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="chip" data-who="+">+ 손님</button></div></div>
       <div class="vsec"><h4>별점</h4><div class="vstars" id="vstars">${[1, 2, 3, 4, 5].map(n => `<span data-r="${n}">★</span>`).join('')}<span class="num val" id="vval">—</span></div></div>
       <div class="vsec"><h4>한줄평</h4><textarea id="vmemo" class="vmemo" placeholder="예: 하준이가 순두부 국물까지 다 마심"></textarea></div>
@@ -725,7 +725,8 @@ function openVisitForm(p) {                                     // 시안 07: �
   const drawPhotos = () => { $('#vgrid').innerHTML = st.photos.map((ph, i) => `<div class="vph" style="background-image:url('${ph.url}')">${i === 0 ? '<span class="cv">표지</span>' : ''}<button type="button" class="x" data-rm="${i}">✕</button></div>`).join('') + (st.photos.length < 10 ? '<button type="button" class="vph add" data-act="addphoto"><b>+</b>사진 추가</button>' : ''); };
   const drawMenu = () => { $('#vmenu').innerHTML = st.menu.map((m, i) => `<button type="button" class="chip soft" data-rmmenu="${i}">${esc(m)} ✕</button>`).join('') + '<button type="button" class="chip" data-menu="+">+ 메뉴</button>'; };
   drawPhotos();
-  $('#vdate').onchange = e => { $('#vdate-txt').textContent = dateTxt(e.target.value || today()); };
+  $('#vdate').onchange = e => { $('#vdate-txt').textContent = dateTxt(e.target.value || today()).slice(-3); };   // 요일 표시
+  $('#vdate').onclick = e => { try { e.target.showPicker(); } catch {} };   // 칸 어디를 눌러도 달력 열기 (지난 날짜 선택)
   $('#vfile').onchange = async e => { for (const f of [...e.target.files].slice(0, 10 - st.photos.length)) { try { const b64 = await resizeImage(f); st.photos.push({ b64, url: 'data:image/jpeg;base64,' + b64 }); } catch { toast('사진을 읽지 못했습니다'); } } drawPhotos(); e.target.value = ''; };
   sheet.onclick = async e => {
     const b = e.target.closest('button, [data-r]'); if (!b) return;

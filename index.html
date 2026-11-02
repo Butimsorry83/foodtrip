@@ -31,7 +31,7 @@
       <button data-view="settings">설정</button>
     </nav>
     <div class="search">
-      <input id="q-hdr" type="search" placeholder="장소·식당·메뉴 검색" autocomplete="off">
+      <input id="q-hdr" type="search" placeholder="휴양지·식당·메뉴 검색" autocomplete="off">
     </div>
     <div class="hdr-right">
       <button id="base-btn" class="base-btn" title="거점 변경"><span class="base-ico">⌂</span> <span id="base-name">거점</span><span class="chev">▾</span></button>
@@ -47,14 +47,14 @@
   <!-- 찾기 (지도 + 목록) — 시안 02(폰)·W2(PC) -->
   <main id="main" class="page">
     <div id="map"></div>
-    <div id="map-top" class="map-top"><label class="mbox"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input id="q" type="search" placeholder="이 근처 맛집 검색" autocomplete="off"></label><button id="base-chip" class="base-chip"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--accent);stroke-width:2.4"><path d="M4 11 12 4l8 7v9H4Z"></path></svg><span id="base-chip-name">거점</span> ▾</button></div>
+    <div id="map-top" class="map-top"><label class="mbox"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input id="q" type="search" placeholder="휴양지·맛집 검색" autocomplete="off"></label><button id="base-chip" class="base-chip"><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px;color:var(--accent);stroke-width:2.4"><path d="M4 11 12 4l8 7v9H4Z"></path></svg><span id="base-chip-name">거점</span> ▾</button></div>
     <div id="fab" class="fab"><button id="fab-loc" title="내 위치"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg></button><button id="fab-km" class="mono" title="반경">km</button><button id="fab-add" class="rw" title="장소 추가" style="font-size:22px;font-weight:700">＋</button></div>
     <div id="km-pills" class="km-pills"><button data-km="10">10km</button><button data-km="30">30km</button><button data-km="60">60km</button></div>
     <aside id="panel">
       <div class="grip" id="grip"><span></span></div>
       <section id="view-list" class="view on">
         <div class="filters">
-          <label class="mbox pc-search-box"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input id="q-pc" type="search" placeholder="이 근처 맛집 검색" autocomplete="off"></label>
+          <label class="mbox pc-search-box"><svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input id="q-pc" type="search" placeholder="휴양지·맛집 검색" autocomplete="off"></label>
           <div class="p-title"><div><b><span id="base-name2">거점</span> 기준 <span id="count" class="mono">0</span>곳</b><p id="count-sub">가까운 순</p></div>
             <div class="seg" id="f-scope"><button data-v="restaurant">식당</button><button data-v="spot">휴양지</button><button data-v="mine">우리</button><button data-v="all" class="on">전체</button></div></div>
           <div class="chips" id="f-season">
