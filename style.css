@@ -763,7 +763,7 @@ body.dark-tiles .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) bright
 
 /* 기록 탭 PC 폭 (11/02) — 앨범은 넓게, 글(카드)은 읽기 폭 유지 */
 @media (min-width: 861px) {
-  #view-journal .wrap { max-width: var(--wrap); padding: 0 16px; }
+  #view-journal .wrap { max-width: 1440px; padding: 0 48px; }
   #view-journal .jr-sheet .hd, #view-journal .jr-chips { padding-left: 24px; padding-right: 24px; }
   #view-journal .jr-feed { padding: 8px 24px 40px; }
   #view-journal .jr-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
@@ -773,3 +773,16 @@ body.dark-tiles .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) bright
   #view-journal .jr-card, #view-journal .jr-month:not(:has(+ .jr-nolog)) { max-width: 760px; margin-left: auto; margin-right: auto; }
 }
 .jr-card .jr-place > i { display: none; }   /* 편집 버튼과 겹치는 › 숨김 */
+
+/* 여행·설정 탭 PC 폭 = 홈·찾기(.pc-body 1440px, 좌우 48px) (11/02) */
+@media (min-width: 861px) {
+  #view-trips .wrap { max-width: 1440px; margin: 20px auto 0; padding: 0 0 40px; width: calc(100% - 96px); }
+  .fab-add { right: max(66px, calc(50% - 720px + 66px)); }
+  #view-settings .wrap { max-width: 1440px; padding: 0 48px; }
+  #view-settings .settings { max-width: none; }
+}
+@media (min-width: 861px) {
+  #view-trips .tp-big { height: 300px; }
+  #view-trips .tp-grid { grid-template-columns: repeat(4, 1fr); }
+  #view-trips .tp-sm { height: auto; aspect-ratio: 4 / 3; }
+}
