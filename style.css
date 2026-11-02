@@ -431,6 +431,9 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .visit { border-left: 3px solid var(--accent); padding: 4px 0 4px 10px; font-size: 13px; }
 .visit-h { display: flex; align-items: center; gap: 6px; }
 .visit-h .mini { margin-left: auto; }
+.vstrip { display: flex; gap: 6px; overflow-x: auto; margin-top: 8px; scrollbar-width: thin; } .vstrip button { flex: 0 0 auto; width: 120px; height: 120px; border: 0; padding: 0; border-radius: 10px; overflow: hidden; position: relative; cursor: zoom-in; background: var(--bg-subtle); }
+.vstrip button img { width: 100%; height: 100%; object-fit: cover; display: block; } .vstrip button span { position: absolute; left: 6px; bottom: 6px; font: 600 11px var(--font-num); color: #fff; background: rgba(0,0,0,.55); padding: 2px 7px; border-radius: 999px; }
+.vstrip.one button { width: 100%; height: 220px; }
 .vphoto { margin-top: 6px; border-radius: 12px; max-height: 240px; width: 100%; object-fit: cover; }
 
 /* 04 거점 선택 · 05 거점 추가 */
@@ -595,7 +598,10 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .lodge-box .inline { display: flex; gap: 6px; align-items: stretch; } .lodge-box .inline input { flex: 1; min-width: 0; } .lodge-box .inline button { white-space: nowrap; flex: none; }
 .jr-month { font: 800 15px var(--font-serif); color: var(--text-2); margin: 18px 4px 8px; }
 .jr-card { background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--sh-card); overflow: hidden; margin-bottom: 14px; }
-.jr-ph { display: block; width: 100%; aspect-ratio: 4 / 3; border: 0; padding: 0; background: var(--bg-subtle) center/cover; position: relative; cursor: zoom-in; }
+.jr-phs { display: flex; flex-direction: column; gap: 3px; background: var(--panel); }
+.jr-ph { display: block; width: 100%; border: 0; padding: 0; background: var(--bg-subtle); position: relative; cursor: zoom-in; } .jr-ph > img:first-child { display: block; width: 100%; height: auto; max-height: 80vh; object-fit: contain; background: #000; }
+.jr-body { position: relative; } .jr-edit { position: absolute; right: 14px; top: 14px; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--text-2); cursor: pointer; }
+.jr-body .jr-place { padding-right: 56px; }
 .jr-ph .n { position: absolute; right: 10px; top: 10px; font: 600 11px var(--font-num); color: #fff; background: rgba(0,0,0,.5); padding: 3px 8px; border-radius: 999px; }
 .jr-ph .stamp { position: absolute; right: 10px; bottom: 10px; width: 46px; opacity: .9; filter: drop-shadow(0 1px 3px rgba(0,0,0,.4)); }
 .jr-body { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 8px; }

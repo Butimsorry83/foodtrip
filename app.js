@@ -561,7 +561,7 @@ function openDetail(id) {
     <div class="d-sec"><div class="h"><b>${p.type === 'spot' ? '근처 식당' : '이 근처'}</b><button data-act="reco" ${hasCoord(p) ? '' : 'disabled'}>${p.type === 'spot' ? '추천 보기 →' : '다른 식당 추천 →'}</button></div></div>
     <div class="d-sec"><div class="h"><b>방문 기록</b><span style="display:flex;gap:12px">${(p.visitLog || []).length ? '<button data-act="journal">모아보기</button>' : ''}<button class="rw" data-act="visitlog">+ 기록 추가</button></span></div>
       ${(p.visitLog || []).length ? `<div class="tl-v">${p.visitLog.slice().reverse().map((v, ri) => { const i = p.visitLog.length - 1 - ri;
-        return `<div class="v${ri ? ' old' : ''}"><span class="dot"></span><div class="vh"><b class="mono">${esc((v.date || '').replace(/-/g, '.'))}</b><span class="st">${starsTxt(v.rating)}</span><button class="mini ghost rw" data-vdel="${i}" title="삭제">✕</button></div>${v.memo ? `<p>${esc(v.memo)}</p>` : ''}${v.photo ? `<img class="vphoto" src="${photoUrl(v.photo) || ''}" alt="방문 사진" loading="lazy">` : ''}${!ri ? `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">` : ''}</div>`; }).join('')}</div>`
+        return `<div class="v${ri ? ' old' : ''}"><span class="dot"></span><div class="vh"><b class="mono">${esc((v.date || '').replace(/-/g, '.'))}</b><span class="st">${starsTxt(v.rating)}</span><button class="mini rw" data-vedit="${i}" title="편집">편집</button><button class="mini ghost rw" data-vdel="${i}" title="삭제">✕</button></div>${v.memo ? `<p>${esc(v.memo)}</p>` : ''}${(() => { const ph = visitPhotos(v); return ph.length ? `<div class="vstrip${ph.length === 1 ? ' one' : ''}">${ph.map((u, k) => `<button type="button" data-vlb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${ph.length > 1 && k === 0 ? `<span>${ph.length}장</span>` : ''}</button>`).join('')}</div>` : ''; })()}${!ri ? `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">` : ''}</div>`; }).join('')}</div>`
       : `<div class="novisit"><img src="${asset('assets/mark-stamp.png')}" alt=""><div><b>아직 안 가본 곳</b><small>다녀오면 스탬프가 찍혀요</small></div></div>`}
     </div>
     ${rests.length ? `<div class="d-sec"><div class="h"><b>추천 식당 ${rests.length}</b></div><div class="sublist" style="margin:12px 0 0">${rests.map(x => `<button data-go="${x.id}"><span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColor(x)};margin-right:6px"></span>${esc(x.name)}</span><span class="mono" style="color:var(--text-2)">${distInfo(x) ? fmtKm(distInfo(x).km) + 'km' : ''}</span></button>`).join('')}</div></div>` : ''}
@@ -595,6 +595,8 @@ function openDetail(id) {
     const go = e.target.closest('[data-go]'); if (go) return openDetail(go.dataset.go);
     const tg = e.target.closest('[data-tag]');
     if (tg) { if (document.body.classList.contains('ro')) return; const t = tg.dataset.tag; const set = new Set(p.tags || []); set.has(t) ? set.delete(t) : set.add(t); p.tags = [...set]; tg.classList.toggle('tag'); tg.classList.toggle('off'); markDirty(); renderTagChips(); renderList(); return; }
+    const vlb = e.target.closest('[data-vlb]'); if (vlb) { const v = p.visitLog[+vlb.dataset.vlb]; openLightbox(visitPhotos(v), +vlb.dataset.k, `${p.name} · ${(v.date || '').replace(/-/g, '.')}`); return; }
+    const vedit = e.target.closest('[data-vedit]'); if (vedit) { openVisitForm(p, p.visitLog[+vedit.dataset.vedit]); return; }
     const vdel = e.target.closest('[data-vdel]');
     if (vdel) { if (vdel.dataset.confirm) { p.visitLog.splice(+vdel.dataset.vdel, 1); p.visits = Math.max(0, (p.visits || 1) - 1); markDirty(); openDetail(id); } else { vdel.dataset.confirm = 1; vdel.textContent = '삭제?'; } return; }
     const pin = e.target.closest('[data-pin]');
@@ -705,32 +707,34 @@ function openHoursForm(p) {
 /* ---------------- 방문 기록 ---------------- */
 const FAMILY_DEFAULT = ['아빠', '엄마', '하준', '이준'];
 function familyNames() { const f = S.db.meta.family || {}; return (f.names || []).length ? f.names : FAMILY_DEFAULT; }
-function openVisitForm(p) {                                     // 시안 07: 방문 기록 · 내 사진 올리기
+function openVisitForm(p, edit, back) {                          // 시안 07: 방문 기록 · 내 사진 올리기 (edit = 기존 기록 편집)
   const di = distInfo(p); const mealNow = (() => { const h = new Date().getHours(); return h < 11 ? '아침' : h < 15 ? '점심' : h < 17 ? '간식' : '저녁'; })();
-  const st = { photos: [], rating: 0, who: new Set(familyNames()), menu: [] };
+  const st = edit ? { photos: (edit.photos?.length ? edit.photos : edit.photo ? [edit.photo] : []).map(path => ({ path, url: photoUrl(path) })), rating: edit.rating || 0, who: new Set(edit.who || []), menu: (edit.menu || []).map(m => typeof m === 'string' ? m : m.name || '') } : { photos: [], rating: 0, who: new Set(familyNames()), menu: [] };
+  const d0 = edit?.date || today();
   const dateTxt = iso => { const d = new Date(iso + 'T00:00:00'); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} (${DAYS[d.getDay()]})`; };
   openSheet(`<div class="vf-sheet">
-    <div class="hd"><button class="lnk" data-act="back">취소</button><b>방문 기록</b><button class="lnk pri" data-act="save">저장</button></div>
+    <div class="hd"><button class="lnk" data-act="back">취소</button><b>${edit ? '기록 편집' : '방문 기록'}</b><button class="lnk pri" data-act="save">저장</button></div>
     <div class="vf-scroll">
       <div class="vf-place">${thumbHtml(p, 'tile')}<div style="flex:1;min-width:0"><b>${esc(p.name)}</b><p class="cap">${esc(areaOf(p))}${di ? ` · ${fmtKm(di.km)}km` : ''}</p></div></div>
       <div class="vsec"><h4>사진 <span class="cap3">최대 10장 · 첫 장이 표지</span></h4><div class="vgrid" id="vgrid"></div><p class="cap3" style="margin-top:8px">기기에서 1280px로 줄여 저장 · 원본은 올리지 않음${S.token || OFFLINE ? '' : ' · <b>GitHub 토큰 없으면 사진은 이 기기에만 남음</b>'}</p><input type="file" id="vfile" accept="image/*" multiple hidden></div>
-      <div class="vsec"><h4>날짜</h4><label class="field vdate-f"><input type="date" id="vdate" class="num" value="${today()}" max="${today()}"><span class="cap" id="vdate-txt">${dateTxt(today()).slice(-3)}</span><select id="vmeal" class="cap" style="margin-left:auto">${['아침', '점심', '간식', '저녁', '야식'].map(m => `<option${m === mealNow ? ' selected' : ''}>${m}</option>`).join('')}</select></label></div>
-      <div class="vsec"><h4>함께 간 사람</h4><div class="chips" id="vwho">${familyNames().map(n => `<button type="button" class="chip on" data-who="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="chip" data-who="+">+ 손님</button></div></div>
+      <div class="vsec"><h4>날짜</h4><label class="field vdate-f"><input type="date" id="vdate" class="num" value="${d0}" max="${today()}"><span class="cap" id="vdate-txt">${dateTxt(d0).slice(-3)}</span><select id="vmeal" class="cap" style="margin-left:auto">${['아침', '점심', '간식', '저녁', '야식'].map(m => `<option${m === (edit?.meal || mealNow) ? ' selected' : ''}>${m}</option>`).join('')}</select></label></div>
+      <div class="vsec"><h4>함께 간 사람</h4><div class="chips" id="vwho">${[...new Set([...familyNames(), ...st.who])].map(n => `<button type="button" class="chip${st.who.has(n) ? ' on' : ''}" data-who="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="chip" data-who="+">+ 손님</button></div></div>
       <div class="vsec"><h4>별점</h4><div class="vstars" id="vstars">${[1, 2, 3, 4, 5].map(n => `<span data-r="${n}">★</span>`).join('')}<span class="num val" id="vval">—</span></div></div>
-      <div class="vsec"><h4>한줄평</h4><textarea id="vmemo" class="vmemo" placeholder="예: 하준이가 순두부 국물까지 다 마심"></textarea></div>
+      <div class="vsec"><h4>한줄평</h4><textarea id="vmemo" class="vmemo" placeholder="예: 하준이가 순두부 국물까지 다 마심">${esc(edit?.memo || '')}</textarea></div>
       <div class="vsec"><h4>먹은 메뉴</h4><div class="chips" id="vmenu"><button type="button" class="chip" data-menu="+">+ 메뉴</button></div></div>
       <div style="height:20px"></div></div>
-    <div class="vf-foot"><button class="btn-pri" data-act="save">기록 저장하고 스탬프 찍기</button></div></div>`);
+    <div class="vf-foot">${edit ? '<button class="btn-line" data-act="vdelete" style="flex:0 0 auto;padding:0 16px;color:var(--danger)">기록 삭제</button>' : ''}<button class="btn-pri" data-act="save">${edit ? '수정 저장' : '기록 저장하고 스탬프 찍기'}</button></div></div>`);
   const sheet = $('#sheet-inner');
   const drawPhotos = () => { $('#vgrid').innerHTML = st.photos.map((ph, i) => `<div class="vph" style="background-image:url('${ph.url}')">${i === 0 ? '<span class="cv">표지</span>' : ''}<button type="button" class="x" data-rm="${i}">✕</button></div>`).join('') + (st.photos.length < 10 ? '<button type="button" class="vph add" data-act="addphoto"><b>+</b>사진 추가</button>' : ''); };
   const drawMenu = () => { $('#vmenu').innerHTML = st.menu.map((m, i) => `<button type="button" class="chip soft" data-rmmenu="${i}">${esc(m)} ✕</button>`).join('') + '<button type="button" class="chip" data-menu="+">+ 메뉴</button>'; };
-  drawPhotos();
+  drawPhotos(); drawMenu(); if (st.rating) { $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); }
   $('#vdate').onchange = e => { $('#vdate-txt').textContent = dateTxt(e.target.value || today()).slice(-3); };   // 요일 표시
   $('#vdate').onclick = e => { try { e.target.showPicker(); } catch {} };   // 칸 어디를 눌러도 달력 열기 (지난 날짜 선택)
   $('#vfile').onchange = async e => { for (const f of [...e.target.files].slice(0, 10 - st.photos.length)) { try { const b64 = await resizeImage(f); st.photos.push({ b64, url: 'data:image/jpeg;base64,' + b64 }); } catch { toast('사진을 읽지 못했습니다'); } } drawPhotos(); e.target.value = ''; };
   sheet.onclick = async e => {
     const b = e.target.closest('button, [data-r]'); if (!b) return;
-    if (b.dataset.act === 'back') return openDetail(p.id);
+    if (b.dataset.act === 'back') return back ? back() : openDetail(p.id);
+    if (b.dataset.act === 'vdelete') { if (!b.dataset.c) { b.dataset.c = 1; b.textContent = '정말 삭제?'; return; } p.visitLog = (p.visitLog || []).filter(v => v !== edit); p.visits = Math.max(0, (p.visits || 1) - 1); markDirty(); toast('기록 삭제'); return back ? back() : openDetail(p.id); }
     if (b.dataset.act === 'addphoto') return $('#vfile').click();
     if (b.dataset.rm != null) { st.photos.splice(+b.dataset.rm, 1); drawPhotos(); return; }
     if (b.dataset.r) { st.rating = +b.dataset.r; $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); return; }
@@ -741,12 +745,14 @@ function openVisitForm(p) {                                     // 시안 07: �
       $$('[data-act=save]').forEach(x => { x.disabled = true; }); $('.vf-foot .btn-pri').textContent = '저장 중…';
       const entry = { date: $('#vdate').value || today(), meal: $('#vmeal').value, rating: st.rating || null, memo: $('#vmemo').value.trim() || null, who: [...st.who], menu: st.menu.slice(), photo: null, photos: [] };
       for (const [i, ph] of st.photos.entries()) {
+        if (ph.path) { entry.photos.push(ph.path); continue; }        // 편집: 이미 올린 사진은 그대로
         let stored = null;
         if (S.token && !OFFLINE) { try { stored = await ghPutFile(`photos/${p.id}/${entry.date}_${Date.now().toString(36)}_${i}.jpg`, ph.b64, `jjtrip: photo ${p.name}`); } catch (err) { toast('사진 업로드 실패: ' + err.message, 3500); } }
         if (!stored) { const local = LS.get('photos', {}); const key = `local:${p.id}:${Date.now().toString(36)}${i}`; local[key] = ph.url; try { LS.set('photos', local); stored = key; } catch { toast('이 기기 저장 공간 부족 — 사진 생략'); } }
         if (stored) entry.photos.push(stored);
       }
       entry.photo = entry.photos[0] || null;
+      if (edit) { Object.assign(edit, entry); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); markDirty(); toast('기록 수정'); return back ? back() : openDetail(p.id); }
       p.visitLog ||= []; entry.id ||= uid('v'); p.visitLog.push(entry); p.visits = (p.visits || 0) + 1;
       markDirty(); renderList(); openDetail(p.id); toast('기록 저장 · 스탬프 찍힘');
     }
@@ -2414,8 +2420,9 @@ function openJournal(opts = {}) {
   let lastM = '';
   const cards = ents.map((e, i) => { const { p, v } = e; const ph = visitPhotos(v); const m = (v.date || '').slice(0, 7);
     const head = m !== lastM ? `<h3 class="jr-month">${m ? `${m.slice(0, 4)}년 ${+m.slice(5, 7)}월` : '날짜 없음'}</h3>` : ''; lastM = m;
-    return `${head}<article class="jr-card">${ph.length ? `<button class="jr-ph" data-lb="${i}" style="background-image:url('${ph[0]}')">${ph.length > 1 ? `<span class="n">1/${ph.length}</span>` : ''}<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt=""></button>` : ''}
+    return `${head}<article class="jr-card">${ph.length ? `<div class="jr-phs">${ph.map((u, k) => `<button class="jr-ph" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}
       <div class="jr-body"><button class="jr-place" data-go="${p.id}">${thumbHtml(p, 'tile')}<span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
+        <button class="jr-edit rw" data-edit="${i}" title="기록 편집">편집</button>
         <p class="jr-meta"><span class="num">${esc((v.date || '').replace(/-/g, '.'))}</span>${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}${v.rating ? ` · <span class="st">${'★'.repeat(v.rating)}<span>${'★'.repeat(5 - v.rating)}</span></span>` : ''}</p>
         ${v.memo ? `<p class="jr-memo serif">“${esc(v.memo)}”</p>` : ''}
         ${(v.menu || []).length ? `<p class="jr-menu">${v.menu.map(x => `<span>${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}</p>` : ''}
@@ -2433,7 +2440,8 @@ function openJournal(opts = {}) {
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
     if (b.dataset.go) return openDetail(b.dataset.go);
     if (b.dataset.addlog) return openVisitForm(placeById(b.dataset.addlog));
-    if (b.dataset.lb != null) { const en = ents[+b.dataset.lb]; return openLightbox(visitPhotos(en.v), 0, `${en.p.name} · ${(en.v.date || '').replace(/-/g, '.')}`); }
+    if (b.dataset.lb != null) { const en = ents[+b.dataset.lb]; return openLightbox(visitPhotos(en.v), +(b.dataset.k || 0), `${en.p.name} · ${(en.v.date || '').replace(/-/g, '.')}`); }
+    if (b.dataset.edit != null) { const en = ents[+b.dataset.edit]; return openVisitForm(en.p, en.v, () => { if (opts.page) { closeSheet(); openJournal(opts); } else openJournal(opts); }); }
     if (b.dataset.act === 'share') shareLink('j', 'all', '우리 가족 기록');
   };
 }
