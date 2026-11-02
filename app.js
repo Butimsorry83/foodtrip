@@ -100,6 +100,7 @@ function parkBadge(p) {
   return `<span class="badge ${cls}">P ${esc(k.type)}${k.crowd === '항상붐빔' ? ' !' : ''}</span>`;
 }
 function migrate(db) {
+  try { const old = JSON.parse(localStorage.getItem('ft.ovCities') || '[]'); if (old.length) { db.meta.ovCities = [...(db.meta.ovCities || []), ...old.filter(o => !(db.meta.ovCities || []).some(c => c.cc === o.cc && c.name === o.name))]; localStorage.removeItem('ft.ovCities'); S.migratedCities = true; } } catch {}   // 기기에만 있던 해외 도시 → db.json
   db.meta.family ||= { adults: 2, kids: [], seniors: 0, spicyOK: false, notes: '' };
   for (const p of db.places) { p.tags ||= []; p.visitLog ||= []; p.visits ||= 0; if (p.wish == null) p.wish = false; }
   return db;
@@ -153,7 +154,7 @@ async function load() {
   if (!S.db) S.db = { meta: {}, bases: [], places: [], trips: [] };
   S.db.bases ||= []; S.db.places ||= []; S.db.trips ||= []; S.db.meta ||= {}; S.db.trash ||= [];
   migrate(S.db);
-  if (trashPurge() > 0 && S.token) markDirty();
+  if ((trashPurge() > 0 || S.migratedCities) && S.token) { S.migratedCities = false; markDirty(); }
   S.baseDb = clone(S.db);                                       // 3-way 병합 기준 (마지막으로 서버와 일치한 상태)
 }
 /* 사진 등 신규 파일 업로드 (base64 본문) */
@@ -1094,7 +1095,7 @@ function openPlanner(prefill = {}) {
   // 국내/해외 구분: 기본은 지금 거점 나라 (덕소면 국내) — 찾기 탭에서 마지막으로 본 지역을 따라가지 않음
   const homeB = S.db.bases.find(b => b.id === 'b_home') || S.db.bases.find(b => b.country === 'KR') || S.base;
   const zone = prefill.zone || (prefill.region ? ((regionCountry(prefill.region) || 'KR') === 'KR' ? 'KR' : 'OV') : ((S.base?.country || 'KR') === 'KR' ? 'KR' : 'OV'));
-  const ovCities = LS.get('ovCities', []);                         // 해외 도시 직접 추가분 [{cc, name, lat, lng}]
+  const ovCities = S.db.meta.ovCities || [];                       // 해외 도시 직접 추가분 [{cc, name, lat, lng}] — db.json에 저장(가족 공유)
   const ovCountries = [...new Set([...S.db.places.filter(p => p.country && p.country !== 'KR').map(p => p.country), ...S.db.bases.filter(b => b.country !== 'KR').map(b => b.country), ...ovCities.map(c => c.cc), 'VN', 'TH', 'JP', 'GU', 'PH', 'TW', 'SG', 'MY', 'ID', 'AU', 'US'])];
   const cc = zone === 'KR' ? 'KR' : (prefill.country || (S.base?.country !== 'KR' ? S.base?.country : null) || (prefill.region && regionCountry(prefill.region)) || ovCountries[0]);
   const ovRegions = zone === 'KR' ? [] : [...regionsInDb().filter(([r]) => regionCountry(r) === cc).map(([r, n]) => ({ key: r, label: `${REGION_LABEL[r] || r} (${n})` })), ...ovCities.filter(c => c.cc === cc).map(c => ({ key: 'c:' + c.name, label: c.name + ' (직접 추가)' }))];
@@ -1182,7 +1183,7 @@ function openPlanner(prefill = {}) {
       if (b.dataset.act === 'addcity') { const q = $('#pl-city').value.trim(); if (!q) return toast('도시 이름을 입력하세요'); b.textContent = '찾는 중…';
         let hits = []; try { hits = await geoSearch(q, cc); if (!hits.length) hits = await osmSearch(q, cc); } catch {} b.textContent = '＋ 추가';
         if (!hits.length) return toast('위치를 못 찾았어요 — 영문 이름으로 시도해 보세요');
-        const list = LS.get('ovCities', []).filter(c => !(c.cc === cc && c.name === q)); list.push({ cc, name: q, lat: hits[0].lat, lng: hits[0].lng }); LS.set('ovCities', list);
+        const list = (S.db.meta.ovCities || []).filter(c => !(c.cc === cc && c.name === q)); list.push({ cc, name: q, lat: +hits[0].lat.toFixed(5), lng: +hits[0].lng.toFixed(5), at: today() }); S.db.meta.ovCities = list; markDirty();
         toast(`도시 추가: ${q}`); reopen(f0, { region: 'c:' + q, area: 'all', lodge: null }); return; }
       if (b.dataset.act === 'lsearch') { const q = $('#lq').value.trim(); if (!q) return toast('동네명이나 숙소 이름을 입력하세요'); b.textContent = '검색 중…'; let hits = []; try { hits = await geoSearch(q, cc, area !== 'all' ? area : ''); if (!hits.length && area !== 'all') hits = await osmSearch(`${area} ${q}`, cc); } catch (err) { toast('검색 실패: ' + err.message); } b.textContent = '검색'; showHits($('#lhits'), hits, h => { const ak = isKR ? (Object.values(KR_AREAS).flat().filter(k => (h.address || '').includes(k.replace(/^(경기|강원|경남) /, ''))).sort((a, b) => b.length - a.length)[0] || area) : area;
         reopen(f0, { area: ak, lodge: { name: h.name, lat: h.lat, lng: h.lng, address: h.address, country: cc, si: ak } }); }); }
