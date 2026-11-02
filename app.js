@@ -820,6 +820,7 @@ function scoreSpot(sp, ctx) {
   if (km != null) { const v = km <= 30 ? 15 : km <= 80 ? 10 : km <= 150 ? 5 : 0; s += v; reasons.push([v, `${fmtKm(km)}km`]); }
   if ((sp.seasons || []).includes(ctx.season)) { s += 12; reasons.push([12, ctx.season + ' 추천']); } else if ((sp.seasons || []).length) { s -= 10; reasons.push([-10, ctx.season + ' 비추']); }
   if (ctx.season === '여름' && tags.has('물놀이')) { s += 6; reasons.push([6, '물놀이']); }
+  { const off = offSeason(sp, ctx.season); if (off) { s -= 40; reasons.push([-40, off]); } }   // 11월 야외 수영장 등 제외
   if ((ctx.season === '여름' || ctx.season === '겨울') && tags.has('실내')) { s += 4; reasons.push([4, '실내']); }
   if (ctx.season === '겨울' && tags.has('눈썰매')) { s += 6; reasons.push([6, '눈썰매']); }
   if (fam.toddler) { if (tags.has('유아OK')) { s += 8; reasons.push([8, '유아OK']); } if (tags.has('동물')) { s += 4; reasons.push([4, '동물']); } }
@@ -838,6 +839,16 @@ function scoreSpot(sp, ctx) {
 /* A: 내 DB에서 추천 */
 const normSi = s => (s || '').replace(/(특별|광역)?시$|군$/, '').trim();
 function siMatch(si, list) { const a = normSi(si); if (!a) return false; return (list || []).filter(Boolean).some(x => { const b = normSi(x); if (!b) return false; if (a === b || a.startsWith(b) || b.startsWith(a)) return true; if ((b === '서울' && /구$/.test(a)) || (a === '서울' && /구$/.test(b))) return true; return false; }); }
+const SUMMER_ONLY_RE = /워터파크|워터월드|워터랜드|물놀이|수영장|해수욕장|캐리비안|캘리포니아비치|비치$|아쿠아월드|아쿠아필드|래프팅|수상레저/;   // 야외 물놀이 = 여름만
+const WINTER_ONLY_RE = /스키|눈썰매|썰매장|얼음|빙어|스케이트장/;
+function offSeason(p, season) {                                   // 계절 안 맞는 곳 (직접 넣은 계절이 우선, 실내·온천은 예외)
+  if (!season || (p.seasons || []).includes(season)) return '';
+  const t = [p.name, p.cat, p.category, p.desc, ...(p.tags || [])].filter(Boolean).join(' ');
+  if (/실내|스파|온천|아쿠아리움|사우나/.test(t)) return '';
+  if (season !== '여름' && SUMMER_ONLY_RE.test(t)) return '여름 전용';
+  if (season !== '겨울' && WINTER_ONLY_RE.test(t)) return '겨울 전용';
+  return '';
+}
 function recommendFromDb(ctx, limit = 8) {
   const out = [];
   for (const r of S.db.places) {
@@ -1045,7 +1056,11 @@ function buildPlan(cfg) {
       if (m) { used.add(m.place.id); push(lt, '중식', m.place, { kind: 'meal', note: m.reasons.slice(0, 3).join(' · '), slot: di + ':lunch', near }); } else push(lt, '중식', null, candMeal(cfg, di + ':lunch', near) || { kind: 'meal', slot: di + ':lunch', near, note: '근처 식당 찾는 중…' });
       lunchDone = true; return lt + 75; };
     push(t, di > 0 && cfg.lodging === 'stay' ? '숙소 출발' : '출발', S0.id && S0 === home ? S0 : null, { kind: 'base', place: di > 0 && cfg.lodging === 'stay' && !lodge ? `전일 숙소 (${S0.name} 인근)` : S0.name });
-    if ((base.country !== 'KR' || cfg.lodging === 'stay') && cfg.breakfast && di > 0) { push(t, '조식', null, { kind: 'meal', note: '숙소 조식' }); t += 50; }
+    if ((base.country !== 'KR' || cfg.lodging === 'stay') && cfg.breakfast && di > 0) {   // 조식: 기본 숙소 조식, 「바꾸기」로 숙소 근처 식당 선택 가능
+      const bs = di + ':breakfast', fp = cfg.forceMeals && cfg.forceMeals[bs] && placeById(cfg.forceMeals[bs]);
+      if (fp) { used.add(fp.id); push(t, '조식', fp, { kind: 'meal', note: '직접 선택', slot: bs, near: S0, bf: true }); }
+      else push(t, '조식', null, candMeal(cfg, bs, S0) || { kind: 'meal', note: '숙소 조식', slot: bs, near: S0, bf: true });
+      t += 50; }
     if (!todays.length) push(t + 30, '자유 일정', null, { kind: 'spot', note: '선택한 휴양지 소진 — 추천에서 추가' });
     let lunchAfter = todays.length >= 2 ? Math.ceil(todays.length / 2) : 1;
     if (todays.length === 3) {                                    // 홀수(3곳): 무거운 1곳은 반나절 단독, 가벼운 2곳(서로 가까운)은 묶어서 반대편 반나절
@@ -1100,7 +1115,7 @@ function buildPlan(cfg) {
 }
 
 /* 화면 */
-async function findAttractions(o, radiusM, country) {           // 근처 관광명소 (국내 카카오 AT4, 해외 구글)
+async function findAttractions(o, radiusM, country, season = $('#plf [name=season]')?.value || seasonNow(new Date())) {           // 근처 관광명소 (국내 카카오 AT4, 해외 구글)
   const known = new Set(S.db.places.map(p => p.name.replace(/\s/g, '')));
   let out = [];
   if (country === 'KR') {
@@ -1112,7 +1127,7 @@ async function findAttractions(o, radiusM, country) {           // 근처 관광
     const g = await googleNearby(o, ['tourist_attraction'], Math.min(radiusM, 50000), 'POPULARITY', 15);
     out = g.map(h => ({ ...h, cat: h.type, km: haversine(o, h), src: '구글' }));
   }
-  return out.filter(h => !known.has(h.name.replace(/\s/g, '')) && !/(주차장|화장실|매표소|관리사무소)/.test(h.name)).slice(0, 12);
+  return out.filter(h => !known.has(h.name.replace(/\s/g, '')) && !/(주차장|화장실|매표소|관리사무소)/.test(h.name) && !offSeason(h, season)).slice(0, 12);   // 계절 안 맞는 곳(겨울 수영장 등) 제외
 }
 function openPlanner(prefill = {}) {
   // 국내/해외 구분: 기본은 지금 거점 나라 (덕소면 국내) — 찾기 탭에서 마지막으로 본 지역을 따라가지 않음
@@ -1225,7 +1240,7 @@ function openPlanner(prefill = {}) {
     return (nearCache[k] = r);
   };
   const fillNear = async () => {                                 // '찾는 중' 식사 칸을 근처 새 후보로 채우고 다시 그림
-    const need = plan.days.flatMap(d => d.items).filter(it => it.kind === 'meal' && !it.place_id && !it.cand && it.slot && it.near && !tried.has(it.slot));
+    const need = plan.days.flatMap(d => d.items).filter(it => it.kind === 'meal' && !it.bf && !/breakfast/.test(it.slot || '') && !it.place_id && !it.cand && it.slot && it.near && !tried.has(it.slot));   // 조식은 숙소 조식 기본 (자동 채우기 X)
     if (!need.length) return; need.forEach(it => tried.add(it.slot));
     cfg.candPick ||= {}; const usedNames = new Set(Object.values(cfg.candPick).map(c => c.name)); let got = 0;
     for (const it of need) { const list = await nearCands(it.near); const c = list.find(x => !usedNames.has(x.name) && mealOK(x, it.slot) && !(/dinner/.test(it.slot) && x.cuisine === '양식')); if (c) { cfg.candPick[it.slot] = c; usedNames.add(c.name); got++; } }
@@ -1286,7 +1301,7 @@ function openPlanner(prefill = {}) {
     if (b.dataset.swap != null) {                               // 식사 바꾸기: 후보 3곳 중 고르기
       const idx = +b.dataset.swap, it = plan.days[curDi].items[idx]; const row = b.closest('.pl-row'); if (!it || !row) return;
       if (row.nextElementSibling?.classList.contains('pl-cands')) { row.nextElementSibling.remove(); return; }
-      const near = it.near || (it.place_id && placeById(it.place_id)); const ctx2 = { season: cfg.season, family: famProfile(), country: cfg.base.country, mode: 'plan', allowApprox: true, origin: near ? withCoord(near) : cfg.base };
+      const near = it.near || (it.place_id && placeById(it.place_id)) || plan.days[curDi].items.slice(0, idx).reverse().map(x => x.to || (x.place_id && placeById(x.place_id))).find(x => x && hasCoord(withCoord(x)));   /* 위치 없는 칸은 직전 장소 기준 (집 기준 X) */ const ctx2 = { season: cfg.season, family: famProfile(), country: cfg.base.country, mode: 'plan', allowApprox: true, origin: near ? withCoord(near) : cfg.base };
       const cands = recommendFromDb(ctx2, 30).filter(x => x.place.id !== it.place_id && x.km != null && (x.km <= (cfg.mealKm || 3) * 1.5 || (isFamous(x.place) && x.km <= Math.max((cfg.mealKm || 3) * 3, 10)))).slice(0, 3);   // 식당 반경 안 위주
       row.insertAdjacentHTML('afterend', `<div class="pl-cands">${cands.map(x => `<button class="rc-row" data-pick-meal="${x.place.id}" data-slot="${esc(it.slot || '')}">${thumbHtml(x.place, 'tile')}<div class="m"><b>${esc(x.place.name)}</b><p class="cap">${esc([cuisineOf(x.place)[0], x.km != null ? (x.approx && x.km < 0.5 ? '같은 지역' : fmtKm(x.km) + 'km') : areaOf(x.place), x.reasons.filter(r => !/km$/.test(r))[0]].filter(Boolean).join(' · '))}</p></div></button>`).join('') || '<div class="help">근처 등록 식당 없음</div>'}<div class="pl-cnew"><span class="bd" style="background:var(--${cfg.base.country === 'KR' ? 'kakao' : 'google'});color:${cfg.base.country === 'KR' ? 'var(--on-kakao)' : '#fff'}">${cfg.base.country === 'KR' ? '카카오' : '구글'}</span> 근처 새 후보 불러오는 중…</div></div>`);
       const box = row.nextElementSibling; const list = near ? await nearCands(near) : []; S.swapCands = list.filter(c => c.name !== it.place && mealOK(c, it.slot)).slice(0, 5);
