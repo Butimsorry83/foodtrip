@@ -102,7 +102,7 @@ function parkBadge(p) {
 function migrate(db) {
   try { const old = JSON.parse(localStorage.getItem('ft.ovCities') || '[]'); if (old.length) { db.meta.ovCities = [...(db.meta.ovCities || []), ...old.filter(o => !(db.meta.ovCities || []).some(c => c.cc === o.cc && c.name === o.name))]; localStorage.removeItem('ft.ovCities'); S.migratedCities = true; } } catch {}   // 기기에만 있던 해외 도시 → db.json
   db.meta.family ||= { adults: 2, kids: [], seniors: 0, spicyOK: false, notes: '' };
-  for (const p of db.places) { p.tags ||= []; p.visitLog ||= []; p.visits ||= 0; if (p.wish == null) p.wish = false; }
+  for (const p of db.places) { p.tags ||= []; p.visitLog ||= []; p.visits ||= 0; if (p.wish == null) p.wish = false; p.visitLog.forEach((v, i) => { v.id ||= `v_${p.id}_${v.date || ''}_${i}`; }); }   // 기록마다 고정 id (앨범·편집용)
   return db;
 }
 function rawUrl(path) { return `https://raw.githubusercontent.com/${S.repo}/${CFG.branch}/${path}`; }
@@ -2414,28 +2414,35 @@ function openJournal(opts = {}) {
   if (kind !== 'all') ents = ents.filter(e => e.p.type === kind);
   if (who) ents = ents.filter(e => (e.v.who || []).includes(who));
   ents.sort((a, b) => (b.v.date || '').localeCompare(a.v.date || ''));
+  const allEnts = ents;
+  if (opts.post) ents = ents.filter(e => (e.v.id || '') === opts.post);   // 앨범에서 고른 글 하나
+  const album = !opts.placeId && !opts.post;                             // 기록 첫 화면 = 앨범(사진 격자)
   const nPh = ents.reduce((n, e) => n + visitPhotos(e.v).length, 0);
-  const title = opts.placeId ? placeById(opts.placeId)?.name + ' 기록' : t ? `${tripCity(t)} 여행기` : '우리 가족 기록';
+  const title = opts.post && ents[0] ? ents[0].p.name : opts.placeId ? placeById(opts.placeId)?.name + ' 기록' : t ? `${tripCity(t)} 여행기` : '우리 가족 기록';
   const dow = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? '' : ` (${DAYS[x.getDay()]})`; };
   let lastM = '';
   const cards = ents.map((e, i) => { const { p, v } = e; const ph = visitPhotos(v); const m = (v.date || '').slice(0, 7);
     const head = m !== lastM ? `<h3 class="jr-month">${m ? `${m.slice(0, 4)}년 ${+m.slice(5, 7)}월` : '날짜 없음'}</h3>` : ''; lastM = m;
-    return `${head}<article class="jr-card">${ph.length ? `<div class="jr-phs">${ph.map((u, k) => `<button class="jr-ph" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}
+    return `${head}<article class="jr-card">
       <div class="jr-body"><button class="jr-place" data-go="${p.id}">${thumbHtml(p, 'tile')}<span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
         <button class="jr-edit rw" data-edit="${i}" title="기록 편집">편집</button>
         <p class="jr-meta"><span class="num">${esc((v.date || '').replace(/-/g, '.'))}</span>${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}${v.rating ? ` · <span class="st">${'★'.repeat(v.rating)}<span>${'★'.repeat(5 - v.rating)}</span></span>` : ''}</p>
         ${v.memo ? `<p class="jr-memo serif">“${esc(v.memo)}”</p>` : ''}
         ${(v.menu || []).length ? `<p class="jr-menu">${v.menu.map(x => `<span>${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}</p>` : ''}
-        ${(v.who || []).length ? `<p class="jr-who">${v.who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}</div></article>`; }).join('');
+        ${(v.who || []).length ? `<p class="jr-who">${v.who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}</div>${ph.length ? `<div class="jr-phs">${ph.map((u, k) => `<button class="jr-ph" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article>`; }).join('');   // 어디·언제 먼저, 사진은 아래
+  const withPh = album ? ents.filter(e => visitPhotos(e.v).length) : [], noPh = album ? ents.filter(e => !visitPhotos(e.v).length) : [];
+  const grid = withPh.length ? `<div class="jr-grid">${withPh.map(e => { const ph = visitPhotos(e.v); return `<button class="jr-tile" data-post="${esc(e.v.id || '')}" style="background-image:url('${ph[0]}')"><span class="ov"><b>${esc(e.p.name)}</b><small>${esc((e.v.date || '').replace(/-/g, '.'))} · ${ph.length}장</small></span>${ph.length > 1 ? '<i>❐</i>' : ''}</button>`; }).join('')}</div>` : '';
+  const noPhHtml = noPh.length ? `<h3 class="jr-month">사진 없는 기록 <small>${noPh.length}</small></h3><div class="jr-nolog">${noPh.map(e => `<div class="row-nl">${thumbHtml(e.p, 'tile')}<button class="jr-place" data-post="${esc(e.v.id || '')}"><span><b>${esc(e.p.name)}</b><small>${esc([(e.v.date || '').replace(/-/g, '.'), e.v.memo ? '“' + e.v.memo + '”' : ''].filter(Boolean).join(' · '))}</small></span></button></div>`).join('')}</div>` : '';
   const chip = (k, label, on) => `<button class="chip${on ? ' on' : ''}" ${k}>${label}</button>`;
   const noLog = opts.placeId || t || who ? [] : S.db.places.filter(p => (p.visits || 0) > 0 && !(p.visitLog || []).length && (kind === 'all' || p.type === kind)).sort((a, b) => (b.visits || 0) - (a.visits || 0));   // 다녀왔지만 아직 글·사진 없는 곳
   const noLogHtml = noLog.length ? `<h3 class="jr-month">다녀온 곳 · 아직 기록 없음 <small>${noLog.length}</small></h3><div class="jr-nolog">${noLog.map(p => `<div class="row-nl">${thumbHtml(p, 'tile')}<button class="jr-place" data-go="${p.id}"><span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p), `방문 ${p.visits}회`].join(' · '))}</small></span></button><button class="chip rw" data-addlog="${p.id}">+ 기록</button></div>`).join('')}</div>` : '';
   const box = opts.page ? $('#journal') : null;
-  (opts.page ? (h => { box.innerHTML = h; }) : openSheet)(`<div class="jr-sheet"><div class="hd">${opts.page ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">방문 ${ents.length} · 사진 ${nPh}</p><b>${esc(title)}</b></div>${t || opts.placeId ? '' : `<button class="chip" data-act="share">공유</button>`}</div>
-    ${opts.placeId ? '' : `<div class="jr-chips">${chip('data-kind="all"', '전체', kind === 'all')}${chip('data-kind="spot"', '휴양지', kind === 'spot')}${chip('data-kind="restaurant"', '식당', kind === 'restaurant')}${chip('data-kind="mine"', '우리 장소', kind === 'mine')}<span class="sep"></span>${familyNames().map(n => chip(`data-who="${esc(n)}"`, esc(n), who === n)).join('')}</div>`}
-    <div class="jr-feed">${cards}${noLogHtml}${cards || noLogHtml ? '' : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>아직 기록이 없어요</b><p class="cap">장소 상세 › 「다녀왔어요 · 기록 남기기」로 사진과 한줄평을 남기면 여기에 쌓입니다</p></div>`}</div></div>`);
+  (opts.page ? (h => { box.innerHTML = h; }) : openSheet)(`<div class="jr-sheet"><div class="hd">${opts.page && !opts.post ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">방문 ${ents.length} · 사진 ${nPh}</p><b>${esc(title)}</b></div>${t || opts.placeId ? '' : `<button class="chip" data-act="share">공유</button>`}</div>
+    ${opts.placeId || opts.post ? '' : `<div class="jr-chips">${chip('data-kind="all"', '전체', kind === 'all')}${chip('data-kind="spot"', '휴양지', kind === 'spot')}${chip('data-kind="restaurant"', '식당', kind === 'restaurant')}${chip('data-kind="mine"', '우리 장소', kind === 'mine')}<span class="sep"></span>${familyNames().map(n => chip(`data-who="${esc(n)}"`, esc(n), who === n)).join('')}</div>`}
+    <div class="jr-feed">${album ? grid + noPhHtml : cards}${album ? noLogHtml : ''}${(album ? grid || noPhHtml : cards) || noLogHtml ? '' : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>아직 기록이 없어요</b><p class="cap">장소 상세 › 「다녀왔어요 · 기록 남기기」로 사진과 한줄평을 남기면 여기에 쌓입니다</p></div>`}</div></div>`);
   (box || $('#sheet-inner')).onclick = e => { const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.act === 'back') { opts.placeId ? openDetail(opts.placeId) : closeSheet(); return; }
+    if (b.dataset.act === 'back') { if (opts.post) return openJournal({ ...opts, post: null }); opts.placeId ? openDetail(opts.placeId) : closeSheet(); return; }
+    if (b.dataset.post) { const r = (box || $('#sheet-inner')); openJournal({ ...opts, post: b.dataset.post }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.kind) return openJournal({ ...opts, kind: b.dataset.kind });
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
     if (b.dataset.go) return openDetail(b.dataset.go);

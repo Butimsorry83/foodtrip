@@ -598,6 +598,12 @@ svg.i { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-widt
 .lodge-box .inline { display: flex; gap: 6px; align-items: stretch; } .lodge-box .inline input { flex: 1; min-width: 0; } .lodge-box .inline button { white-space: nowrap; flex: none; }
 .jr-month { font: 800 15px var(--font-serif); color: var(--text-2); margin: 18px 4px 8px; }
 .jr-card { background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--sh-card); overflow: hidden; margin-bottom: 14px; }
+.jr-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 12px; border-radius: var(--r-lg); overflow: hidden; }
+.jr-tile { aspect-ratio: 1; border: 0; padding: 0; background: var(--bg-subtle) center/cover; position: relative; cursor: pointer; overflow: hidden; }
+.jr-tile .ov { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 10px 8px; background: linear-gradient(0deg, rgba(0,0,0,.65), rgba(0,0,0,0)); color: #fff; text-align: left; display: flex; flex-direction: column; gap: 1px; }
+.jr-tile .ov b { font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .jr-tile .ov small { font: 500 11px var(--font-num); opacity: .9; }
+.jr-tile i { position: absolute; right: 8px; top: 6px; font-style: normal; color: #fff; font-size: 16px; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.jr-tile:hover { filter: brightness(1.08); }
 .jr-phs { display: flex; flex-direction: column; gap: 3px; background: var(--panel); }
 .jr-ph { display: block; width: 100%; border: 0; padding: 0; background: var(--bg-subtle); position: relative; cursor: zoom-in; } .jr-ph > img:first-child { display: block; width: 100%; height: auto; max-height: 80vh; object-fit: contain; background: #000; }
 .jr-body { position: relative; } .jr-edit { position: absolute; right: 14px; top: 14px; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--text-2); cursor: pointer; }
