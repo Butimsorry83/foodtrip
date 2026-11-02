@@ -802,3 +802,10 @@ body.dark-tiles .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) bright
   .jr-sheet.post .jr-nav.pv { left: 14px; } .jr-sheet.post .jr-nav.nx { right: 14px; }
   .jr-sheet.post .jr-nav:hover { background: #fff; }
 }
+
+/* 식사 바꾸기 후보: 구글 평점 · 카카오맵 링크 (11/02) */
+.pl-ci { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); } .pl-ci:first-child { border-top: 0; }
+.pl-ci .rc-row { flex: 1; min-width: 0; border-top: 0; }
+.pl-ci .c-map { flex: none; font-size: 12px; color: var(--text-2); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: var(--panel); white-space: nowrap; }
+.pl-ci .c-map:hover { color: var(--primary); border-color: var(--primary); }
+.g-rt { color: var(--star); font-weight: 800; } .g-n { color: var(--text-3); }

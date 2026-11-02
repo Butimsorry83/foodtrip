@@ -854,6 +854,22 @@ function recommendFromDb(ctx, limit = 8) {
 }
 /* B: 카카오 주변 신규 후보 (국내, 키 필요) */
 const KAKAO_CUISINE = [['한식', '한식'], ['중식', '중식'], ['일식', '일식'], ['양식', '양식'], ['분식', '기타'], ['카페', '카페'], ['치킨', '기타'], ['패스트푸드', '기타'], ['아시아', '기타']];
+const NOMEAL_RE = /패스트푸드|햄버거|버거|롯데리아|맥도날드|맘스터치|버거킹|KFC|서브웨이|프랭크버거|노브랜드|카페|커피|제과|베이커리|도넛|디저트|아이스크림|빙수|편의점|간식|떡,한과/i;   // 여행 식사로 부적합 (점심·저녁 공통)
+const NODINNER_RE = /피자|치킨|분식|김밥|토스트|샌드위치|햄버거|버거|양식|파스타|브런치|핫도그|도미노|피자헛|파파존스|떡볶이/i;   // 저녁 제외
+const catShort = cat => (cat || '').split('>').map(x => x.trim()).filter(x => x && x !== '음식점').slice(-2).join(' › ');   // 카카오 세부 분류 (예: 해물,생선 › 게,대게)
+const mealOK = (c, slot) => { const t = (c.name || '') + ' ' + (c.category || '') + ' ' + (c.cuisine || ''); return !NOMEAL_RE.test(t) && !(/dinner/.test(slot || '') && NODINNER_RE.test(t)); };
+async function gRate(c) {                                        // 카카오 후보에 구글 평점·리뷰 수 붙이기 (기기 캐시 30일, 키 있을 때만)
+  if (!googleKey() || !hasCoord(c)) return c;
+  const cache = LS.get('gRate', {}), k = c.name.replace(/\s/g, '') + '@' + (+c.lat).toFixed(3) + ',' + (+c.lng).toFixed(3), hit = cache[k];
+  if (hit && Date.now() - hit.t < 30 * 864e5) { if (hit.r) c.google = { rating: hit.r, reviews: hit.n, url: hit.u }; return c; }
+  try { const res = await gPlaces('searchText', { textQuery: c.name, maxResultCount: 3, locationBias: { circle: { center: { latitude: +c.lat, longitude: +c.lng }, radius: 500 } } });
+    const g = (res || []).map(x => gHit(x)).find(x => x.lat != null && haversine(c, x) < 0.4);
+    cache[k] = g && g.rating ? { r: g.rating, n: g.reviews || 0, u: g.url, t: Date.now() } : { t: Date.now() }; LS.set('gRate', cache);
+    if (g && g.rating) c.google = { rating: g.rating, reviews: g.reviews || 0, url: g.url };
+  } catch (e) { console.warn(e); }
+  return c;
+}
+const rateBonus = c => { const g = c.google; if (!g || !g.rating) return 0; const n = g.reviews || 0; return (g.rating - 4) * (n >= 30 ? 20 : 8) + Math.min(12, Math.log10(n + 1) * 4); };
 async function recommendNearbyKakao(origin, ctx, radius = 3000) {
   if (!origin || !hasCoord(origin)) return [];
   await loadKakao(); if (!window.kakao?.maps?.services) return [];
@@ -870,7 +886,7 @@ async function recommendNearbyKakao(origin, ctx, radius = 3000) {
     if (fam.kids && /키즈|가족/.test(cat + d.place_name)) { s += 4; reasons.push('가족'); }
     if (/(술집|호프|바|포장마차|노래)/.test(cat) && fam.kids) s -= 15;
     return { candidate: { name: d.place_name, lat: +d.y, lng: +d.x, address: d.road_address_name || d.address_name, phone: d.phone, url: d.place_url, cuisine: cu, category: cat }, score: Math.round(s), reasons, km };
-  }).sort((a, b) => b.score - a.score).slice(0, 8);
+  }).filter(x => ctx.mode !== 'plan' || mealOK(x.candidate)).sort((a, b) => b.score - a.score).slice(0, ctx.mode === 'plan' ? 12 : 8);
 }
 
 /* 추천 화면 */
@@ -969,7 +985,7 @@ function mealPick(origin, when, used, ctx, radiusKm) {
 }
 function candMeal(cfg, slot, near) {                            // 등록 식당이 없을 때: 근처 새 후보(카카오·구글)로 채움
   const c = cfg.candPick && cfg.candPick[slot]; if (!c) return null;
-  return { kind: 'meal', slot, near, cand: c, place: c.name, note: [`${c.src || '카카오'} 추천`, c.cuisine, c.km != null ? fmtKm(c.km) + 'km' : ''].filter(Boolean).join(' · ') };
+  return { kind: 'meal', slot, near, cand: c, place: c.name, note: [`${c.src || '카카오'} 추천`, catShort(c.category) || c.cuisine, c.google?.rating ? `구글 ★${c.google.rating} (${(c.google.reviews || 0).toLocaleString()})` : '', c.km != null ? fmtKm(c.km) + 'km' : ''].filter(Boolean).join(' · ') };
 }
 function routeCost(start, list, end) { let c = 0, p = start; for (const s of list) { c += leg(p, s).min; p = s; } if (end) c += leg(p, end).min; return c; }
 function bestOrder(start, list, end) {                           // 동선 최단 순서 (6곳 이하 전수, 그 이상은 최근접)
@@ -1205,13 +1221,14 @@ function openPlanner(prefill = {}) {
     const k = o.lat.toFixed(3) + ',' + o.lng.toFixed(3); if (nearCache[k]) return nearCache[k];
     const ctx2 = { season: cfg.season, family: famProfile(), country: cfg.base.country, mode: 'plan' };
     let r = []; try { r = (cfg.base.country === 'KR' ? await recommendNearbyKakao(o, ctx2, (cfg.mealKm || 3) * 1000) : await recommendNearbyGoogle(o, ctx2, (cfg.mealKm || 3) * 1000)).map(x => ({ ...x.candidate, km: x.km, score: x.score, src: cfg.base.country === 'KR' ? '카카오' : '구글', cuisine: Array.isArray(x.candidate.cuisine) ? x.candidate.cuisine[0] : x.candidate.cuisine })); } catch {}
+    if (cfg.base.country === 'KR' && googleKey()) { await Promise.all(r.map(gRate)); r.sort((a, b) => (b.score + rateBonus(b)) - (a.score + rateBonus(a))); }   // 구글 평점 높은·리뷰 많은 곳 위로
     return (nearCache[k] = r);
   };
   const fillNear = async () => {                                 // '찾는 중' 식사 칸을 근처 새 후보로 채우고 다시 그림
     const need = plan.days.flatMap(d => d.items).filter(it => it.kind === 'meal' && !it.place_id && !it.cand && it.slot && it.near && !tried.has(it.slot));
     if (!need.length) return; need.forEach(it => tried.add(it.slot));
     cfg.candPick ||= {}; const usedNames = new Set(Object.values(cfg.candPick).map(c => c.name)); let got = 0;
-    for (const it of need) { const list = await nearCands(it.near); const c = list.find(x => !usedNames.has(x.name) && !(/dinner/.test(it.slot) && /양식|카페|기타/.test(x.cuisine || '') && /피자|파스타|카페|커피|브런치|버거|핫도그/.test(x.name + (x.category || ''))) && !(/dinner/.test(it.slot) && x.cuisine === '양식')); if (c) { cfg.candPick[it.slot] = c; usedNames.add(c.name); got++; } }
+    for (const it of need) { const list = await nearCands(it.near); const c = list.find(x => !usedNames.has(x.name) && mealOK(x, it.slot) && !(/dinner/.test(it.slot) && x.cuisine === '양식')); if (c) { cfg.candPick[it.slot] = c; usedNames.add(c.name); got++; } }
     if (got) { plan = buildPlan(cfg); showDay(curDi); }
     else { $$('.pl-row.meal .cap').forEach(el => { el.innerHTML = el.innerHTML.replace('근처 식당 찾는 중…', cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 식당 없음 — 현지 선택' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'); }); }
   };
@@ -1272,8 +1289,8 @@ function openPlanner(prefill = {}) {
       const near = it.near || (it.place_id && placeById(it.place_id)); const ctx2 = { season: cfg.season, family: famProfile(), country: cfg.base.country, mode: 'plan', allowApprox: true, origin: near ? withCoord(near) : cfg.base };
       const cands = recommendFromDb(ctx2, 30).filter(x => x.place.id !== it.place_id && x.km != null && (x.km <= (cfg.mealKm || 3) * 1.5 || (isFamous(x.place) && x.km <= Math.max((cfg.mealKm || 3) * 3, 10)))).slice(0, 3);   // 식당 반경 안 위주
       row.insertAdjacentHTML('afterend', `<div class="pl-cands">${cands.map(x => `<button class="rc-row" data-pick-meal="${x.place.id}" data-slot="${esc(it.slot || '')}">${thumbHtml(x.place, 'tile')}<div class="m"><b>${esc(x.place.name)}</b><p class="cap">${esc([cuisineOf(x.place)[0], x.km != null ? (x.approx && x.km < 0.5 ? '같은 지역' : fmtKm(x.km) + 'km') : areaOf(x.place), x.reasons.filter(r => !/km$/.test(r))[0]].filter(Boolean).join(' · '))}</p></div></button>`).join('') || '<div class="help">근처 등록 식당 없음</div>'}<div class="pl-cnew"><span class="bd" style="background:var(--${cfg.base.country === 'KR' ? 'kakao' : 'google'});color:${cfg.base.country === 'KR' ? 'var(--on-kakao)' : '#fff'}">${cfg.base.country === 'KR' ? '카카오' : '구글'}</span> 근처 새 후보 불러오는 중…</div></div>`);
-      const box = row.nextElementSibling; const list = near ? await nearCands(near) : []; S.swapCands = list.filter(c => c.name !== it.place).slice(0, 5);
-      const nb = box.querySelector('.pl-cnew'); if (nb) nb.outerHTML = S.swapCands.length ? S.swapCands.map((c, k) => `<button class="rc-row" data-pick-cand="${k}" data-slot="${esc(it.slot || '')}"><span class="tile" style="--cat:var(--cat-${CAT_VAR[c.cuisine] || 'etc'})">${esc(CAT_GLYPH[c.cuisine] || '·')}</span><div class="m"><b>${esc(c.name)} <span class="bd" style="background:var(--${c.src === '구글' ? 'google' : 'kakao'});color:${c.src === '구글' ? '#fff' : 'var(--on-kakao)'}">${esc(c.src)}</span></b><p class="cap">${esc([c.cuisine, c.km != null ? fmtKm(c.km) + 'km' : '', c.google?.reviews ? '리뷰 ' + c.google.reviews : ''].filter(Boolean).join(' · '))}</p></div></button>`).join('') : `<div class="help">${cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 새 후보 없음' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'}</div>`;
+      const box = row.nextElementSibling; const list = near ? await nearCands(near) : []; S.swapCands = list.filter(c => c.name !== it.place && mealOK(c, it.slot)).slice(0, 5);
+      const nb = box.querySelector('.pl-cnew'); if (nb) nb.outerHTML = S.swapCands.length ? S.swapCands.map((c, k) => `<div class="pl-ci"><button class="rc-row" data-pick-cand="${k}" data-slot="${esc(it.slot || '')}"><span class="tile" style="--cat:var(--cat-${CAT_VAR[c.cuisine] || 'etc'})">${esc(CAT_GLYPH[c.cuisine] || '·')}</span><div class="m"><b>${esc(c.name)} <span class="bd" style="background:var(--${c.src === '구글' ? 'google' : 'kakao'});color:${c.src === '구글' ? '#fff' : 'var(--on-kakao)'}">${esc(c.src)}</span></b><p class="cap">${c.google?.rating ? `<span class="g-rt">★${c.google.rating}</span> <span class="g-n">(${(c.google.reviews || 0).toLocaleString()})</span> · ` : ''}${esc([catShort(c.category) || c.cuisine, c.km != null ? fmtKm(c.km) + 'km' : ''].filter(Boolean).join(' · '))}</p></div></button>${c.url ? `<a class="c-map" href="${esc(c.url)}" target="_blank" rel="noopener" title="카카오맵에서 별점·리뷰 보기">카카오맵 ↗</a>` : ''}</div>`).join('') : `<div class="help">${cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 새 후보 없음' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'}</div>`;
       return; }
     if (b.dataset.pickMeal) { cfg.forceMeals[b.dataset.slot] = b.dataset.pickMeal; if (cfg.candPick) delete cfg.candPick[b.dataset.slot]; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경'); return; }
     if (b.dataset.pickCand != null) { const c = (S.swapCands || [])[+b.dataset.pickCand]; if (!c) return; cfg.candPick ||= {}; cfg.candPick[b.dataset.slot] = c; delete cfg.forceMeals[b.dataset.slot]; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경 · ' + c.name); return; }
