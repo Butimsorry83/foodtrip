@@ -866,3 +866,35 @@ body.dark-tiles { --paper: #2b2822; --paper-dot: rgba(255, 240, 210, .06); --tap
 .sb-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 6px 0 24px; } .sb-nav button { border: 1px solid var(--line); background: var(--panel); color: var(--text-1); border-radius: 999px; padding: 8px 16px; cursor: pointer; } .sb-nav button:disabled { opacity: .35; cursor: default; }
 @media (max-width: 860px) { .sb-page { padding: 20px 14px 26px; margin: 10px 0; } .sb-title { font-size: 36px; } .sb-photos.n2, .sb-photos.n4 { grid-template-columns: 1fr 1fr; gap: 16px 12px; } .sb-photos.n3, .sb-photos.many { grid-template-columns: 1fr 1fr; } .sb-photos.n3 .sb-pol:first-child { grid-column: span 2; grid-row: auto; } .sb-pol { padding: 6px 6px 26px; } .sb-memo { font-size: 26px; } }
 .sb-photos.n3 .sb-pol:first-child img { max-height: 460px; }
+
+/* 여행 지도 꾸미기 (11/04 2차): 사진 동그라미 핀 · 묶음 · 도 이름 · 항로 곡선 */
+.tm-map path.leaflet-interactive:focus, .tm-map .leaflet-interactive:focus { outline: none; }
+.tm-map { background: linear-gradient(160deg, #e3f1f5 0%, #cfe4ec 100%) !important; }
+body.dark-tiles .tm-map { background: linear-gradient(160deg, #0f2129 0%, #0a171d 100%) !important; }
+.tm-map .leaflet-overlay-pane svg { filter: drop-shadow(0 6px 10px rgba(14, 58, 75, .18)); }
+.tm-phm { background: none; border: 0; }
+.tm-ph { display: block; border-radius: 50%; background: #ccc center/cover; border: 2.5px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.35); transition: transform .15s; color: #fff; font: 800 13px var(--font-sans, sans-serif); display: flex; align-items: center; justify-content: center; }
+.tm-ph.none { border-width: 2px; }
+.tm-ph.plan { border-color: var(--accent); border-style: dashed; }
+.tm-phm:hover .tm-ph { transform: scale(1.18); }
+.tm-ph.cl { border-width: 3px; }
+.tm-cnt { position: absolute; right: -6px; top: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #10202a; font: 800 11px/20px var(--font-num, sans-serif); text-align: center; font-style: normal; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+.tm-lbl { background: none; border: 0; font-size: 11px; color: var(--text-3); text-align: center; white-space: nowrap; text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel); pointer-events: none; }
+.tm-lbl.on { color: var(--text-1); font-weight: 700; } .tm-lbl b { color: var(--primary-2); }
+.tm-home { background: var(--primary); color: #fff; border-radius: 50%; border: 2px solid #fff; font-size: 14px; line-height: 22px; text-align: center; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
+.tm-arc.plan { animation: tmflow 1.2s linear infinite; } @keyframes tmflow { to { stroke-dashoffset: -20; } }
+.tm-popw .leaflet-popup-content-wrapper { border-radius: 14px; padding: 0; overflow: hidden; } .tm-popw .leaflet-popup-content { margin: 0; width: 200px !important; }
+.tm-pop .im { height: 110px; background: center/cover; } .tm-pop b { display: block; padding: 10px 12px 0; font-size: 14px; } .tm-pop p { margin: 2px 12px 0; font-size: 12px; color: var(--text-2); }
+.tm-pop .bt { display: flex; gap: 6px; padding: 10px 12px 12px; } .tm-pop .bt:empty { padding: 4px; } .tm-pop .bt button { flex: 1; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 0; font-size: 12px; cursor: pointer; color: var(--text-1); }
+.tm-pop .bt button:first-child { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.tm-popw .leaflet-popup-content-wrapper, .tm-popw .leaflet-popup-tip { background: var(--panel); color: var(--text-1); }
+
+/* 여행 일정 파일 가져오기 (11/04) */
+.ti-hint { margin: 8px 0 0; text-align: center; }
+body.trip-drop #view-trips::after { content: '여기에 놓으면 여행에 추가됩니다'; position: fixed; inset: 12px; border: 3px dashed var(--primary-2); border-radius: 22px; background: color-mix(in srgb, var(--panel) 82%, transparent); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; color: var(--primary); z-index: 900; pointer-events: none; }
+.ti-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 10px; } .ti-sum > div { background: var(--bg-subtle); border-radius: var(--r-md); padding: 10px; text-align: center; } .ti-sum b { display: block; font-size: 18px; } .ti-sum span { font-size: 11px; color: var(--text-2); }
+.ti-prev { background: var(--bg-subtle); border-radius: var(--r-md); padding: 10px 12px; font-size: 12px; line-height: 1.6; max-height: 220px; overflow: auto; } .ti-prev p { margin: 0 0 4px; } .ti-prev b { color: var(--primary-2); margin-right: 4px; }
+.ti-chk { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 13px; } .ti-chk.warn { color: var(--danger); }
+.vf-sheet .field input, .vf-sheet .field select { width: 100%; }
+.ti-f label { display: block; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+.ti-f input, .ti-f select { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--panel); color: var(--text-1); font-size: 14px; box-sizing: border-box; }
