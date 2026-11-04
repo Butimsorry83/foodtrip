@@ -968,3 +968,40 @@ h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b
 .lv-map { height: 230px; border-radius: 12px; overflow: hidden; margin-top: 10px; border: 1px solid var(--line); cursor: crosshair; }
 
 #view-home .pc-nav .links button { font: 500 16px/100% var(--font-head); color: #fff; } #view-home .pc-nav .links button.on { font-weight: 700; color: var(--accent); }   /* 홈 메뉴도 Gmarket (#view-home button {font:inherit} 덮어씀) */
+
+/* 홈 배경 고르기 (11/04) */
+.hero-pick { border: 1px solid rgba(255,255,255,.4); background: rgba(0,0,0,.25); color: #fff; border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer; margin-left: 10px; pointer-events: auto; }
+#view-home .hero-pick { color: #fff; text-align: center; } .hero-pick:hover { background: rgba(0,0,0,.45); }
+.pc-hero .note { pointer-events: auto; }
+.hero-pick.ph { position: absolute; right: 14px; top: 14px; z-index: 3; margin: 0; width: 36px; height: 36px; padding: 0; font-size: 16px; }
+.hp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+.hp-t { position: relative; aspect-ratio: 16 / 10; border: 2px solid transparent; border-radius: 12px; background: var(--bg-subtle) center/cover; cursor: pointer; overflow: hidden; padding: 0; }
+.hp-t.on { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
+.hp-t span { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 5px; background: linear-gradient(0deg, rgba(0,0,0,.6), transparent); color: #fff; font-size: 12px; text-align: left; }
+.hp-t i { position: absolute; right: 6px; top: 6px; background: var(--accent); color: #10202a; font-style: normal; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 999px; }
+.hp-t.add { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px dashed var(--line-strong); color: var(--text-2); } .hp-t.add b { font-size: 28px; } .hp-t.add span { position: static; background: none; color: var(--text-2); padding: 0; text-align: center; }
+
+/* 살았던 곳 사진 (11/04) */
+.lv-phs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; } .lv-ph { position: relative; aspect-ratio: 1; border-radius: 8px; background: center/cover; } .lv-ph.new { outline: 2px solid var(--accent); }
+.lv-ph small { position: absolute; left: 4px; bottom: 3px; color: #fff; font: 600 10px var(--font-num); text-shadow: 0 1px 2px rgba(0,0,0,.7); } .lv-ph button { position: absolute; right: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0,0,0,.55); color: #fff; font-size: 11px; cursor: pointer; }
+.lv-gr { margin-top: 10px; } .lv-gr .chips { margin-top: 6px; }
+.tm-lvm.ph span { width: 40px; height: 40px; border-radius: 10px; background: #ccc center/cover; border: 2.5px solid var(--cat-mine, #8e44ad); }
+.tm-lvm.ph b { position: absolute; left: -6px; bottom: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--cat-mine, #8e44ad); color: #fff; font-size: 11px; line-height: 18px; text-align: center; border: 1.5px solid #fff; }
+.lvp-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; } .lvp-strip button { aspect-ratio: 1; border: 0; padding: 0; background: center/cover; cursor: zoom-in; position: relative; } .lvp-strip button b { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.5); color: #fff; padding: 0; font-size: 13px; }
+
+/* 지난 여행 간단 기록 · 여행 사진 (11/04) */
+.tp-gal { padding: 14px 18px 4px; } .tp-simple b { font-family: var(--font-head); font-size: 20px; } .tp-simple p { margin: 4px 0 0; } .tp-memo { font-size: 18px; margin-top: 8px !important; }
+.tp-ph { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-top: 12px; } .tp-ph button { aspect-ratio: 1; border: 0; border-radius: 8px; background: var(--bg-subtle) center/cover; position: relative; cursor: zoom-in; } .tp-ph small { position: absolute; left: 6px; bottom: 4px; color: #fff; font: 600 11px var(--font-num); text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+.lv-phs[data-busy]::before { content: attr(data-busy); grid-column: 1 / -1; font-size: 12px; color: var(--text-2); }
+@media (max-width: 860px) { .tp-ph { grid-template-columns: repeat(3, 1fr); gap: 4px; } }
+
+/* 지구본 (11/04) */
+.tm-map.globe { background: radial-gradient(ellipse at center, color-mix(in srgb, var(--panel) 40%, transparent), transparent) !important; position: relative; touch-action: none; cursor: grab; }
+.tm-map.globe:active { cursor: grabbing; }
+.gl-svg { width: 100%; height: 100%; display: block; }
+.gl-pin { cursor: pointer; } .gl-pin:hover { filter: brightness(1.1); }
+.gl-lbl { font: 700 11px var(--font-head); fill: var(--text-1); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; }
+.gl-cl .ko { font: 700 13px var(--font-head); fill: var(--text-1); paint-order: stroke; stroke: var(--panel); stroke-width: 3.5px; pointer-events: none; }
+.gl-cl .en { font: 600 8px var(--font-num); letter-spacing: .18em; fill: var(--text-2); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; pointer-events: none; }
+.gl-plane { font-size: 15px; fill: var(--accent); paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: 1px; pointer-events: none; }
+.gl-zoom { position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; } .gl-zoom button { width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--panel); color: var(--text-1); font-size: 18px; box-shadow: var(--sh-card); cursor: pointer; }
