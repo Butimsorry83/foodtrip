@@ -2792,8 +2792,7 @@ async function drawGlobe(s, C, st) {
   const gA = mk('g'), arcs = [], planes = [];
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const to = [x.loc.lng, x.loc.lat], plan = x.st === 'plan';
     arcs.push({ geo: { type: 'LineString', coordinates: [hm, to] }, p: mk('path', { fill: 'none', stroke: plan ? C.plan : C.done, 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
-    if (!REDUCE()) planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: mk('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', class: 'gl-plane' }, gA) }); }
-  for (const pl of planes) pl.e.textContent = '✈';
+    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane' }, gA); mk('path', { d: PLANE_D, transform: 'translate(-12.5,-12) scale(.8)' }, g); planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: g }); } }
   const lv = livedSorted().filter(hasCoord), lvLine = lv.length > 1 ? mk('path', { fill: 'none', stroke: C.wish, 'stroke-width': 2, 'stroke-dasharray': '1 6', 'stroke-linecap': 'round' }, gA) : null;
   const lvGeo = { type: 'LineString', coordinates: lv.map(h => [h.lng, h.lat]) };
   const gP = mk('g'), pins = [];
@@ -2804,7 +2803,8 @@ async function drawGlobe(s, C, st) {
     g.addEventListener('click', onClick); pins.push({ ll, g }); };
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) if (x.loc) pinImg([x.loc.lng, x.loc.lat], (tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], 15, x.st === 'plan' ? C.plan : '#fff', () => tripTitle(x.t), '');   // 나라 이름표와 겹치지 않게 도시명 생략
   lv.forEach(h => { const ph = (h.photos || []).map(x => photoUrl(x.path)).find(Boolean); pinImg([h.lng, h.lat], ph, 11, C.wish, () => { const parts = String(h.address || h.name || '').split(',').map(x => x.trim()).filter(Boolean); let big = (h.country || 'KR') === 'KR' ? parts[0]?.split(' ')[0] : (parts.find(x => !/\d/.test(x)) || parts[0]); locTitle(CITY_EN[big] || big, [regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); }, '⌂ ' + h.name); });
-  const gL = mk('g'), labels = [...s.done, ...s.plan, { cc: 'KR', state: 'home' }].map(o => { const f = S.geoWorld.features.find(f => f.properties.cc === o.cc), c = f ? d3.geoCentroid(f) : (OV_PIN[o.cc] ? [OV_PIN[o.cc][1], OV_PIN[o.cc][0]] : null); if (!c) return null;
+  const gL = mk('g'), labels = [...s.done, ...s.plan, { cc: 'KR', state: 'home' }].map(o => { const GLP = { KR: [124.2, 35.4], VN: [106.2, 21.6], TH: [98.6, 16.4], JP: [140.5, 38], AU: [134, -25], US: [-98.5, 39.5] };   // 겹치지 않게 손본 이름 위치 (경도, 위도)
+    const f = S.geoWorld.features.find(f => f.properties.cc === o.cc), c = GLP[o.cc] || (f ? d3.geoCentroid(f) : (OV_PIN[o.cc] ? [OV_PIN[o.cc][1], OV_PIN[o.cc][0] - 4] : null)); if (!c) return null;
     const g = mk('g', { class: 'gl-cl ' + (o.state || '') }, gL); const a = mk('text', { 'text-anchor': 'middle', class: 'ko' }, g); a.textContent = f ? f.properties.n : (G_COUNTRY_KO[o.cc] || o.cc); const b = mk('text', { 'text-anchor': 'middle', y: 13, class: 'en' }, g); b.textContent = regionEn(o.cc).toUpperCase(); return { c, g }; }).filter(Boolean);
   const vis = ll => d3.geoDistance(ll, [-rot[0], -rot[1]]) < Math.PI / 2 - .02;
   const render = now => {
@@ -3155,6 +3155,7 @@ function growthAddFromVisit(path, date, anchor) {                   // 방문 �
     S.db.growth.push({ id: uid('g'), who: [n], date: date || null, photo: path, memo: null }); markDirty(); toast(`🌱 ${n} 성장 앨범에 추가`); });
 }
 /* ---------------- 애니메이션 · 장소 타이틀 (11/04) — 「동작 줄이기」 설정이면 모두 끔 ---------------- */
+const PLANE_D = 'M2 11 L10 10 L14 3 L16 3 L13.5 10 L20 10 L22 7.5 L23.5 7.5 L22.5 12 L23.5 16.5 L22 16.5 L20 14 L13.5 14 L16 21 L14 21 L10 14 L2 13 Z';   // 비행기 그림 (오른쪽을 향함) — 윈도우 이모지(파란 네모) 대신 직접 그림
 const REDUCE = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const CITY_EN = { 나트랑: 'Nha Trang', 다낭: 'Da Nang', 방콕: 'Bangkok', 괌: 'Guam', 평창: 'Pyeongchang', 시드니: 'Sydney', 도쿄: 'Tokyo', 오사카: 'Osaka', 후쿠오카: 'Fukuoka', 삿포로: 'Sapporo', 오키나와: 'Okinawa', 하노이: 'Hanoi', 호치민: 'Ho Chi Minh', 푸꾸옥: 'Phu Quoc', 치앙마이: 'Chiang Mai', 푸켓: 'Phuket', 싱가포르: 'Singapore', 홍콩: 'Hong Kong', 타이베이: 'Taipei', 세부: 'Cebu', 발리: 'Bali', 사이판: 'Saipan', 하와이: 'Hawaii', 제주: 'Jeju', 부산: 'Busan', 강릉: 'Gangneung', 서울: 'Seoul', 경주: 'Gyeongju', 여수: 'Yeosu', 속초: 'Sokcho', 양평: 'Yangpyeong', 가평: 'Gapyeong', 테마: 'Tema', 아크라: 'Accra' };
 function regionEn(cc) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) || cc; } catch { return cc || ''; } }
@@ -3188,7 +3189,7 @@ function badgeCheck(bs) {                                          // 새로 딴
   return fresh;
 }
 function planeFx(map, arcs) {                                      // 항로를 따라 ✈ 날기
-  if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: '<span>✈</span>', iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
+  if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}"/></svg></span>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
   const t0 = performance.now(), D = 4200;
   const step = now => { if (!map._container || !document.body.contains(map._container)) return;
     for (const p of planes) { const k = (((now - t0) / D) + p.off) % 1, f = k * (p.pts.length - 1), i = Math.floor(f), r = f - i, a = p.pts[i], b = p.pts[Math.min(i + 1, p.pts.length - 1)];

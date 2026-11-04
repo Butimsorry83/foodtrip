@@ -1005,3 +1005,7 @@ h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b
 .gl-cl .en { font: 600 8px var(--font-num); letter-spacing: .18em; fill: var(--text-2); paint-order: stroke; stroke: var(--panel); stroke-width: 3px; pointer-events: none; }
 .gl-plane { font-size: 15px; fill: var(--accent); paint-order: stroke; stroke: rgba(0,0,0,.35); stroke-width: 1px; pointer-events: none; }
 .gl-zoom { position: absolute; left: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; } .gl-zoom button { width: 36px; height: 36px; border-radius: 10px; border: 0; background: var(--panel); color: var(--text-1); font-size: 18px; box-shadow: var(--sh-card); cursor: pointer; }
+
+/* 비행기: 이모지 대신 SVG (11/04) */
+.tm-plane span { display: block; width: 20px; height: 20px; transform-origin: 50% 50%; } .tm-plane svg { display: block; fill: var(--accent); stroke: rgba(0,0,0,.35); stroke-width: .8px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.35)); }
+.gl-plane path { fill: var(--accent); stroke: rgba(0,0,0,.35); stroke-width: .8px; } .gl-plane { pointer-events: none; }
