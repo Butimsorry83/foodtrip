@@ -809,3 +809,60 @@ body.dark-tiles .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) bright
 .pl-ci .c-map { flex: none; font-size: 12px; color: var(--text-2); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; background: var(--panel); white-space: nowrap; }
 .pl-ci .c-map:hover { color: var(--primary); border-color: var(--primary); }
 .g-rt { color: var(--star); font-weight: 800; } .g-n { color: var(--text-3); }
+.vgrid[data-busy]::before { content: attr(data-busy); grid-column: 1 / -1; font-size: 12px; color: var(--text-2); }
+.vstory { min-height: 140px; line-height: 1.6; }
+
+/* 다녀온 곳 지도 · 통계 · 배지 (기록 탭 위쪽, 11/04) */
+.tm-card { background: var(--panel); border-radius: var(--r-lg); box-shadow: var(--sh-card); padding: 16px; margin: 12px 0 18px; }
+.tm-hd { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 12px; } .tm-hd b { font-size: 20px; }
+.tm-tg { display: inline-flex; background: var(--bg-subtle); border-radius: 999px; padding: 3px; } .tm-tg button { border: 0; background: none; padding: 6px 16px; border-radius: 999px; font-size: 13px; color: var(--text-2); cursor: pointer; } .tm-tg button.on { background: var(--primary); color: var(--on-primary); font-weight: 700; }
+.tm-body { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.tm-map { height: 340px; border-radius: var(--r-md); overflow: hidden; background: var(--bg-subtle); }
+.tm-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.tm-stats > div { background: var(--bg-subtle); border-radius: var(--r-md); padding: 10px 12px; } .tm-stats b { display: block; font-size: 24px; font-weight: 800; color: var(--text-1); } .tm-stats b small { font-size: 12px; font-weight: 600; color: var(--text-3); margin-left: 2px; } .tm-stats span { font-size: 11px; color: var(--text-2); }
+.tm-legend { display: flex; gap: 12px; margin: 10px 0 4px; font-size: 12px; color: var(--text-2); } .tm-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
+.lg-done { background: var(--primary-2); } .lg-plan { background: var(--accent); } .lg-wish { background: var(--cat-mine, #d6336c); border-radius: 50% !important; }
+.tm-next { font-size: 13px; margin: 8px 0; color: var(--text-1); }
+.tm-notyet { margin-top: 8px; } .tm-notyet > div { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; } .tm-notyet .chip { height: 28px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 999px; border: 1px dashed var(--line-strong); font-size: 12px; color: var(--text-1); background: none; } .tm-notyet .chip small { color: var(--text-3); margin-left: 4px; }
+.tm-badges { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; } .tm-badges > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.bdg { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 6px 6px; border-radius: 999px; background: var(--bg-subtle); opacity: .5; filter: grayscale(1); }
+.bdg i { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 13px; background: var(--panel); color: var(--text-2); }
+.bdg b { font-size: 12px; } .bdg small { font: 600 11px var(--font-num); color: var(--text-3); }
+.bdg.ok { opacity: 1; filter: none; background: var(--accent-soft, #fff4cc); } .bdg.ok i { background: var(--accent); color: #10202a; }
+.tm-tip { font-size: 12px; } .tm-wish { color: var(--cat-mine, #d6336c); font-size: 16px; line-height: 16px; text-align: center; text-shadow: 0 0 2px #fff, 0 0 2px #fff; }
+@media (min-width: 861px) {
+  .tm-card { padding: 20px 22px; } .tm-body { grid-template-columns: minmax(0, 1fr) 340px; } .tm-map { height: 420px; }
+}
+
+/* 여행기 본문 · 스크랩북 보기 (11/04) */
+.jr-story { font-size: 14px; line-height: 1.75; color: var(--text-1); margin-top: 6px; } .jr-story p { margin: 0 0 10px; }
+.sb-tg { display: inline-flex; background: var(--bg-subtle); border-radius: 999px; padding: 3px; flex: none; } .sb-tg button { border: 0; background: none; padding: 6px 12px; border-radius: 999px; font-size: 12px; color: var(--text-2); cursor: pointer; white-space: nowrap; } .sb-tg button.on { background: var(--primary); color: var(--on-primary); font-weight: 700; }
+.jr-sheet .hd { flex-wrap: wrap; }
+.hand { font-family: 'Nanum Pen Script', var(--font-serif, serif), cursive; }
+:root { --paper: #fbf6ea; --paper-dot: rgba(120, 90, 40, .10); --tape: rgba(255, 214, 120, .75); --ticket: #fff; }
+body.dark-tiles { --paper: #2b2822; --paper-dot: rgba(255, 240, 210, .06); --tape: rgba(255, 201, 41, .45); --ticket: #3a362e; }
+.sb-page { position: relative; max-width: 980px; margin: 16px auto; padding: 26px 22px 30px; background: var(--paper); background-image: radial-gradient(var(--paper-dot) 1.2px, transparent 1.2px); background-size: 18px 18px; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 10px 30px rgba(0,0,0,.10); color: var(--text-1); }
+.sb-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.sb-date { display: inline-block; background: var(--primary); color: var(--on-primary); font-size: 12px; padding: 4px 10px; border-radius: 4px; transform: rotate(-2deg); }
+.sb-stamp { width: 74px; transform: rotate(12deg); opacity: .85; margin: -6px -4px 0 0; }
+.sb-title { font-size: 44px; line-height: 1; margin: 6px 0 2px; font-weight: 400; color: var(--text-1); }
+.sb-sub { font-size: 13px; color: var(--text-2); margin: 0 0 18px; } .sb-sub .st { color: var(--star); }
+.sb-photos { display: grid; gap: 22px 18px; margin: 8px 4px 18px; }
+.sb-photos.n1 { grid-template-columns: minmax(0, 560px); justify-content: center; }
+.sb-photos.n2 { grid-template-columns: 1fr 1fr; } .sb-photos.n3 { grid-template-columns: 1.4fr 1fr; } .sb-photos.n3 .sb-pol:first-child { grid-row: span 2; }
+.sb-photos.n4 { grid-template-columns: 1fr 1fr; } .sb-photos.many { grid-template-columns: repeat(3, 1fr); }
+.sb-pol { position: relative; background: #fff; border: 0; padding: 10px 10px 34px; box-shadow: 0 2px 8px rgba(0,0,0,.18); transform: rotate(var(--r)); cursor: zoom-in; transition: transform .2s; }
+.sb-pol:hover { transform: rotate(0deg) scale(1.02); z-index: 2; }
+.sb-pol img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: #eee; } .sb-photos.n1 .sb-pol img, .sb-photos.n3 .sb-pol:first-child img { aspect-ratio: auto; max-height: 520px; height: 100%; }
+.sb-pol small { position: absolute; left: 12px; bottom: 6px; font-size: 20px; color: #555; }
+.sb-pol .tape { position: absolute; top: -10px; left: 50%; width: 84px; height: 22px; margin-left: -42px; background: var(--tape); transform: rotate(-4deg); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.sb-pol:nth-child(even) .tape { transform: rotate(5deg); left: 30%; }
+.sb-memo { font-size: 30px; line-height: 1.3; margin: 6px 4px 12px; color: var(--text-1); }
+.sb-story { font-size: 15px; line-height: 1.85; margin: 0 4px 14px; } .sb-story p { margin: 0 0 12px; }
+.sb-foot { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 4px 0; }
+.sb-ticket { background: var(--ticket); border: 1px dashed var(--line-strong); padding: 5px 12px; font-size: 13px; border-radius: 3px; position: relative; }
+.sb-sticker { background: var(--accent); color: #10202a; padding: 2px 12px; border-radius: 999px; font-size: 20px; transform: rotate(-3deg); } .sb-sticker:nth-child(even) { transform: rotate(4deg); background: var(--primary-2); color: #fff; }
+.sb-edit { position: absolute; right: 14px; bottom: 12px; font-size: 12px; background: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; color: var(--text-2); cursor: pointer; }
+.sb-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 6px 0 24px; } .sb-nav button { border: 1px solid var(--line); background: var(--panel); color: var(--text-1); border-radius: 999px; padding: 8px 16px; cursor: pointer; } .sb-nav button:disabled { opacity: .35; cursor: default; }
+@media (max-width: 860px) { .sb-page { padding: 20px 14px 26px; margin: 10px 0; } .sb-title { font-size: 36px; } .sb-photos.n2, .sb-photos.n4 { grid-template-columns: 1fr 1fr; gap: 16px 12px; } .sb-photos.n3, .sb-photos.many { grid-template-columns: 1fr 1fr; } .sb-photos.n3 .sb-pol:first-child { grid-column: span 2; grid-row: auto; } .sb-pol { padding: 6px 6px 26px; } .sb-memo { font-size: 26px; } }
+.sb-photos.n3 .sb-pol:first-child img { max-height: 460px; }
