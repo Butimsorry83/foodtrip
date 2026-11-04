@@ -402,8 +402,8 @@ function filtered() {
     for (const t of S.tags) if (!(p.tags || []).includes(t)) return false;
     if (S.radius && S.base) { const dk = distInfo(p)?.km; if (dk != null && dk > S.radius) return false; }
     if (q) {
-      const hay = [p.name, p.si, p.do, p.zone, p.address, p.desc, p.pros, p.cons, p.signature, p.note, p.spot_name, ...cuisineOf(p), ...(p.tags || [])].join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
+      const hay = [p.name, p.si, p.do, p.zone, p.address, p.desc, p.pros, p.cons, p.signature, p.note, p.spot_name, ...cuisineOf(p), ...(p.tags || []), p.country && p.country !== 'KR' ? `${ccKo(p.country)} ${regionEn(p.country)}` : ''].join(' ').toLowerCase();
+      if (!hay.includes(q) && !q.split(/\s+/).filter(Boolean).every(w => hay.includes(w))) return false;   // 「italy firenze」처럼 단어 순서·나라 이름도 찾기
     }
     return true;
   });
@@ -539,7 +539,7 @@ function openDetail(id) {
   const cover = img
     ? `<div class="cover" style="--cat:${catColor(p)};background-image:url('${img}')"><div class="handle"></div><span class="cat-chip">${esc(kind)}</span><span class="nph">${familyPhoto(p) ? '우리 가족 사진' : '사진 한국관광공사'}${nPhotos > 1 ? ` · ${nPhotos}장` : ''}</span></div>`
     : `<div class="cover info" style="--cat:${catColor(p)}"><div class="handle"></div><span class="cat-chip">${esc(kind)}</span>
-        <div class="stat3"><div><small>${esc(baseShort(p))}에서</small><b>${di ? fmtKm(di.km) + '<small>km</small>' : '—'}</b></div><div><small>차로</small><b>${di ? minText(di.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>') : '—'}</b></div><div><small>${isMine(p) ? '분류' : '오늘'}</small><b>${isMine(p) ? `<small>${esc((p.tags || [])[0] || '우리 장소')}</small>` : todayHrs ? `<span class="mono" style="font-size:18px">${esc(todayHrs)}</span><small> ${os === 'dayoff' ? '' : os === 'open' ? '영업중' : '오픈'}</small>` : '<small>영업 미입력</small>'}</b></div></div>
+        <div class="stat3"><div><small>${esc(baseShort(p))}에서</small><b>${di ? fmtKm(di.km) + '<small>km</small>' : '—'}</b></div><div><small>${di?.fly ? '비행 약' : '차로'}</small><b>${di ? minText(di.min).replace(/(\d+)(시간|분)/g, '$1<small>$2</small>') : '—'}</b></div><div><small>${isMine(p) ? '분류' : '오늘'}</small><b>${isMine(p) ? `<small>${esc((p.tags || [])[0] || '우리 장소')}</small>` : todayHrs ? `<span class="mono" style="font-size:18px">${esc(todayHrs)}</span><small> ${os === 'dayoff' ? '' : os === 'open' ? '영업중' : '오픈'}</small>` : '<small>영업 미입력</small>'}</b></div></div>
         <div class="tags">${(p.tags || []).slice(0, 3).map(t => `<span>#${esc(t)}</span>`).join('')}</div>
         <div class="nophoto"><span>아직 사진이 없어요</span><button class="rw" data-act="visitlog">+ 첫 사진 올리기</button></div></div>`;
   openSheet(`
@@ -1729,11 +1729,13 @@ function distInfo(p) {
   if (!hasCoord(p)) return base.id === 'b_home' && p.dist_home_km != null ? { km: p.dist_home_km, min: Math.round(p.dist_home_km / 55 * 60) + 5, real: false } : null;
   const ck = [base.lat, base.lng, p.lat, p.lng].map(x => (+x).toFixed(4)).join(','); const rt = LS.get('routes', {})[ck];
   if (rt && rt.km != null) return { km: rt.km, min: rt.min, real: true };
-  const d = haversine(base, p); const e = roadEst(d, p.country); return e ? { km: e.road, min: e.min, real: false } : null;
+  const d = haversine(base, p);
+  if (base.country && p.country && base.country !== p.country && d > 300) return { km: Math.round(d), min: Math.round(d / 800 * 60 + 150), real: false, fly: true };   // 다른 나라: 비행 (직선 + 공항 시간 대략)
+  const e = roadEst(d, p.country); return e ? { km: e.road, min: e.min, real: false } : null;
 }
 function minText(m) { return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60 ? m % 60 + '분' : ''}`.trim() : `${m}분`; }
 function baseShort(p) { return ((p ? baseFor(p) : S.base)?.name || '거점').replace(/^집\s*\((.*)\)$/, '$1').replace(/\s*\(.*\)/, ''); }
-function distText(p) { const d = distInfo(p); return d ? `${baseShort(p)}에서 ${fmtKm(d.km)}km · 차로 ${minText(d.min)}` : '위치 없음'; }
+function distText(p) { const d = distInfo(p); return d ? `${baseShort(p)}에서 ${fmtKm(d.km)}km · ${d.fly ? '비행 약' : '차로'} ${minText(d.min)}` : '위치 없음'; }
 function catDot(p) { return isMine(p) ? '우리 장소' + ((p.tags || [])[0] ? ' · ' + p.tags[0] : '') : p.type === 'spot' ? '휴양지' + ((p.tags || [])[0] ? ' · ' + p.tags[0] : '') : cuisineOf(p).join(' · ') || '식당'; }
 function starsTxt(n) { return n ? '★'.repeat(n) + '☆'.repeat(5 - n) : ''; }
 function homeData() {
@@ -1981,7 +1983,7 @@ function openPlaceForm(p) {
       b.textContent = '…';
       await loadGeo(); const hits = await geoSearch($('#pq').value, f.country.value, f.si.value);
       b.textContent = '검색';
-      showHits($('#phits'), hits, h => { f.name.value ||= h.name; f.lat.value = h.lat; f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
+      showHits($('#phits'), hits, h => { if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
     }
   });
   f.addEventListener('submit', e => {
@@ -1999,8 +2001,12 @@ function openPlaceForm(p) {
     const sp = p.spot_id && placeById(p.spot_id); p.spot_name = sp ? sp.name : null;
     if (prevSpot !== p.spot_id) { const old = prevSpot && placeById(prevSpot); if (old?.restaurants) old.restaurants = old.restaurants.filter(x => x !== p.id); if (sp) { sp.restaurants ||= []; if (!sp.restaurants.includes(p.id)) sp.restaurants.push(p.id); } }
     if (isNew) S.db.places.push(p);
+    if (isNew && S.region !== 'all' && S.region !== p.region) { S.region = 'all'; LS.set('region', 'all'); }   // 새로 넣은 곳이 지금 지역 필터에 가려지지 않게
+    if (isNew) { S.q = ''; $$('#q, #q-hdr, #q-pc').forEach(i => { if (i) i.value = ''; }); }
+    if (isNew && S.radius) { const dk = distInfo(p)?.km; if (dk != null && dk > S.radius) { S.radius = null; LS.set('radius', null); } }
     markDirty(); renderRegionChips(); renderTagChips(); renderList(); closeSheet();
-    if (isNew && p.type === 'spot' && hasCoord(p)) { toast('추가됨 — 근처 식당 추천'); openRecommend(p); } else { openDetail(p.id); toast(isNew ? '추가됨' : '저장됨'); }
+    if (isNew && hasCoord(p)) { try { map.setView([p.lat, p.lng], 12); } catch {} }
+    if (isNew && p.type === 'spot' && hasCoord(p) && !distInfo(p)?.fly) {   /* 거점 없는 먼 나라(신혼여행지 등)는 근처 식당 추천 생략 */ toast('추가됨 — 근처 식당 추천'); openRecommend(p); } else { openDetail(p.id); toast(isNew ? '추가됨' : '저장됨'); }
   });
 }
 function showHits(el, hits, pick) {
