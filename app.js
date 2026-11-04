@@ -2792,7 +2792,7 @@ async function drawGlobe(s, C, st) {
   const gA = mk('g'), arcs = [], planes = [];
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const to = [x.loc.lng, x.loc.lat], plan = x.st === 'plan';
     arcs.push({ geo: { type: 'LineString', coordinates: [hm, to] }, p: mk('path', { fill: 'none', stroke: plan ? C.plan : C.done, 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
-    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane' }, gA); mk('path', { d: PLANE_D, transform: 'translate(-12.5,-12) scale(.8)' }, g); planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: g }); } }
+    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane' }, gA); mk('path', { d: PLANE_D, transform: 'translate(10,-9.6) scale(-.8,.8)' }, g);   /* 그림의 머리가 왼쪽이라 좌우 뒤집어 진행 방향(거점 → 여행지)을 보게 */ planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: g }); } }
   const lv = livedSorted().filter(hasCoord), lvLine = lv.length > 1 ? mk('path', { fill: 'none', stroke: C.wish, 'stroke-width': 2, 'stroke-dasharray': '1 6', 'stroke-linecap': 'round' }, gA) : null;
   const lvGeo = { type: 'LineString', coordinates: lv.map(h => [h.lng, h.lat]) };
   const gP = mk('g'), pins = [];
@@ -3155,7 +3155,7 @@ function growthAddFromVisit(path, date, anchor) {                   // 방문 �
     S.db.growth.push({ id: uid('g'), who: [n], date: date || null, photo: path, memo: null }); markDirty(); toast(`🌱 ${n} 성장 앨범에 추가`); });
 }
 /* ---------------- 애니메이션 · 장소 타이틀 (11/04) — 「동작 줄이기」 설정이면 모두 끔 ---------------- */
-const PLANE_D = 'M2 11 L10 10 L14 3 L16 3 L13.5 10 L20 10 L22 7.5 L23.5 7.5 L22.5 12 L23.5 16.5 L22 16.5 L20 14 L13.5 14 L16 21 L14 21 L10 14 L2 13 Z';   // 비행기 그림 (오른쪽을 향함) — 윈도우 이모지(파란 네모) 대신 직접 그림
+const PLANE_D = 'M2 11 L10 10 L14 3 L16 3 L13.5 10 L20 10 L22 7.5 L23.5 7.5 L22.5 12 L23.5 16.5 L22 16.5 L20 14 L13.5 14 L16 21 L14 21 L10 14 L2 13 Z';   // 비행기 그림 (원본은 머리가 왼쪽 → 쓸 때 좌우 뒤집음) — 윈도우 이모지(파란 네모) 대신 직접 그림
 const REDUCE = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 const CITY_EN = { 나트랑: 'Nha Trang', 다낭: 'Da Nang', 방콕: 'Bangkok', 괌: 'Guam', 평창: 'Pyeongchang', 시드니: 'Sydney', 도쿄: 'Tokyo', 오사카: 'Osaka', 후쿠오카: 'Fukuoka', 삿포로: 'Sapporo', 오키나와: 'Okinawa', 하노이: 'Hanoi', 호치민: 'Ho Chi Minh', 푸꾸옥: 'Phu Quoc', 치앙마이: 'Chiang Mai', 푸켓: 'Phuket', 싱가포르: 'Singapore', 홍콩: 'Hong Kong', 타이베이: 'Taipei', 세부: 'Cebu', 발리: 'Bali', 사이판: 'Saipan', 하와이: 'Hawaii', 제주: 'Jeju', 부산: 'Busan', 강릉: 'Gangneung', 서울: 'Seoul', 경주: 'Gyeongju', 여수: 'Yeosu', 속초: 'Sokcho', 양평: 'Yangpyeong', 가평: 'Gapyeong', 테마: 'Tema', 아크라: 'Accra' };
 function regionEn(cc) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) || cc; } catch { return cc || ''; } }
@@ -3189,7 +3189,7 @@ function badgeCheck(bs) {                                          // 새로 딴
   return fresh;
 }
 function planeFx(map, arcs) {                                      // 항로를 따라 ✈ 날기
-  if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}"/></svg></span>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
+  if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)"/></svg></span>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
   const t0 = performance.now(), D = 4200;
   const step = now => { if (!map._container || !document.body.contains(map._container)) return;
     for (const p of planes) { const k = (((now - t0) / D) + p.off) % 1, f = k * (p.pts.length - 1), i = Math.floor(f), r = f - i, a = p.pts[i], b = p.pts[Math.min(i + 1, p.pts.length - 1)];
