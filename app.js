@@ -157,6 +157,7 @@ async function load() {
   migrate(S.db);
   if ((trashPurge() > 0 || S.migratedCities) && S.token) { S.migratedCities = false; markDirty(); }
   S.baseDb = clone(S.db);                                       // 3-way 병합 기준 (마지막으로 서버와 일치한 상태)
+  if (String(LS.get('font', '')).startsWith('c:')) try { applyTheme(); } catch {}   /* 내 글꼴은 데이터 읽은 뒤 적용 */
   if (S.token && !OFFLINE && !S.db.meta.nameFix1) { const n = fixNames1(); markDirty(); if (n) setTimeout(() => toast(`영문 이름 ${n}개 첫 글자를 대문자로 정리했어요`, 3500), 800); }   /* 1회 이름 정리 */
   if (S.token && !OFFLINE && !S.db.meta.autoTrip1) { const n = autoTripsFromVisits(); markDirty(); if (n) setTimeout(() => toast(`해외 기록 ${n}건을 여행으로 묶었어요 — 여행 탭`, 4000), 1500); }   // 1회 자동 정리
 }
@@ -1774,6 +1775,8 @@ function homeData() {
 }
 const tripSub = t => { const d = [...new Set(t.items.map(i => i.day))].length; let hotel = t.items.find(i => /호텔|리조트|숙소|체크인/.test(i.activity || '') || /호텔|리조트|resort|hotel/i.test(i.place || ''))?.place || ''; hotel = hotel.split(/\s{2,}|\(|,/)[0].trim(); if (hotel.length > 22) hotel = hotel.slice(0, 22) + '…'; return [hotel, d ? d + '일' : null].filter(Boolean).join(' · ') || `${t.items.length}개 일정`; };
 const tripCity = t => (t.city || '').replace(/\s*\(.*\)/, '');
+/* 11/05 표지 큰 글씨: 일정 없는 간편 여행은 제목(앞 연도 뺀 것) · 일정 있는 여행은 도시 */
+const tripName = t => (!(t.items || []).length && t.title ? (t.title.replace(/^\s*\d{4}\s*/, '').trim() || tripCity(t)) : tripCity(t));
 function collectionsHtml(d, pc) {
   const regions = regionsInDb();
   const items = [...regions.map(([r, n]) => ({ act: `data-region="${r}"`, label: REGION_LABEL[r] || r, n, bg: r === 'domestic' ? 'var(--primary)' : 'var(--primary-2)' })),
@@ -1790,7 +1793,7 @@ function renderHomePhone(d) {
     return `<button class="reco-card" data-go="${p.id}"><div class="rc${im ? ' ph' : ''}" style="${im ? `background-image:url('${im}')` : ''}">${im ? `<span class="ss ph-ss">${esc(x.reasons.find(r => !/km$/.test(r)) || d.season)}</span>` : `<span class="ss">${esc(d.season)}</span><div><b class="km">${dd ? fmtKm(dd.km) : '—'}<small>km</small></b><p class="min">${dd ? `${esc(baseShort())}에서 ${minText(dd.min)}` : '위치 없음'}</p></div><span class="why">${esc((p.tags || []).slice(0, 2).join(' · ') || x.reasons[1] || '')}</span>`}${p.visits ? `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">` : ''}</div><b>${esc(p.name)}</b><p class="sub">${dd ? fmtKm(dd.km) + 'km' : esc(areaOf(p))} · ${(p.tags || []).slice(0, 2).map(t => '#' + esc(t)).join(' ')}</p></button>`; };
   const wishRow = p => { const st = openState(p), ol = st && OPEN_LABEL[st]; const dd = distInfo(p);
     return `<button class="wish-row" data-go="${p.id}">${thumbHtml(p, 'tile')}<div style="flex:1;min-width:0"><b>${esc(p.name)}</b><p>${esc(kindLabel(p))} · ${esc(areaOf(p))}${dd ? ` <span class="mono">· ${fmtKm(dd.km)}km</span>` : ''}</p></div>${ol ? `<span class="chip op-${ol[1]}">${ol[0]}</span>` : (p.hours?.open ? `<span class="chip op-off">${esc(p.hours.open)} 오픈</span>` : '')}</button>`; };
-  const tripCover = t => `<button class="trip-cover" data-trip="${t.id}" style="${tripCoverStyle(t)}"><span class="yr">${t.year} · ${COUNTRY_EN[t.country] || t.country}</span><span class="city">${esc(tripCity(t))}</span><span class="sub">${esc(tripSub(t))}</span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</button>`;
+  const tripCover = t => `<button class="trip-cover" data-trip="${t.id}" style="${tripCoverStyle(t)}"><span class="yr">${t.year} · ${COUNTRY_EN[t.country] || t.country}</span><span class="city">${esc(tripName(t))}</span><span class="sub">${esc(tripSub(t))}</span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</button>`;
   return `
     <div class="ph-hero" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 72%,transparent),color-mix(in srgb,var(--hero) 82%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><button class="hero-pick ph" data-act="heropick">🖼</button><div class="dots"></div><div class="sun"></div>
       <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">🎨</button><button class="theme-tg" data-act="theme" title="다크모드">${isDark() ? '☀' : '☾'}</button><button class="bell" data-act="settings" title="설정">${ICO.bell}</button></div>
@@ -1826,7 +1829,7 @@ function renderHomePC(d) {
   const logsHtml = d.logs.length ? d.logs.slice(0, 5).map((l, k) => logCard(l, k === 0)).join('') : d.visited.slice(0, 5).map((p, k) => visitCard(p, k === 0)).join('');
   const wishRow = p => { const st = openState(p), ol = st && OPEN_LABEL[st]; const dd = distInfo(p);
     return `<button class="row" data-go="${p.id}">${thumbHtml(p, 'tile')}<div style="flex:1"><b>${esc(p.name)}</b><p>${esc(kindLabel(p))} · ${esc(areaOf(p))}${dd ? ` · ${fmtKm(dd.km)}km` : ''}</p></div>${ol ? `<span class="chip op-${ol[1]}">${ol[0]}</span>` : (p.tags?.[0] ? `<span class="chip op-off">#${esc(p.tags[0])}</span>` : '')}</button>`; };
-  const trip = t => `<button class="pc-trip" data-trip="${t.id}"><div class="plate"></div><div class="photo" style="${tripCoverStyle(t)}"><div class="txt"><span class="mono">${t.year} · ${t.country === 'KR' ? '국내' : COUNTRY_EN[t.country] || t.country}</span><div class="disp">${esc(tripCity(t))}</div><p>${esc(tripSub(t))}</p></div>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</div></button>`;
+  const trip = t => `<button class="pc-trip" data-trip="${t.id}"><div class="plate"></div><div class="photo" style="${tripCoverStyle(t)}"><div class="txt"><span class="mono">${t.year} · ${t.country === 'KR' ? '국내' : COUNTRY_EN[t.country] || t.country}</span><div class="disp">${esc(tripName(t))}</div><p>${esc(tripSub(t))}</p></div>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</div></button>`;
   return `
     <div class="pc-hero-wrap" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 78%,transparent),color-mix(in srgb,var(--hero) 78%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><div class="pc-hero" id="pc-hero">
       <div class="bg" style="background-image:linear-gradient(90deg,color-mix(in srgb,var(--hero) 82%,transparent) 0%,color-mix(in srgb,var(--hero) 55%,transparent) 40%,color-mix(in srgb,var(--hero) 0%,transparent) 62%),linear-gradient(180deg,color-mix(in srgb,var(--hero) 55%,transparent),color-mix(in srgb,var(--hero) 0%,transparent) 30%),linear-gradient(0deg,color-mix(in srgb,var(--hero) 60%,transparent),color-mix(in srgb,var(--hero) 0%,transparent) 45%),url('${heroSrc(d.season)}')"></div>
@@ -2121,9 +2124,9 @@ function renderTrips() {
     const up = trips.find(t => (dday(t) ?? -1) >= 0) || trips[0];
     const rest = trips.filter(t => t !== up);
     const cover = t => { const { start, end, nights } = tripDates(t); const dd = dday(t);
-      return `<button class="tp-big" data-id="${t.id}" style="${tripCoverStyle(t)}"><span class="num k">${dd != null && dd >= 0 ? `D-${dd}` : t.year} · ${t.country === 'KR' ? '국내' : COUNTRY_EN[t.country] || t.country}</span><span class="serif city">${esc(tripCity(t))}</span><span class="sub">${start ? `${t.year}.${md(start)} – ${md(end)} · ${nights}박 ${nights + 1}일` : `${t.items.length}개 일정`}</span>
+      return `<button class="tp-big" data-id="${t.id}" style="${tripCoverStyle(t)}"><span class="num k">${dd != null && dd >= 0 ? `D-${dd}` : t.year} · ${t.country === 'KR' ? '국내' : COUNTRY_EN[t.country] || t.country}</span><span class="serif city">${esc(tripName(t))}</span><span class="sub">${start ? `${t.year}.${md(start)} – ${md(end)} · ${nights}박 ${nights + 1}일` : `${t.items.length}개 일정`}</span>
         <span class="pills"><span>일정 ${t.items.length}</span><span>식당 ${tripRestCount(t)}</span></span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">`}</button>`; };
-    const small = t => `<button class="tp-sm" data-id="${t.id}" style="${tripCoverStyle(t)}"><span class="num k">${t.year}${t.country === 'KR' ? ' · 국내' : ''}</span><span class="serif city">${esc(tripCity(t))}</span>${(dday(t) ?? -1) < 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">`}</button>`;
+    const small = t => `<button class="tp-sm" data-id="${t.id}" style="${tripCoverStyle(t)}"><span class="num k">${t.year}${t.country === 'KR' ? ' · 국내' : ''}</span><span class="serif city">${esc(tripName(t))}</span>${(dday(t) ?? -1) < 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">`}</button>`;
     el.innerHTML = `<div class="tp-hd"><b>여행</b><button class="chip on rw" data-act="planner" style="height:36px">+ 새 여행</button></div>
       <div class="tp-list">${up ? cover(up) : '<div class="help">아직 여행이 없습니다.</div>'}<div class="tp-grid">${rest.map(small).join('')}</div>
       <div class="btns" style="margin:4px 0 0"><button class="rw" data-act="newtrip">＋ 지난 여행 간단 추가</button><button data-act="xlsxall">엑셀 내보내기</button><button class="rw" data-act="importtrip" title="준준 안내서 HTML · 여행 JSON">⇪ 일정 파일 가져오기</button><input type="file" id="ti-file" accept=".html,.htm,.json" hidden></div><p class="cap3 ti-hint">안내서 HTML이나 여행 JSON 파일을 이 화면에 끌어다 놓아도 추가됩니다</p></div>`;
@@ -2152,7 +2155,7 @@ function renderTrips() {
   }).join('');
   el.innerHTML = `
     <div class="tp-hero" style="${tripCoverStyle(t)}"><div class="tp-top"><button class="back" data-act="back">‹</button><div style="display:flex;gap:6px"><button class="pill" data-act="tshare">↗</button><button class="pill rw" data-act="edit-trip">편집</button></div></div>
-      <div class="tp-title"><span class="serif">${esc(tripCity(t))}</span><span class="num">${start ? `${md(start)}–${md(end)}` : t.year}${base ? ` · 거점 ${esc(base.name.replace(/\s*\(.*\)/, ''))}` : ''}</span></div></div>
+      <div class="tp-title"><span class="serif">${esc(tripName(t))}</span><span class="num">${start ? `${md(start)}–${md(end)}` : t.year}${base ? ` · 거점 ${esc(base.name.replace(/\s*\(.*\)/, ''))}` : ''}</span></div></div>
     <div class="daytabs">${days.map((d, i) => { const m2 = d.match(/(\d{1,2})\/(\d{1,2})/); return `<button data-day="${i}" class="${i === S.tripDay ? 'on' : ''}">D${i + 1}<b class="num">${m2 ? `${m2[1].padStart(2, '0')}.${m2[2].padStart(2, '0')}` : esc(d)}</b></button>`; }).join('')}</div>
     ${tripPhotosHtml(t)}
     <div class="tl-wrap"${!(t.items || []).length ? ' style="display:none"' : ''}><div class="legend"><span class="chip"><i style="background:var(--cat-spot)"></i>휴양지</span><span class="chip"><i style="background:var(--cat-seafood)"></i>식사</span><span class="chip"><i class="dash"></i>이동</span></div>
@@ -2168,7 +2171,7 @@ function renderTrips() {
     if (b.dataset.addplace != null) { const it = t.items[b.dataset.addplace]; openPlaceForm({ id: uid(), type: 'restaurant', country: t.country, region, name: it.place, cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, note: it.activity }); }
     if (b.dataset.act === 'additem') openItemForm(t);
     if (b.dataset.act === 'tphoto') return isRO() ? goToken() : openTripPhotos(t);
-    if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripCity(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), date: null }); }
+    if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), date: null }); }
     if (b.dataset.act === 'edit-trip') openTripEdit(t);
     if (b.dataset.act === 'tshare') shareLink('t', t.id, t.title);
     if (b.dataset.act === 'txlsx') exportXlsx({ trip: t });
@@ -2191,8 +2194,8 @@ function openItemEdit(t, idx) {                                  // 타임라인
 }
 function openTripEdit(t) {
   openSheet(`<div class="sheet-head"><h2>여행 편집</h2><button class="close" data-act="close">✕</button></div>
-    <form class="form" id="tef"><label>제목<input name="title" value="${esc(t.title)}" required></label>
-    <div class="three"><label>도시 <small style="color:var(--text-3)">(표지 큰 글씨)</small><input name="city" value="${esc(t.city)}" required></label><label>국가<input name="country" value="${esc(t.country)}"></label><label>연도<input name="year" type="number" value="${t.year}"></label></div>
+    <form class="form" id="tef"><label>제목${t.items.length ? '' : ' <small style="color:var(--text-3)">(표지 큰 글씨 · 앞 연도는 빼고 표시)</small>'}<input name="title" value="${esc(t.title)}" required></label>
+    <div class="three"><label>도시${t.items.length ? ' <small style="color:var(--text-3)">(표지 큰 글씨)</small>' : ''}<input name="city" value="${esc(t.city)}" required></label><label>국가<input name="country" value="${esc(t.country)}"></label><label>연도<input name="year" type="number" value="${t.year}"></label></div>
     <div class="sec">일정 ${t.items.length}개 <span class="sec-note">✕로 삭제</span></div>
     <div class="sublist">${t.items.map((it, i) => `<button type="button" data-del="${i}"><span class="mono" style="color:var(--text-2)">${esc(it.day || '')} ${esc(it.time || '')}</span><span style="flex:1;text-align:left;margin-left:8px">${esc(it.activity || '')}${it.place ? ' · ' + esc(it.place) : ''}</span><span>✕</span></button>`).join('')}</div>
     <div class="btns"><button class="primary">저장</button><button type="button" class="danger" data-act="deltrip">여행 삭제</button></div></form>`);
@@ -2444,7 +2447,7 @@ async function openTripForm() {                                     // 여행 �
   };
 }
 function openTripPhotos(t) {                                         // 여행에 사진 추가
-  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>${esc(tripCity(t))} 사진 추가</b><button class="lnk pri" data-act="tpsave">저장</button></div><div class="vf-scroll" style="padding:16px">${photoPickerHtml('tpp')}</div>
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>${esc(tripName(t))} 사진 추가</b><button class="lnk pri" data-act="tpsave">저장</button></div><div class="vf-scroll" style="padding:16px">${photoPickerHtml('tpp')}</div>
     <div class="vf-foot"><button class="btn-pri" data-act="tpsave">사진 저장</button></div></div>`);
   const pp = bindPhotoPicker('tpp');
   $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return; if (pp.click(b)) return;
@@ -2482,9 +2485,57 @@ const TONES = [['sea', '딥씨 (기본)', '#0e3a4b', '#288d9d', '#ffbc00'], ['la
 const GF = 'https://fonts.googleapis.com/css2?display=swap&family=';
 const FONTS = [['base', '기본', 'Pretendard / Gmarket Sans', ''], ['round', '둥글게', '나눔스퀘어라운드 / 주아', ['https://cdn.jsdelivr.net/npm/@kfonts/nanum-square-round@0.2.0/index.css', GF + 'Jua']], ['suit', '단정', 'SUIT', ['https://cdn.jsdelivr.net/npm/@sun-typeface/suit@2.0.5/fonts/variable/woff2/SUIT-Variable.css']], ['classic', '클래식', '고운돋움 / 나눔명조', [GF + 'Gowun+Dodum&family=Nanum+Myeongjo:wght@400;700;800']], ['bold', '또박또박', 'Noto Sans KR / 배민 도현', [GF + 'Do+Hyeon']], ['story', '감성', '고운바탕', [GF + 'Gowun+Batang:wght@400;700']]];
 const FZ = [['s', '작게'], ['m', '보통'], ['l', '크게'], ['xl', '아주 크게']];
-function fontPref() { const f = LS.get('font', 'base'); return FONTS.some(x => x[0] === f) ? f : 'base'; }
+function myFonts() { return S.db?.meta?.fonts || []; }   /* 11/05 내 글꼴 (가족 공유): {id, name, family, src: 'gf:이름' | 'fonts/파일', use: both|head|body} */
+function fontPref() { const f = LS.get('font', 'base'); return FONTS.some(x => x[0] === f) || myFonts().some(x => 'c:' + x.id === f) ? f : 'base'; }
+const FONT_LOCAL = {};   /* 방금 올린 파일: 배포 전에도 바로 보이게 (이 기기·이번 접속만) */
+function loadMyFont(c) {
+  if (!c || document.querySelector(`[data-myfont="${c.id}"]`)) return;
+  if (c.src.startsWith('gf:')) { const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = GF + encodeURIComponent(c.src.slice(3)).replace(/%20/g, '+'); l.dataset.myfont = c.id; document.head.appendChild(l); return; }
+  const url = FONT_LOCAL[c.id] || (c.src.startsWith('local:') ? LS.get('fonts', {})[c.src] : (/^https?:/.test(c.src) ? c.src : rawUrl(c.src))); if (!url) return;
+  const st = document.createElement('style'); st.dataset.myfont = c.id; st.textContent = `@font-face{font-family:"${c.family}";src:url("${url}");font-display:swap;font-weight:100 900;}`; document.head.appendChild(st);
+}
+function myFontStack(c) { return `"${c.family}","Pretendard Variable","Noto Sans KR",sans-serif`; }
 function fzPref() { const f = LS.get('fz', 'm'); return FZ.some(x => x[0] === f) ? f : 'm'; }
 function loadFontCss(id) { const f = FONTS.find(x => x[0] === id); (f?.[3] || []).forEach(u => { if (document.querySelector(`link[data-fcss="${u}"]`)) return; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = u; l.dataset.fcss = u; document.head.appendChild(l); }); }
+function openFontAdd() {
+  let mode = 'gf', file = null;
+  const draw = () => {
+    openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>글꼴 추가</b><button class="lnk pri" data-act="fosave">저장</button></div><div class="vf-scroll" style="padding:16px">
+      <div class="jr-tabs" style="margin-bottom:12px"><button class="${mode === 'gf' ? 'on' : ''}" data-fm="gf">구글 폰트 이름</button><button class="${mode === 'file' ? 'on' : ''}" data-fm="file">글꼴 파일</button></div>
+      ${mode === 'gf' ? `<div class="ti-f"><label>구글 폰트 이름 (영문 그대로)</label><input id="fo-gf" placeholder="예: Black Han Sans · Sunflower · Hi Melody · Dongle"></div>
+        <p class="cap3">fonts.google.com 에서 언어 Korean으로 찾은 이름 그대로 · <a href="https://fonts.google.com/?subset=korean" target="_blank" rel="noopener">구글 폰트 열기</a></p>`
+      : `<div class="ti-f"><label>글꼴 파일 (.woff2 · .woff · .ttf · .otf, 8MB 이하)</label><input id="fo-file" type="file" accept=".woff2,.woff,.ttf,.otf"></div>
+        <p class="cap3">예: <a href="https://noonnu.cc" target="_blank" rel="noopener">눈누</a>에서 상업적 이용 무료 글꼴 받기 · 가능하면 .woff2 (가장 작음) · 저장소 photos 옆 fonts/ 폴더에 저장</p>`}
+      <div class="ti-f"><label>이름 (목록에 보일 이름)</label><input id="fo-name" placeholder="예: 검은고딕"></div>
+      <div class="ti-f"><label>어디에 쓸까요</label><div class="seg tn-th fo-use">${[['both', '본문·제목'], ['head', '제목만'], ['body', '본문만']].map(([v, n], i) => `<button data-use="${v}" class="${i ? '' : 'on'}">${n}</button>`).join('')}</div></div>
+      <p class="cap3" style="margin-top:8px">추가한 글꼴은 가족 모두의 글씨체 목록에 보입니다 · 고르는 건 기기마다 따로</p>
+      <div id="fo-prev" class="fo-prev">가을 식도락, 어디로 갈까? 2026.11.05 Firenze</div></div></div>`);
+    const fi = $('#fo-file'); if (fi) fi.onchange = () => { file = fi.files[0] || null; if (file && !$('#fo-name').value) $('#fo-name').value = file.name.replace(/\.[^.]+$/, ''); if (file) file.arrayBuffer().then(buf => { const fam = 'jjprev' + Date.now(); new FontFace(fam, buf).load().then(ff => { document.fonts.add(ff); $('#fo-prev').style.fontFamily = `"${fam}"`; }).catch(() => toast('이 파일은 글꼴로 읽을 수 없어요')); }); };
+    const gi = $('#fo-gf'); if (gi) gi.onchange = () => { const n = gi.value.trim(); if (!n) return; if (!$('#fo-name').value) $('#fo-name').value = n; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = GF + encodeURIComponent(n).replace(/%20/g, '+'); document.head.appendChild(l); $('#fo-prev').style.fontFamily = `"${n}"`; };
+    $('#sheet-inner').onclick = async e => {
+      const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.act === 'back') return openTonePicker();
+      if (b.dataset.fm) { mode = b.dataset.fm; file = null; return draw(); }
+      if (b.dataset.use) { $$('.fo-use button').forEach(x => x.classList.toggle('on', x === b)); return; }
+      if (b.dataset.act !== 'fosave') return;
+      const use = $('.fo-use button.on')?.dataset.use || 'both', id = uid('f'); let c;
+      if (mode === 'gf') { const n = $('#fo-gf').value.trim().replace(/\s+/g, ' '); if (!n) return toast('구글 폰트 이름을 넣어주세요'); c = { id, name: $('#fo-name').value.trim() || n, family: n, src: 'gf:' + n, use }; }
+      else {
+        if (!file) return toast('글꼴 파일을 골라주세요'); if (file.size > 8 * 1024 * 1024) return toast('8MB 이하 파일만 가능해요');
+        const ext = (file.name.match(/\.(woff2|woff|ttf|otf)$/i) || [, 'woff2'])[1].toLowerCase(), buf = await file.arrayBuffer();
+        let bin = ''; const u8 = new Uint8Array(buf); for (let i = 0; i < u8.length; i += 32768) bin += String.fromCharCode.apply(null, u8.subarray(i, i + 32768)); const b64 = btoa(bin);
+        const fam = 'jjfont-' + id, mime = { woff2: 'font/woff2', woff: 'font/woff', ttf: 'font/ttf', otf: 'font/otf' }[ext];
+        c = { id, name: $('#fo-name').value.trim() || file.name.replace(/\.[^.]+$/, ''), family: fam, src: '', use };
+        b.disabled = true; b.textContent = '올리는 중…';
+        if (S.token && !OFFLINE) { try { await ghPutFiles([{ path: `fonts/${id}.${ext}`, b64 }], `jjtrip: font ${c.name}`); c.src = `fonts/${id}.${ext}`; } catch (err) { toast('업로드 실패 — 이 기기에만 저장: ' + err.message, 3500); } }
+        if (!c.src) { if (file.size > 3 * 1024 * 1024) { b.disabled = false; b.textContent = '저장'; return toast('토큰 없는 기기는 3MB 이하 파일만 저장 가능해요'); } const lf = LS.get('fonts', {}); c.src = 'local:font:' + id; lf[c.src] = `data:${mime};base64,${b64}`; LS.set('fonts', lf); }
+        FONT_LOCAL[id] = URL.createObjectURL(new Blob([buf], { type: mime }));
+      }
+      S.db.meta.fonts = [...myFonts(), c]; LS.set('font', 'c:' + id); markDirty(); applyTheme(); S.homeStale = true; toast(`「${c.name}」 글꼴 추가 · 바로 적용`); openTonePicker();
+    };
+  };
+  draw();
+}
 function tonePref() { const t = LS.get('tone', 'sea'); return TONES.some(x => x[0] === t) ? t : 'sea'; }
 function cssv(n, d) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d; }
 function openTonePicker() {
@@ -2492,20 +2543,22 @@ function openTonePicker() {
   openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-close>닫기</button><b>색 테마 · 글씨체</b><span></span></div><div class="vf-scroll" style="padding:16px">
     <div class="tn-grid">${TONES.map(([id, nm, a, b, c]) => `<button class="tn${id === cur ? ' on' : ''}" data-tone="${id}"><span class="tn-sw" style="background:linear-gradient(135deg,${a} 0 55%,${b} 55% 82%,${c} 82%)"></span><span>${nm}</span></button>`).join('')}</div>
     <div class="gt" style="margin-top:14px">밝기</div><div class="seg tn-th">${[['auto', '시스템'], ['light', '라이트'], ['dark', '다크']].map(([v, n]) => `<button data-th="${v}" class="${th === v ? 'on' : ''}">${n}</button>`).join('')}</div>
-    <div class="gt" style="margin-top:18px">글씨체</div><div class="fo-grid">${FONTS.map(([id, nm, sub]) => `<button class="fo${id === fontPref() ? ' on' : ''}" data-fo="${id}"><b data-fo-prev="${id}">${nm} 가나다 Aa</b><span>${sub}</span></button>`).join('')}</div>
+    <div class="gt" style="margin-top:18px">글씨체</div><div class="fo-grid">${FONTS.map(([id, nm, sub]) => `<button class="fo${id === fontPref() ? ' on' : ''}" data-fo="${id}"><b data-fo-prev="${id}">${nm} 가나다 Aa</b><span>${sub}</span></button>`).join('')}${myFonts().map(c => `<button class="fo${'c:' + c.id === fontPref() ? ' on' : ''}" data-fo="c:${c.id}"><b style="font-family:${esc(myFontStack(c))}">${esc(c.name)} 가나다 Aa</b><span>내 글꼴 · ${{ both: '본문·제목', head: '제목만', body: '본문만' }[c.use || 'both']}</span><i class="fo-x rw" data-fodel="${c.id}" title="지우기">✕</i></button>`).join('')}<button class="fo fo-add rw" data-foadd="1"><b>＋ 글꼴 추가</b><span>구글 폰트 이름 · 글꼴 파일</span></button></div>
     <div class="gt" style="margin-top:14px">글자 크기</div><div class="seg tn-th">${FZ.map(([v, n]) => `<button data-fz="${v}" class="${fzPref() === v ? 'on' : ''}">${n}</button>`).join('')}</div>
     <p class="cap3" style="margin-top:10px">기기마다 따로 저장 · 지도·지구본 색도 함께 바뀜 · 손글씨·장소 타이틀 글씨는 그대로</p></div></div>`);
-  FONTS.forEach(f => loadFontCss(f[0]));   /* 미리보기용: 창을 열 때만 6개 다 불러옴 */
+  FONTS.forEach(f => loadFontCss(f[0])); myFonts().forEach(loadMyFont);   /* 미리보기용: 창을 열 때만 불러옴 */
   $('#sheet-inner').onclick = e => {
     if (!$('#sheet-inner .tn-grid')) return;   /* 다른 시트로 바뀐 뒤엔 무시 */
     if (e.target.closest('[data-close]')) return closeSheet();
+    const fadd = e.target.closest('[data-foadd]'); if (fadd) return openFontAdd();
+    const fdel = e.target.closest('[data-fodel]'); if (fdel) { e.stopPropagation(); const c = myFonts().find(x => x.id === fdel.dataset.fodel); if (!c || !confirm(`「${c.name}」 글꼴을 목록에서 지울까요?`)) return; S.db.meta.fonts = myFonts().filter(x => x !== c); if (fontPref() === 'c:' + c.id) LS.set('font', 'base'); markDirty(); applyTheme(); return openTonePicker(); }
     const t = e.target.closest('button.tn[data-tone]'), m = e.target.closest('.tn-th button[data-th]'), fo = e.target.closest('button.fo[data-fo]'), fz = e.target.closest('.tn-th button[data-fz]'); if (!t && !m && !fo && !fz) return;   /* html에도 data-tone·data-font 있음 → 버튼만 */
     if (t) LS.set('tone', t.dataset.tone); if (m) LS.set('theme', m.dataset.th); if (fo) LS.set('font', fo.dataset.fo); if (fz) LS.set('fz', fz.dataset.fz);
     const sy = $('#sheet-inner .vf-scroll')?.scrollTop || 0; applyTheme(); S.homeStale = true; openTonePicker(); const sc = $('#sheet-inner .vf-scroll'); if (sc) sc.scrollTop = sy; if (!$('#settings')?.hidden) renderSettings();
     try { if (S.view === 'home') renderHome(); } catch {}
   };
 }
-function applyTheme() { const t = themePref(), tn = tonePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (tn === 'sea') delete document.documentElement.dataset.tone; else document.documentElement.dataset.tone = tn; const fo = fontPref(), fz = fzPref(), de = document.documentElement.dataset; if (fo === 'base') delete de.font; else { de.font = fo; loadFontCss(fo); } if (fz === 'm') delete de.fz; else de.fz = fz; document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
+function applyTheme() { const t = themePref(), tn = tonePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (tn === 'sea') delete document.documentElement.dataset.tone; else document.documentElement.dataset.tone = tn; const fo = fontPref(), fz = fzPref(), de = document.documentElement.dataset, rs = document.documentElement.style; rs.removeProperty('--font-body'); rs.removeProperty('--font-head'); if (fo === 'base') delete de.font; else if (fo.startsWith('c:')) { const c = myFonts().find(x => 'c:' + x.id === fo); de.font = 'custom'; loadMyFont(c); if (c.use !== 'head') rs.setProperty('--font-body', myFontStack(c)); if (c.use !== 'body') rs.setProperty('--font-head', myFontStack(c)); } else { de.font = fo; loadFontCss(fo); } if (fz === 'm') delete de.fz; else de.fz = fz; document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
 function seasonPref() { return LS.get('season', 'auto'); }
 function seasonHome() { const s = seasonPref(); return s === 'auto' ? seasonNow() : s; }
 const KEY_DEFS = {                                         // 키 입력 화면(행 탭): 입력칸 + 붙여넣기 + 연결 확인
@@ -2717,7 +2770,7 @@ function openJournal(opts = {}) {
   if (opts.post) ents = ents.filter(e => (e.v.id || '') === opts.post);   // 앨범에서 고른 글 하나
   const album = !opts.placeId && !opts.post;                             // 기록 첫 화면 = 앨범(사진 격자)
   const nPh = ents.reduce((n, e) => n + visitPhotos(e.v).length, 0);
-  const title = opts.post && ents[0] ? ents[0].p.name : opts.placeId ? placeById(opts.placeId)?.name + ' 기록' : t ? `${tripCity(t)} 여행기` : '우리 가족 기록';
+  const title = opts.post && ents[0] ? ents[0].p.name : opts.placeId ? placeById(opts.placeId)?.name + ' 기록' : t ? `${tripName(t)} 여행기` : '우리 가족 기록';
   const dow = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? '' : ` (${DAYS[x.getDay()]})`; };
   let lastM = '';
   const cards = ents.map((e, i) => { const { p, v } = e; const ph = visitPhotos(v); const m = (v.date || '').slice(0, 7);
@@ -2843,7 +2896,7 @@ function travelCardHtml(s, mode) {
           <div><b class="num">${s.km >= 10000 ? (s.km / 1000).toFixed(1) + '<small>천km</small>' : s.km.toLocaleString() + '<small>km</small>'}</b><span>누적 이동 (왕복 직선)</span></div>
         </div>
         <div class="tm-legend"><span><i class="lg-done"></i>가봤음</span><span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span></div>
-        ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripCity(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
+        ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripName(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
         ${notYet.length ? `<div class="tm-notyet"><p class="cap3">아직 안 가본 시·도 ${notYet.length}곳 <span>· 저장한 곳 많은 순</span></p><div>${notYet.slice(0, 8).map(k => `<span class="chip">${k}${s.saved[k] ? ` <small>저장 ${s.saved[k]}</small>` : ''}</span>`).join('')}</div></div>` : '<p class="tm-next">🎉 17개 시·도를 모두 가봤어요!</p>'}
       </div></div>
     <div class="tm-badges"><p class="cap3">배지 ${got}/${bs.length}</p><div>${bs.map(b => `<span class="bdg${b.ok ? ' ok' : ''}" title="${esc(b.hint)}"><i>${b.ico}</i><b>${esc(b.name)}</b><small>${b.ok ? '획득' : `${b.cur}/${b.goal}`}</small></span>`).join('')}</div></div>`;
@@ -2961,8 +3014,8 @@ async function drawTravelCard(mode) {
       const arc = tmArc(hm, ll); (S.tmArcs ||= []).push(arc);
       L.polyline(arc, { color: plan ? C.plan : C.done, weight: 2.5, opacity: .9, dashArray: plan ? '2 8' : null, lineCap: 'round', className: plan ? 'tm-arc plan' : 'tm-arc', interactive: false }).addTo(map);
       const m = tmPhIcon((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], plan ? '✈' : '●', plan ? C.plan : C.done, 44, plan ? 'plan' : '');
-      L.marker(ll, { icon: m }).addTo(map).bindTooltip(`${esc(tripCity(x.t))} · ${x.t.year || ''}${plan ? ' (예정)' : ''}`, { direction: 'top', offset: [0, -20] })
-        .bindPopup(card((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], `${tripCity(x.t)} ${x.t.year || ''}`, plan ? '예정된 여행' : '다녀온 여행', ''), { className: 'tm-popw', closeButton: false }).on('click', () => tripTitle(x.t));
+      L.marker(ll, { icon: m }).addTo(map).bindTooltip(`${esc(tripName(x.t))} · ${x.t.year || ''}${plan ? ' (예정)' : ''}`, { direction: 'top', offset: [0, -20] })
+        .bindPopup(card((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], `${tripName(x.t)} ${x.t.year || ''}`, plan ? '예정된 여행' : '다녀온 여행', ''), { className: 'tm-popw', closeButton: false }).on('click', () => tripTitle(x.t));
     }
     L.marker(hm, { icon: L.divIcon({ className: 'tm-home', html: '⌂', iconSize: [26, 26] }) }).addTo(map).bindTooltip('우리 집');
     planeFx(map, S.tmArcs || []); S.tmArcs = [];

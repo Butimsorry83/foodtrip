@@ -1036,3 +1036,9 @@ h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b
 [data-fo-prev="classic"] { font-family: "Nanum Myeongjo", serif; }
 [data-fo-prev="bold"] { font-family: "Do Hyeon", sans-serif; }
 [data-fo-prev="story"] { font-family: "Gowun Batang", serif; }
+/* 11/05 내 글꼴 추가 */
+.fo { position: relative; } .fo-x { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; background: var(--bg-subtle); color: var(--text-3); }
+.fo-x:hover { background: var(--danger-soft); color: var(--danger); }
+.fo-add { border-style: dashed; justify-content: center; } .fo-add b { color: var(--primary-2); }
+.fo-prev { margin-top: 14px; padding: 16px; border-radius: 12px; background: var(--bg-subtle); font-size: 20px; line-height: 1.5; color: var(--text-1); }
+.fo:has(.fo-x) b { padding-right: 20px; word-break: break-all; }
