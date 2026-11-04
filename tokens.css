@@ -60,9 +60,11 @@
   /* ── 글꼴 ── */
   --font-display:"Odor Mean Chey","Nanum Myeongjo",serif;  /* 영문·숫자 디스플레이, 한글은 나눔명조로 대체 */
   --font-serif:"Nanum Myeongjo",serif;                       /* 한줄평·도시명 */
-  --font-body:"Noto Sans KR",-apple-system,sans-serif;
-  --font-nav:"Inria Sans","Noto Sans KR",sans-serif;
-  --font-num:"IBM Plex Mono","Noto Sans KR",ui-monospace,monospace;   /* 한글이 섞이면 Noto로 (고정폭 한글 대체 글꼴 방지) */         /* 거리·시간·날짜 */
+  --font-body:"Pretendard Variable","Pretendard","Noto Sans KR",-apple-system,sans-serif;   /* 11/04 글꼴 A: 본문 Pretendard */
+  --font-head:"GmarketSans","Pretendard Variable","Noto Sans KR",sans-serif;   /* 11/04 글꼴 A: 제목·메뉴 Gmarket Sans */
+  --font-title:"Anton","GmarketSans",sans-serif;   /* 장소 타이틀 (영문 대문자) */
+  --font-nav:"GmarketSans","Pretendard Variable","Noto Sans KR",sans-serif;
+  --font-num:"IBM Plex Mono","Pretendard Variable","Noto Sans KR",ui-monospace,monospace;   /* 한글이 섞이면 Noto로 (고정폭 한글 대체 글꼴 방지) */         /* 거리·시간·날짜 */
   --fw-regular:400; --fw-medium:500; --fw-bold:700; --fw-black:900;
 
   /* ── 크기 단계 (폰 기준 / PC는 ×1.2~1.6) ── */

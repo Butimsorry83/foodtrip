@@ -759,7 +759,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       entry.photo = entry.photos[0] || null;
       if (edit) { Object.assign(edit, entry); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); markDirty(); toast('기록 수정'); return back ? back() : openDetail(p.id); }
       p.visitLog ||= []; entry.id ||= uid('v'); p.visitLog.push(entry); p.visits = (p.visits || 0) + 1;
-      markDirty(); renderList(); openDetail(p.id); toast('기록 저장 · 스탬프 찍힘');
+      markDirty(); renderList(); openDetail(p.id); toast('기록 저장 · 스탬프 찍힘'); stampFx();
     }
   };
 }
@@ -1849,7 +1849,7 @@ function renderHome() {
   const el = $('#view-home'); if (!el) return;
   const d = homeData(); const phone = window.innerWidth <= 860; S.homeMode = phone ? 'phone' : 'pc';
   el.innerHTML = phone ? renderHomePhone(d) : renderHomePC(d);
-  fitPcHero();
+  fitPcHero(); seasonFx(el.querySelector(phone ? '.ph-hero' : '.pc-hero-wrap'), d.season);
   $('#hero-search').onsubmit = e => { e.preventDefault(); S.q = $('#hq').value.trim(); $('#q').value = S.q; S.region = 'all'; renderRegionChips(); renderTagChips(); renderList(); showView('explore'); fitToVisible(); };
   el.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -2054,7 +2054,7 @@ function renderTrips() {
       <div class="tp-list">${up ? cover(up) : '<div class="help">아직 여행이 없습니다.</div>'}<div class="tp-grid">${rest.map(small).join('')}</div>
       <div class="btns" style="margin:4px 0 0"><button class="rw" data-act="newtrip">＋ 빈 여행 추가</button><button data-act="xlsxall">엑셀 내보내기</button><button class="rw" data-act="importtrip" title="준준 안내서 HTML · 여행 JSON">⇪ 일정 파일 가져오기</button><input type="file" id="ti-file" accept=".html,.htm,.json" hidden></div><p class="cap3 ti-hint">안내서 HTML이나 여행 JSON 파일을 이 화면에 끌어다 놓아도 추가됩니다</p></div>`;
     $('#ti-file').onchange = e => { importTripFile(e.target.files[0]); e.target.value = ''; };
-    el.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.id) { S.trip = S.db.trips.find(t => t.id === b.dataset.id); S.tripDay = 0; renderTrips(); focusTrip(); } if (b.dataset.act === 'newtrip') openTripForm(); if (b.dataset.act === 'planner') openPlanner(); if (b.dataset.act === 'xlsxall') exportXlsx(); if (b.dataset.act === 'importtrip') $('#ti-file').click(); };
+    el.onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.id) { S.trip = S.db.trips.find(t => t.id === b.dataset.id); S.tripDay = 0; renderTrips(); focusTrip(); loadGeo().then(() => S.trip && tripTitle(S.trip)); } if (b.dataset.act === 'newtrip') openTripForm(); if (b.dataset.act === 'planner') openPlanner(); if (b.dataset.act === 'xlsxall') exportXlsx(); if (b.dataset.act === 'importtrip') $('#ti-file').click(); };
     return;
   }
   const t = S.trip, { days, start, end } = tripDates(t);              // 08b 타임라인
@@ -2528,7 +2528,7 @@ function openJournal(opts = {}) {
       ${v.memo ? `<p class="sb-memo hand">“${esc(v.memo)}”</p>` : ''}${v.story ? `<div class="sb-story">${storyHtml(v.story)}</div>` : ''}
       ${(v.menu || []).length || (v.who || []).length ? `<div class="sb-foot">${(v.menu || []).map(x => `<span class="sb-ticket">${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}${(v.who || []).map(nm => `<span class="sb-sticker hand">${esc(nm)}</span>`).join('')}</div>` : ''}
       <button class="sb-edit rw" data-edit="${i}">편집</button></article>`; };
-  const sbHtml = sb ? `${sbPage(ents[pg], pg)}${ents.length > 1 ? `<div class="sb-nav"><button data-sbpg="${pg - 1}" ${pg ? '' : 'disabled'}>‹ 이전 쪽</button><span class="num">${pg + 1} / ${ents.length}</span><button data-sbpg="${pg + 1}" ${pg < ents.length - 1 ? '' : 'disabled'}>다음 쪽 ›</button></div>` : ''}` : '';
+  const sbHtml = sb ? `${sbPage(ents[pg], pg).replace('<article class="sb-page">', `<article class="sb-page${opts.turn ? ' turn-' + opts.turn : ''}">`)}${ents.length > 1 ? `<div class="sb-nav"><button data-sbpg="${pg - 1}" ${pg ? '' : 'disabled'}>‹ 이전 쪽</button><span class="num">${pg + 1} / ${ents.length}</span><button data-sbpg="${pg + 1}" ${pg < ents.length - 1 ? '' : 'disabled'}>다음 쪽 ›</button></div>` : ''}` : '';
   const withPh = album ? ents.filter(e => visitPhotos(e.v).length) : [], noPh = album ? ents.filter(e => !visitPhotos(e.v).length) : [];
   const grid = withPh.length ? `<div class="jr-grid">${withPh.map(e => { const ph = visitPhotos(e.v); return `<button class="jr-tile" data-post="${esc(e.v.id || '')}" style="background-image:url('${ph[0]}')"><span class="ov"><b>${esc(e.p.name)}</b><small>${esc((e.v.date || '').replace(/-/g, '.'))} · ${ph.length}장</small></span>${ph.length > 1 ? '<i>❐</i>' : ''}</button>`; }).join('')}</div>` : '';
   const noPhHtml = noPh.length ? `<h3 class="jr-month">사진 없는 기록 <small>${noPh.length}</small></h3><div class="jr-nolog">${noPh.map(e => `<div class="row-nl">${thumbHtml(e.p, 'tile')}<button class="jr-place" data-post="${esc(e.v.id || '')}"><span><b>${esc(e.p.name)}</b><small>${esc([(e.v.date || '').replace(/-/g, '.'), e.v.memo ? '“' + e.v.memo + '”' : ''].filter(Boolean).join(' · '))}</small></span></button></div>`).join('')}</div>` : '';
@@ -2544,7 +2544,7 @@ function openJournal(opts = {}) {
     if (b.dataset.pn) { const phs = [...b.parentElement.querySelectorAll('.jr-ph')], k = phs.findIndex(x => x.classList.contains('on')); phs[k]?.classList.remove('on'); phs[(k + +b.dataset.pn + phs.length) % phs.length].classList.add('on'); return; }   // PC 글 상세 사진 넘김
     if (b.dataset.jtab) return openJournal({ page: opts.page, growth: b.dataset.jtab === 'growth', gwho: S.gwho || '' });
     if (b.dataset.sbset != null) { const on = b.dataset.sbset === '1'; LS.set('jrSb', on); return openJournal({ ...opts, sb: on, pg: 0 }); }
-    if (b.dataset.sbpg != null) { openJournal({ ...opts, sb: true, pg: +b.dataset.sbpg }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
+    if (b.dataset.sbpg != null) { openJournal({ ...opts, sb: true, pg: +b.dataset.sbpg, turn: +b.dataset.sbpg > pg ? 'n' : 'p' }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.act === 'storykit') return copyStoryKit(sb ? [ents[pg]] : ents, t);
     if (b.dataset.act === 'back') { if (opts.post) return openJournal({ ...opts, post: null }); opts.placeId ? openDetail(opts.placeId) : closeSheet(); return; }
     if (b.dataset.post) { const r = (box || $('#sheet-inner')); openJournal({ ...opts, post: b.dataset.post }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
@@ -2653,6 +2653,8 @@ async function drawTravelCard(mode) {
   const el = $('#tm-card'); if (!el) return; mode ||= S.tmMode || 'kr'; S.tmMode = mode;
   const ok = await loadGeo(); if (!$('#tm-card')) return;
   const s = travelStats(); el.innerHTML = travelCardHtml(s, mode);
+  if (!S.tmAnimated) { countUp(el.querySelector('.tm-stats')); S.tmAnimated = true; }   // 숫자 올라가기 (탭 처음 열 때)
+  badgeCheck(badgeList(s)).forEach(n => [...el.querySelectorAll('.bdg')].find(x => x.querySelector('b')?.textContent === n)?.classList.add('new'));
   el.onclick = e => { const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList(); };
   if (!ok || !window.L) { $('#tm-map').innerHTML = '<div class="help">지도 경계를 불러오지 못했어요</div>'; return; }
   try { S.tmMap?.remove(); } catch {}
@@ -2679,17 +2681,21 @@ async function drawTravelCard(mode) {
     const showFaint = () => { map.getZoom() >= 3.5 ? map.addLayer(faint) : map.removeLayer(faint); }; map.on('zoomend', showFaint);
     const hm = s.home && hasCoord(s.home) ? [s.home.lat, s.home.lng] : [37.58, 127.21];
     for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const ll = [x.loc.lat, x.loc.lng], plan = x.st === 'plan';
-      L.polyline(tmArc(hm, ll), { color: plan ? C.plan : C.done, weight: 2.5, opacity: .9, dashArray: plan ? '2 8' : null, lineCap: 'round', className: plan ? 'tm-arc plan' : 'tm-arc', interactive: false }).addTo(map);
+      const arc = tmArc(hm, ll); (S.tmArcs ||= []).push(arc);
+      L.polyline(arc, { color: plan ? C.plan : C.done, weight: 2.5, opacity: .9, dashArray: plan ? '2 8' : null, lineCap: 'round', className: plan ? 'tm-arc plan' : 'tm-arc', interactive: false }).addTo(map);
       const m = tmPhIcon((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], plan ? '✈' : '●', plan ? C.plan : C.done, 44, plan ? 'plan' : '');
       L.marker(ll, { icon: m }).addTo(map).bindTooltip(`${esc(tripCity(x.t))} · ${x.t.year || ''}${plan ? ' (예정)' : ''}`, { direction: 'top', offset: [0, -20] })
-        .bindPopup(card((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], `${tripCity(x.t)} ${x.t.year || ''}`, plan ? '예정된 여행' : '다녀온 여행', ''), { className: 'tm-popw', closeButton: false });
+        .bindPopup(card((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], `${tripCity(x.t)} ${x.t.year || ''}`, plan ? '예정된 여행' : '다녀온 여행', ''), { className: 'tm-popw', closeButton: false }).on('click', () => tripTitle(x.t));
     }
     L.marker(hm, { icon: L.divIcon({ className: 'tm-home', html: '⌂', iconSize: [26, 26] }) }).addTo(map).bindTooltip('우리 집');
+    planeFx(map, S.tmArcs || []); S.tmArcs = [];
   } else {
     const max = Math.max(1, ...Object.values(s.doCnt));
     const kr = L.geoJSON(S.geoKr, { style: f => { const n = s.doCnt[f.properties.k] || 0; return { color: isDark() ? '#0d1b22' : '#ffffff', weight: 1.4, fillColor: n ? C.done : C.land, fillOpacity: n ? .3 + .55 * Math.min(1, n / Math.max(5, max * .6)) : 1 }; },
       onEachFeature: (f, l) => { const k = f.properties.k, n = s.doCnt[k] || 0; tip(l, `<b>${k}</b> · ${n ? `다녀온 곳 ${n}` : '아직 안 가봄'}${s.saved[k] ? ` · 저장 ${s.saved[k]}` : ''}`); } }).addTo(map);
     S.tmKrB = kr.getBounds();
+    if (!REDUCE()) { let i = 0; kr.eachLayer(l => { const k = l.feature.properties.k; if (!s.doCnt[k]) return; const to = l.options.fillOpacity, d0 = 250 + i++ * 140; l.setStyle({ fillOpacity: 0 });   // 가본 도가 하나씩 색칠됨
+      setTimeout(() => { const t0 = performance.now(); const st = now => { const q = Math.min(1, (now - t0) / 500); l.setStyle({ fillOpacity: to * q }); if (q < 1) requestAnimationFrame(st); }; requestAnimationFrame(st); }, d0); }); }
     const labels = L.layerGroup().addTo(map);
     for (const [k, ll] of Object.entries(DO_LABEL)) { const n = s.doCnt[k] || 0; if (['서울', '인천', '대전', '광주', '세종', '울산', '대구'].includes(k) && !n) continue;
       L.marker(ll, { interactive: false, icon: L.divIcon({ className: 'tm-lbl' + (n ? ' on' : ''), html: `${k}${n ? `<b>${n}</b>` : ''}`, iconSize: [70, 20], iconAnchor: [35, 10] }) }).addTo(labels); }
@@ -2707,11 +2713,14 @@ async function drawTravelCard(mode) {
     map.fitBounds(S.tmKrB, { padding: [10, 10] });
   }
   { const lv = livedSorted().filter(h => hasCoord(h) && (mode === 'world' || (h.country || 'KR') === 'KR'));     // 살았던 곳 ⌂ + 이사 경로
-    if (lv.length > 1) L.polyline(lv.map(h => [h.lat, h.lng]), { color: C.wish, weight: 2, opacity: .85, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map);
-    lv.forEach((h, i) => L.marker([h.lat, h.lng], { zIndexOffset: 400, icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: `<span>⌂</span><i>${i + 1}</i>` }) }).addTo(map)
-      .bindTooltip(`<b>⌂ ${esc(h.name)}</b>${livedYears(h) ? ' · ' + esc(livedYears(h)) : ''}`, { direction: 'top', offset: [0, -14] })); }
+    if (lv.length > 1) { const pts = lv.map(h => [h.lat, h.lng]), line = L.polyline(REDUCE() ? pts : [pts[0]], { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map);
+      if (!REDUCE()) { const t0 = performance.now(), D = 600 * (pts.length - 1); const st = now => { const f = Math.min(1, (now - t0) / D) * (pts.length - 1), i = Math.floor(f), r = f - i, a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]; line.setLatLngs([...pts.slice(0, i + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); if (f < pts.length - 1) requestAnimationFrame(st); }; setTimeout(() => requestAnimationFrame(st), 500); } }   // 이사 경로가 1→2→3 순서로 그려짐
+    lv.forEach((h, i) => { const mk = L.marker([h.lat, h.lng], { zIndexOffset: 400, icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: `<span style="animation-delay:${(.5 + i * .6).toFixed(1)}s">⌂</span><i>${i + 1}</i>` }) }).addTo(map)
+      .bindTooltip(`<b>⌂ ${esc(h.name)}</b>${livedYears(h) ? ' · ' + esc(livedYears(h)) : ''}`, { direction: 'top', offset: [0, -14] });
+      mk.on('click', () => { const parts = String(h.address || h.name || '').split(',').map(x => x.trim()).filter(Boolean); let big = (h.country || 'KR') === 'KR' ? parts[0]?.split(' ')[0] : (parts.find(x => !/\d/.test(x)) || parts[0]); big = CITY_EN[big] || big;
+        locTitle(big, [(h.country || 'KR') === 'KR' ? h.name : regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); }); }); }
   map.getContainer().addEventListener('click', e => { const b = e.target.closest('[data-tmgo],[data-tmpost]'); if (!b) return; if (b.dataset.tmgo) openDetail(b.dataset.tmgo); else openJournal({ page: true, post: b.dataset.tmpost }); });
-  const wpts = mode === 'world' ? [[37.58, 127.21], ...[...s.done, ...s.plan].flatMap(o => o.trips.filter(x => x.loc).map(x => [x.loc.lat, x.loc.lng]))] : [];
+  const wpts = mode === 'world' ? [[37.58, 127.21], ...[...s.done, ...s.plan].flatMap(o => o.trips.filter(x => x.loc).map(x => [x.loc.lat, x.loc.lng])), ...livedSorted().filter(hasCoord).map(h => [h.lat, h.lng])] : [];   // 여행지 + 살았던 곳 모두 보이게
   const view = mode === 'world' ? () => (wpts.length > 1 ? map.fitBounds(L.latLngBounds(wpts).pad(.35), { maxZoom: 3.5, animate: false }) : map.setView([22, 128], window.innerWidth > 860 ? 2.25 : 1.25, { animate: false })) : () => map.fitBounds(S.tmKrB, { padding: [10, 10], animate: false });
   setTimeout(() => { try { map.invalidateSize(false); view(); } catch {} }, 60);
 }
@@ -2798,7 +2807,10 @@ function livedYears(h) { return h.from || h.to ? `${h.from || '?'}~${h.to || '�
 async function addrSearch(q, cc) {                                  // 주소·건물명 → 좌표 (국내: 카카오 주소 → 키워드 → OSM)
   q = (q || '').trim(); if (!q) return [];
   if (cc === 'KR') { await loadKakao(); if (window.kakao?.maps?.services?.Geocoder) { const r = await new Promise(res => new kakao.maps.services.Geocoder().addressSearch(q, (d, st) => res(st === kakao.maps.services.Status.OK ? d : []))); if (r.length) return r.slice(0, 6).map(d => ({ name: d.address_name, lat: +d.y, lng: +d.x, address: d.road_address?.address_name || d.address_name, src: '카카오 주소' })); } }
-  return geoSearch(q, cc);
+  let r = await osmSearch(q, cc);                                    // 해외: OSM(나라 지정) → 나라 이름 붙여서 → 전 세계
+  if (!r.length) r = await osmSearch(`${q}, ${regionEn(cc)}`, ''); if (!r.length) r = await osmSearch(q, '');
+  if (!r.length && googleKey()) r = await googleSearch(`${q} ${regionEn(cc)}`, null);
+  return r;
 }
 function openLivedList() {
   const L0 = livedSorted();
@@ -2808,29 +2820,41 @@ function openLivedList() {
     <button class="btn-line rw" data-act="lvadd" style="margin-top:12px;width:100%">＋ 살았던 곳 추가</button></div></div>`);
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') { closeSheet(); return drawTravelCard(); } if (b.dataset.act === 'lvadd') return isRO() ? goToken() : openLivedForm(); if (b.dataset.lv) return isRO() ? goToken() : openLivedForm((S.db.lived || []).find(x => x.id === b.dataset.lv)); };
 }
-function openLivedForm(h) {
-  const st = { ...(h || { country: 'KR' }) }; const ccs = ['KR', ...Object.keys(G_COUNTRY_KO).filter(c => c !== 'KR')];
+async function openLivedForm(h) {
+  await loadGeo(); const st = { ...(h || { country: 'KR' }) };
+  const all = (S.geoWorld?.features || []).map(f => [f.properties.cc, f.properties.n]).filter(([c]) => c && c.length === 2).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
+  const top = ['KR', ...Object.keys(G_COUNTRY_KO).filter(c => c !== 'KR')], koName = c => G_COUNTRY_KO[c] || (all.find(x => x[0] === c) || [])[1] || c;
   const yr = new Date().getFullYear();
   openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>${h ? '살았던 곳 수정' : '살았던 곳 추가'}</b><button class="lnk pri" data-act="lvsave">저장</button></div><div class="vf-scroll" style="padding:16px">
     <div class="ti-f"><label>이름</label><input id="lv-name" placeholder="예: 신혼집 · 하준이 태어난 집 · 시드니 주재원 시절" value="${esc(st.name || '')}"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px">
-      <div class="ti-f"><label>나라</label><select id="lv-cc">${ccs.map(c => `<option value="${c}"${c === st.country ? ' selected' : ''}>${esc(G_COUNTRY_KO[c] || c)}</option>`).join('')}</select></div>
+      <div class="ti-f"><label>나라</label><select id="lv-cc"><optgroup label="자주">${top.map(c => `<option value="${c}"${c === st.country ? ' selected' : ''}>${esc(koName(c))}</option>`).join('')}</optgroup><optgroup label="전체 (가나다)">${all.filter(([c]) => !top.includes(c)).map(([c, n]) => `<option value="${c}"${c === st.country ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup></select></div>
       <div class="ti-f"><label>살기 시작 (년)</label><input id="lv-from" type="number" min="1950" max="${yr}" placeholder="2012" value="${esc(st.from || '')}"></div>
       <div class="ti-f"><label>떠난 해 (비우면 현재)</label><input id="lv-to" type="number" min="1950" max="${yr}" placeholder="2018" value="${esc(st.to || '')}"></div></div>
     <div class="ti-f" style="margin-top:10px"><label>주소 또는 아파트·동네 이름</label><div style="display:flex;gap:8px"><input id="lv-q" placeholder="예: 부산 해운대구 우동 · 송파 헬리오시티" value="${esc(st.address || '')}"><button class="btn-line" data-act="lvfind" style="flex:none;padding:0 14px">검색</button></div></div>
     <div id="lv-hits" class="lv-hits"></div>
-    <p class="cap3" id="lv-pos" style="margin-top:8px">${st.lat != null ? `위치 지정됨 · ${(+st.lat).toFixed(4)}, ${(+st.lng).toFixed(4)}` : '검색 결과에서 하나를 고르면 위치가 정해집니다'}</p>
+    <div id="lv-map" class="lv-map"></div>
+    <p class="cap3" id="lv-pos" style="margin-top:8px">${st.lat != null ? `위치 지정됨 · ${(+st.lat).toFixed(4)}, ${(+st.lng).toFixed(4)}` : '검색 결과를 고르거나, 지도를 직접 눌러 위치를 정하세요'}</p>
     <p class="cap3" style="margin-top:12px">⚠ 저장소가 공개라 주소가 보일 수 있어요. 동·아파트 이름 정도로만 넣는 것을 권장합니다</p>
     ${h ? '<button class="btn-line" data-act="lvdel" style="margin-top:16px;color:var(--danger)">삭제</button>' : ''}</div></div>`);
   $('#lv-q').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-act=lvfind]').click(); } };
+  let lm = null, mk = null;                                          // 지도에서 직접 찍기
+  try { lm = L.map('lv-map', { attributionControl: false, zoomControl: true }); L.tileLayer(tileUrl(), { maxZoom: 18 }).addTo(lm);
+    const c0 = st.lat != null ? [st.lat, st.lng] : (() => { const g = geoCenter(st.country || 'KR'); return g ? [g.lat, g.lng] : [36.3, 127.8]; })(); lm.setView(c0, st.lat != null ? 14 : st.country === 'KR' ? 6 : 5);
+    const put = (ll, z) => { if (mk) mk.setLatLng(ll); else mk = L.marker(ll, { icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: '<span>⌂</span>' }) }).addTo(lm); if (z) lm.setView(ll, z); };
+    if (st.lat != null) put([st.lat, st.lng]);
+    lm.on('click', e => { Object.assign(st, { lat: +e.latlng.lat.toFixed(5), lng: +e.latlng.lng.toFixed(5) }); if (!st.address) st.address = $('#lv-q').value.trim() || null; put(e.latlng); $('#lv-pos').textContent = `지도에서 지정 · ${st.lat.toFixed(4)}, ${st.lng.toFixed(4)}`; });
+    S.lvPut = put; setTimeout(() => lm.invalidateSize(), 120);
+    $('#lv-cc').onchange = e => { const g = geoCenter(e.target.value); if (g && st.lat == null) lm.setView([g.lat, g.lng], e.target.value === 'KR' ? 6 : 5); };
+  } catch (e) { console.warn(e); }
   $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return; const act = b.dataset.act;
     if (act === 'back') return openLivedList();
     if (act === 'lvfind') { const box = $('#lv-hits'); box.innerHTML = '<div class="help">찾는 중…</div>'; const hits = await addrSearch($('#lv-q').value, $('#lv-cc').value); S.lvHits = hits;
       box.innerHTML = hits.length ? hits.map((x, i) => `<button class="lv-hit" data-hit="${i}"><b>${esc(x.name)}</b><small>${esc(x.address || '')} · ${esc(x.src || '')}</small></button>`).join('') : '<div class="help">못 찾았어요 — 동·구 이름으로 다시 검색해 보세요</div>'; return; }
-    if (b.dataset.hit != null) { const x = S.lvHits[+b.dataset.hit]; Object.assign(st, { lat: x.lat, lng: x.lng, address: x.address || x.name }); $('#lv-pos').textContent = `위치 지정됨 · ${x.name}`; $$('.lv-hit').forEach(y => y.classList.toggle('on', y === b)); return; }
+    if (b.dataset.hit != null) { const x = S.lvHits[+b.dataset.hit]; Object.assign(st, { lat: x.lat, lng: x.lng, address: x.address || x.name }); $('#lv-pos').textContent = `위치 지정됨 · ${x.name}`; S.lvPut?.([x.lat, x.lng], 15); $$('.lv-hit').forEach(y => y.classList.toggle('on', y === b)); return; }
     if (act === 'lvdel') { if (!b.dataset.c) { b.dataset.c = 1; b.textContent = '정말 삭제?'; return; } S.db.lived = (S.db.lived || []).filter(x => x.id !== h.id); markDirty(); toast('삭제'); return openLivedList(); }
     if (act === 'lvsave') {
-      if (st.lat == null) return toast('주소를 검색해서 위치를 골라주세요');
+      if (st.lat == null) return toast('주소를 검색하거나 지도를 눌러 위치를 정해주세요');
       const it = { id: st.id || uid('h'), name: $('#lv-name').value.trim() || '우리 집', country: $('#lv-cc').value, from: +$('#lv-from').value || null, to: +$('#lv-to').value || null, address: st.address || null, lat: st.lat, lng: st.lng };
       S.db.lived ||= []; const i = S.db.lived.findIndex(x => x.id === it.id); if (i >= 0) S.db.lived[i] = it; else S.db.lived.push(it);
       markDirty(); toast('살았던 곳 저장'); return openLivedList(); }
@@ -2903,13 +2927,15 @@ function growthPlay(who) {                                         // 연도순 
   const list = growthEnts(who); if (!list.length) return;
   document.getElementById('grplay')?.remove(); const el = document.createElement('div'); el.id = 'grplay'; el.className = 'grplay'; document.body.appendChild(el);
   let i = 0, on = true, tm = null;
-  const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []);
+  let lastY = null;
+  const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []); const newY = y && y !== lastY && !REDUCE(); lastY = y;
     el.innerHTML = `<div class="gp-img" style="background-image:url('${photoUrl(g.photo)}')"></div><div class="gp-cap"><b class="serif">${esc(y || '')}</b><span>${esc(names.map(n => n + (growthAge(n, g.date) ? ' ' + growthAge(n, g.date) : '')).join(' · '))}</span>${g.memo ? `<em class="hand">${esc(g.memo)}</em>` : ''}<small class="num">${esc((g.date || '').replace(/-/g, '.'))} · ${i + 1}/${list.length}</small></div>
       <div class="gp-bar"><i style="width:${(i + 1) / list.length * 100}%"></i></div>
+      ${newY ? `<div class="gp-title"><div class="big">${[...y].map((c, k) => `<span style="animation-delay:${(k * .07).toFixed(2)}s">${c}</span>`).join('')}</div><div class="sub">${esc(names.map(n => (n + (growthAge(n, g.date) ? ' · ' + growthAge(n, g.date) : ''))).join('  '))}</div></div>` : ''}
       <div class="gp-ctl"><button data-gp="-1">‹</button><button data-gp="0">${on ? '❚❚' : '▶'}</button><button data-gp="1">›</button><button data-gp="x">✕</button></div>`;
     const nx = list[i + 1]; if (nx) new Image().src = photoUrl(nx.photo); };
   const go = d => { i = Math.max(0, Math.min(list.length - 1, i + d)); draw(); };
-  const tick = () => { clearTimeout(tm); if (!on) return; tm = setTimeout(() => { if (i >= list.length - 1) { on = false; draw(); return; } go(1); tick(); }, 2800); };
+  const tick = () => { clearTimeout(tm); if (!on) return; tm = setTimeout(() => { if (i >= list.length - 1) { on = false; draw(); return; } go(1); tick(); }, el.querySelector('.gp-title') ? 4000 : 2800); };
   const close = () => { clearTimeout(tm); el.remove(); document.removeEventListener('keydown', key); };
   const key = e => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') { go(1); tick(); } else if (e.key === 'ArrowLeft') { go(-1); tick(); } else if (e.key === ' ') { e.preventDefault(); on = !on; draw(); tick(); } };
   document.addEventListener('keydown', key);
@@ -2920,6 +2946,62 @@ function growthAddFromVisit(path, date, anchor) {                   // 방문 �
   if (isRO()) return goToken(); if (!path || /^local:/.test(path)) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
   pickMenu(anchor, familyNames().map(n => [n, n, false]), n => { S.db.growth ||= []; if (S.db.growth.some(g => g.photo === path && (g.who || []).includes(n))) return toast('이미 들어 있어요');
     S.db.growth.push({ id: uid('g'), who: [n], date: date || null, photo: path, memo: null }); markDirty(); toast(`🌱 ${n} 성장 앨범에 추가`); });
+}
+/* ---------------- 애니메이션 · 장소 타이틀 (11/04) — 「동작 줄이기」 설정이면 모두 끔 ---------------- */
+const REDUCE = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+const CITY_EN = { 나트랑: 'Nha Trang', 다낭: 'Da Nang', 방콕: 'Bangkok', 괌: 'Guam', 평창: 'Pyeongchang', 시드니: 'Sydney', 도쿄: 'Tokyo', 오사카: 'Osaka', 후쿠오카: 'Fukuoka', 삿포로: 'Sapporo', 오키나와: 'Okinawa', 하노이: 'Hanoi', 호치민: 'Ho Chi Minh', 푸꾸옥: 'Phu Quoc', 치앙마이: 'Chiang Mai', 푸켓: 'Phuket', 싱가포르: 'Singapore', 홍콩: 'Hong Kong', 타이베이: 'Taipei', 세부: 'Cebu', 발리: 'Bali', 사이판: 'Saipan', 하와이: 'Hawaii', 제주: 'Jeju', 부산: 'Busan', 강릉: 'Gangneung', 서울: 'Seoul', 경주: 'Gyeongju', 여수: 'Yeosu', 속초: 'Sokcho', 양평: 'Yangpyeong', 가평: 'Gapyeong', 테마: 'Tema', 아크라: 'Accra' };
+function regionEn(cc) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) || cc; } catch { return cc || ''; } }
+function fmtCoord(ll) { if (!ll || ll.lat == null) return ''; const a = Math.abs(+ll.lat).toFixed(2) + '°' + (ll.lat >= 0 ? 'N' : 'S'), b = Math.abs(+ll.lng).toFixed(2) + '°' + (ll.lng >= 0 ? 'E' : 'W'); return `${a}  ${b}`; }
+function locTitle(big, sub, coord) {                               // 화면 가득 도시 이름 (글자가 차례로 찍힘 → 1.8초 뒤 사라짐)
+  if (REDUCE() || !big) return; document.querySelector('.loctitle')?.remove();
+  const latin = /^[\x20-\x7E·]+$/.test(big), el = document.createElement('div'); el.className = 'loctitle';
+  el.innerHTML = `<div class="big${latin ? '' : ' ko'}">${[...big].map((c, i) => `<span style="animation-delay:${(i * .05).toFixed(2)}s">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${coord ? `<div class="crd">${esc(coord)}</div>` : ''}`;
+  el.onclick = () => el.remove(); document.body.appendChild(el); setTimeout(() => el.remove(), 2400);
+}
+function tripTitle(t) {
+  const c = tripCity(t), en = /[가-힣]/.test(c) ? (CITY_EN[c] || CITY_EN[c.split(' ')[0]] || c) : c;
+  const { start, end } = tripDates(t); const d = x => x ? `${x.getFullYear()}.${String(x.getMonth() + 1).padStart(2, '0')}.${String(x.getDate()).padStart(2, '0')}` : '';
+  const loc = (t.items || []).map(i => i.place_id && placeById(i.place_id)).find(p => p && hasCoord(p)) || S.db.bases.find(b => b.country === t.country && hasCoord(b)) || (S.geoWorld && geoCenter(t.country));
+  locTitle(en, [t.country === 'KR' ? (/[가-힣]/.test(c) ? c : 'KOREA') : regionEn(t.country), start ? d(start) + (end && +end !== +start ? ' — ' + d(end).slice(5) : '') : t.year].filter(Boolean).join(' · '), fmtCoord(loc));
+}
+function stampFx() { if (REDUCE()) return; const im = document.createElement('img'); im.className = 'stampfx'; im.src = asset('assets/mark-stamp.png'); document.body.appendChild(im); setTimeout(() => im.remove(), 1200); }
+function confettiFx() { if (REDUCE()) return; const box = document.createElement('div'); box.className = 'confetti'; const cols = ['#ffbc00', '#288d9d', '#e8913a', '#d6336c', '#5cc3d1', '#7bc67b'];
+  box.innerHTML = Array.from({ length: 48 }, (_, i) => `<i style="left:${Math.random() * 100}%;background:${cols[i % cols.length]};--dx:${(Math.random() * 160 - 80).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;animation-delay:${(Math.random() * .4).toFixed(2)}s"></i>`).join('');
+  document.body.appendChild(box); setTimeout(() => box.remove(), 2600); }
+function countUp(root) {                                           // 통계 숫자 0 → 값
+  if (REDUCE() || !root) return;
+  root.querySelectorAll('b.num').forEach(b => { const n = b.firstChild; if (!n || n.nodeType !== 3) return; const target = parseFloat(n.textContent.replace(/,/g, '')); if (!isFinite(target) || target === 0) return;
+    const dec = (n.textContent.split('.')[1] || '').length, t0 = performance.now(), D = 900;
+    const step = now => { const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3); n.textContent = (target * e).toFixed(dec); if (k < 1) requestAnimationFrame(step); else n.textContent = target.toFixed(dec); }; requestAnimationFrame(step); });
+}
+function badgeCheck(bs) {                                          // 새로 딴 배지 → 반짝 + 꽃가루 (처음 실행 땐 조용히 기록만)
+  const ok = bs.filter(b => b.ok).map(b => b.name), seen = LS.get('badgesSeen', null);
+  if (!seen) { LS.set('badgesSeen', ok); return []; }
+  const fresh = ok.filter(n => !seen.includes(n)); if (fresh.length) { LS.set('badgesSeen', [...new Set([...seen, ...ok])]); setTimeout(() => { confettiFx(); toast(`🏅 새 배지! ${fresh.join(' · ')}`, 3500); }, 600); }
+  return fresh;
+}
+function planeFx(map, arcs) {                                      // 항로를 따라 ✈ 날기
+  if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: '<span>✈</span>', iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
+  const t0 = performance.now(), D = 4200;
+  const step = now => { if (!map._container || !document.body.contains(map._container)) return;
+    for (const p of planes) { const k = (((now - t0) / D) + p.off) % 1, f = k * (p.pts.length - 1), i = Math.floor(f), r = f - i, a = p.pts[i], b = p.pts[Math.min(i + 1, p.pts.length - 1)];
+      const ll = [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]; p.m.setLatLng(ll);
+      const pa = map.latLngToLayerPoint(a), pb = map.latLngToLayerPoint(b), ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI; const sp = p.m.getElement()?.firstChild; if (sp) sp.style.transform = `rotate(${ang}deg)`; }
+    requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function seasonFx(host, season) {                                  // 홈: 계절별 벚꽃·여름 반짝이·낙엽·눈
+  if (REDUCE() || !host) return; host.querySelector('.season-fx')?.remove(); const k = SEASON_EN[season] || 'autumn', box = document.createElement('div'); box.className = 'season-fx ' + k;
+  box.innerHTML = Array.from({ length: 16 }, () => `<i style="left:${(Math.random() * 100).toFixed(1)}%;--dx:${(Math.random() * 200 - 100).toFixed(0)}px;--r:${(Math.random() * 540).toFixed(0)}deg;animation-duration:${(7 + Math.random() * 7).toFixed(1)}s;animation-delay:-${(Math.random() * 10).toFixed(1)}s;transform:scale(${(.6 + Math.random() * .8).toFixed(2)})"></i>`).join('');
+  host.appendChild(box);
+}
+const FX_SEL = '.jr-tile, .reco-card, .pc-log, .tp-sm, .tp-big, .gr-ph, .dcard, .log-card, .row-nl, .bdg';
+let fxIO = null;
+function fxObserve() {                                              // 카드가 화면에 들어올 때 살짝 떠오름
+  if (REDUCE() || !('IntersectionObserver' in window)) return;
+  fxIO ||= new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('fx-in'); fxIO.unobserve(e.target); } }), { threshold: .08 });
+  const mark = root => root.querySelectorAll?.(FX_SEL).forEach(el => { if (el.dataset.fx) return; el.dataset.fx = 1; el.classList.add('fx-up'); fxIO.observe(el); });
+  mark(document); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.nodeType === 1 && (n.matches?.(FX_SEL) ? mark(n.parentNode) : mark(n))))).observe(document.body, { childList: true, subtree: true });
 }
 function visitRaw(v) { return (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []).filter(x => photoUrl(x)); }
 function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크게 보기 (좌우 넘김 · 스와이프) · meta: { raws, date } 있으면 「성장 앨범」 버튼
@@ -3003,7 +3085,7 @@ function boot(re) {
   if (!re) handleHash();
 }
 (async function main() {
-  applyTheme(); initMap(); bindOnce(); bindTripDrop(); matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
+  applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
   window.JJ = { S, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);

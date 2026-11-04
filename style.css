@@ -929,3 +929,40 @@ body.trip-drop #view-trips::after { content: '여기에 놓으면 여행에 추�
 .gp-ctl { position: absolute; right: 24px; bottom: 24px; display: flex; gap: 8px; } .gp-ctl button { width: 46px; height: 46px; border-radius: 50%; border: 0; background: rgba(255,255,255,.18); color: #fff; font-size: 18px; cursor: pointer; }
 @media (max-width: 860px) { .gr-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; } .gp-cap { left: 18px; bottom: 84px; } .gp-cap b { font-size: 52px; } .gr-band b { font-size: 28px; } .tm-hd { flex-wrap: wrap; } }
 .gr-acts button { white-space: nowrap; }
+
+/* 글꼴 A (11/04): 제목·메뉴 Gmarket Sans · 본문 Pretendard */
+@font-face { font-family: 'GmarketSans'; font-weight: 700; font-display: swap; src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansBold.woff') format('woff'), url('assets/GmarketSansMedium.woff') format('woff'); }
+@font-face { font-family: 'GmarketSans'; font-weight: 400 600; font-display: swap; src: url('assets/GmarketSansMedium.woff') format('woff'); }
+.topnav button, .pc-nav .links button, #mobile-nav button span, #mobile-nav button { font-family: var(--font-head); }
+.topnav button.on, .pc-nav .links button.on { font-family: var(--font-head); font-weight: 700; }
+h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b, .sec .sh h3, .ph-copy h1, .pc-copy h1, .pc-copy .h1, .trip-cover .city, .tp-big .city, .tp-sm .city, .tp-hero .city, .settings .gt, .st-title { font-family: var(--font-head) !important; letter-spacing: -.01em; }
+.ph-copy h1, .pc-copy h1, .trip-cover .city, .tp-big .city { font-weight: 700; }
+
+/* 애니메이션 (11/04) — 기기 「동작 줄이기」면 모두 끔 */
+.fx-up { opacity: 0; transform: translateY(14px); } .fx-up.fx-in { opacity: 1; transform: none; transition: opacity .5s ease, transform .5s ease; }
+.tm-map path.leaflet-interactive { transition: fill-opacity .7s ease; }
+.tm-plane { background: none; border: 0; font-size: 18px; color: var(--accent); text-shadow: 0 1px 3px rgba(0,0,0,.4); line-height: 22px; text-align: center; }
+.tm-lvm span { animation: fxpop .5s cubic-bezier(.3,1.6,.5,1) both; } @keyframes fxpop { from { opacity: 0; transform: scale(.2); } }
+.stampfx { position: fixed; left: 50%; top: 45%; width: 220px; margin: -110px 0 0 -110px; z-index: 3500; pointer-events: none; animation: stampfx 1.1s ease forwards; } @keyframes stampfx { 0% { transform: scale(2.6) rotate(-25deg); opacity: 0; } 35% { transform: scale(.92) rotate(-12deg); opacity: 1; } 45% { transform: scale(1.04) rotate(-13deg) translateX(-4px); } 55% { transform: scale(1) rotate(-12deg) translateX(4px); } 80% { opacity: 1; } 100% { transform: scale(1) rotate(-12deg); opacity: 0; } }
+.confetti { position: fixed; inset: 0; z-index: 3400; pointer-events: none; overflow: hidden; } .confetti i { position: absolute; top: -20px; width: 9px; height: 14px; border-radius: 2px; animation: conf 1.8s ease-in forwards; } @keyframes conf { to { transform: translate(var(--dx), 105vh) rotate(var(--r)); opacity: .2; } }
+.bdg.new { animation: bdgnew 1.2s ease 3; } @keyframes bdgnew { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 45%, transparent); transform: scale(1.06); } }
+.gp-img { animation: kenburns 3s ease-out both; } @keyframes kenburns { from { opacity: 0; transform: scale(1) translate(0, 0); } 18% { opacity: 1; } to { opacity: 1; transform: scale(1.08) translate(-1.2%, -1%); } }
+.sb-page.turn-n { animation: turnN .55s ease both; transform-origin: left center; } .sb-page.turn-p { animation: turnP .55s ease both; transform-origin: right center; }
+@keyframes turnN { from { opacity: 0; transform: perspective(1400px) rotateY(-28deg) translateX(30px); } } @keyframes turnP { from { opacity: 0; transform: perspective(1400px) rotateY(28deg) translateX(-30px); } }
+.season-fx { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 1; } .season-fx i { position: absolute; top: -30px; animation: fall linear infinite; opacity: .85; }
+@keyframes fall { to { transform: translate(var(--dx), 120vh) rotate(var(--r)); } }
+.season-fx.spring i { width: 10px; height: 8px; border-radius: 60% 0 60% 0; background: #ffc4d6; } .season-fx.autumn i { width: 11px; height: 11px; border-radius: 0 60% 0 60%; background: #e8913a; }
+.season-fx.winter i { width: 6px; height: 6px; border-radius: 50%; background: #fff; } .season-fx.summer i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,.7); box-shadow: 0 0 6px #fff; animation-name: rise; top: auto; bottom: -20px; } @keyframes rise { to { transform: translate(var(--dx), -110vh); opacity: 0; } }
+/* 장소 타이틀 (시빌 워 느낌) */
+.loctitle { position: fixed; inset: 0; z-index: 3600; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(ellipse at center, rgba(8,20,26,.72), rgba(8,20,26,.88)); color: #fff; cursor: pointer; animation: ltout .45s ease 1.75s forwards; }
+.loctitle .big { font-family: var(--font-title); font-size: clamp(54px, 13vw, 190px); line-height: .95; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; animation: lttrack 1.9s cubic-bezier(.2,.7,.2,1) both; }
+.loctitle .big.ko { font-family: var(--font-head); font-weight: 700; letter-spacing: .02em; }
+.loctitle .big span { display: inline-block; opacity: 0; animation: ltch .12s steps(2) forwards; }
+.loctitle .sub { margin-top: 14px; font: 600 clamp(13px, 1.6vw, 20px) var(--font-num); letter-spacing: .32em; text-transform: uppercase; opacity: 0; animation: ltfade .4s ease .55s forwards; }
+.loctitle .crd { margin-top: 8px; font: 500 clamp(11px, 1.2vw, 14px) var(--font-num); letter-spacing: .2em; color: var(--accent); opacity: 0; animation: ltfade .4s ease .8s forwards; }
+@keyframes ltch { to { opacity: 1; } } @keyframes ltfade { to { opacity: .9; } } @keyframes lttrack { from { letter-spacing: .02em; } to { letter-spacing: .1em; } } @keyframes ltout { to { opacity: 0; visibility: hidden; } }
+.gp-title { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,.65); z-index: 3; animation: ltout .35s ease 1.25s forwards; }
+.gp-title .big { font-family: var(--font-title); font-size: clamp(80px, 18vw, 240px); line-height: .9; } .gp-title .big span { display: inline-block; opacity: 0; animation: ltch .12s steps(2) forwards; } .gp-title .sub { margin-top: 10px; font: 600 18px var(--font-num); letter-spacing: .3em; opacity: 0; animation: ltfade .3s ease .4s forwards; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .fx-up { opacity: 1; transform: none; } .loctitle, .season-fx, .confetti, .stampfx, .tm-plane { display: none !important; } }
+
+.lv-map { height: 230px; border-radius: 12px; overflow: hidden; margin-top: 10px; border: 1px solid var(--line); cursor: crosshair; }
