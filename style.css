@@ -966,3 +966,5 @@ h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .fx-up { opacity: 1; transform: none; } .loctitle, .season-fx, .confetti, .stampfx, .tm-plane { display: none !important; } }
 
 .lv-map { height: 230px; border-radius: 12px; overflow: hidden; margin-top: 10px; border: 1px solid var(--line); cursor: crosshair; }
+
+#view-home .pc-nav .links button { font: 500 16px/100% var(--font-head); color: #fff; } #view-home .pc-nav .links button.on { font-weight: 700; color: var(--accent); }   /* 홈 메뉴도 Gmarket (#view-home button {font:inherit} 덮어씀) */

@@ -361,7 +361,7 @@ function openBaseForm(base) {
       <div class="inline"><label>주소·장소 검색<input id="bq" placeholder="호텔명 또는 주소"></label><button type="button" class="primary" data-act="bsearch">검색</button></div>
       <div class="hits" id="bhits" hidden></div>
       <div class="three">
-        <label>국가<select name="country"><option value="KR"${b.country === 'KR' ? ' selected' : ''}>KR</option><option value="VN"${b.country === 'VN' ? ' selected' : ''}>VN</option><option value="TH"${b.country === 'TH' ? ' selected' : ''}>TH</option><option value="GU"${b.country === 'GU' ? ' selected' : ''}>GU</option><option value="JP">JP</option><option value="OTHER">기타</option></select></label>
+        <label>국가<select name="country">${countryOptions(b.country || 'KR')}</select></label>
         <label>위도<input name="lat" value="${b.lat}" required inputmode="decimal"></label>
         <label>경도<input name="lng" value="${b.lng}" required inputmode="decimal"></label>
       </div>
@@ -477,13 +477,13 @@ function emptyHtml() {                                         // 시안 11a: �
   const sub = [q ? `「${esc(q)}」` : '', n ? `필터 ${n}개 적용 중` : '', S.radius ? `${S.radius}km 이내` : ''].filter(Boolean).join(' · ') || '등록된 장소 없음';
   const nextKm = S.radius ? ({ 10: 30, 30: 60, 60: null })[S.radius] : null;
   return `<div class="empty11"><img src="${asset('assets/mark-globe.png')}" alt=""><b>${esc(where)}에서는 못 찾았어요</b><p class="cap">${sub}</p>
-    <div class="acts">${n ? '<button class="btn line" data-act="clear">필터 모두 풀기</button>' : ''}${S.radius ? `<button class="btn line" data-act="km">${nextKm ? `반경 ${S.radius}km → ${nextKm}km` : '반경 제한 해제'}</button>` : ''}${S.region !== 'all' ? '<button class="btn line" data-act="allregion">전체 지역에서 찾기</button>' : ''}<button class="btn kakao rw" data-act="newplace">${(S.region === 'all' || regionCountry(S.region) === 'KR') ? '카카오에서 새로 찾기' : '구글에서 새로 찾기'}</button></div></div>`;
+    <div class="acts">${n ? '<button class="btn line" data-act="clear">필터 모두 풀기</button>' : ''}${S.radius ? `<button class="btn line" data-act="km">${nextKm ? `반경 ${S.radius}km → ${nextKm}km` : '반경 제한 해제'}</button>` : ''}${S.region !== 'all' ? '<button class="btn line" data-act="allregion">전체 지역에서 찾기</button>' : ''}<button class="btn kakao rw" data-act="newplace">${/[A-Za-z]{3,}/.test(q) ? '🌍 전 세계에서 새로 찾기' : (S.region === 'all' || regionCountry(S.region) === 'KR') ? '카카오에서 새로 찾기' : '구글에서 새로 찾기'}</button></div></div>`;
 }
 function emptyAct(act) {
   if (act === 'clear') { S.flags.clear(); S.tags.clear(); S.scope = 'all'; $$('#f-scope button').forEach(x => x.classList.toggle('on', x.dataset.v === 'all')); renderRegionChips(); renderTagChips(); renderList(); }
   if (act === 'km') { const nextKm = ({ 10: 30, 30: 60, 60: null })[S.radius] ?? null; S.radius = nextKm; LS.set('radius', S.radius); $$('#km-pills button').forEach(b => b.classList.toggle('on', S.radius != null && +b.dataset.km <= S.radius)); $('#fab-km').textContent = S.radius ? S.radius + 'km' : 'km'; $('#fab-km').classList.toggle('on', !!S.radius); renderList(); }
   if (act === 'allregion') { S.region = 'all'; LS.set('region', 'all'); renderRegionChips(); renderTagChips(); renderList(); fitToVisible(); }
-  if (act === 'newplace') { const p = { id: uid(), type: 'restaurant', country: S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : S.region, name: S.q.trim(), cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, tags: [], visitLog: [] }; openPlaceForm(p); if (p.name) setTimeout(() => $('#pf [data-act=psearch]')?.click(), 50); }
+  if (act === 'newplace') { const foreign = /[A-Za-z]{3,}/.test(S.q); const p = { id: uid(), type: foreign ? 'spot' : 'restaurant', country: foreign ? 'OTHER' : S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : S.region, name: S.q.trim(), cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, tags: [], visitLog: [] }; openPlaceForm(p); if (p.name) setTimeout(() => $('#pf [data-act=psearch]')?.click(), 50); }
 }
 function renderList() {
   const items = sorted(filtered());
@@ -1909,7 +1909,7 @@ function openPlaceForm(p) {
       </div>
       <label>이름<input name="name" value="${esc(p.name)}" required></label>
       <div class="three">
-        <label>국가<select name="country">${['KR', 'VN', 'TH', 'GU', 'JP', 'OTHER'].map(c => `<option${p.country === c ? ' selected' : ''}>${c}</option>`).join('')}</select></label>
+        <label>국가<select name="country">${countryOptions(p.country || 'KR')}</select></label>
         <label>위도<input name="lat" value="${p.lat ?? ''}" inputmode="decimal"></label>
         <label>경도<input name="lng" value="${p.lng ?? ''}" inputmode="decimal"></label>
       </div>
@@ -1936,15 +1936,15 @@ function openPlaceForm(p) {
     if (b.dataset.act === 'close') closeSheet();
     if (b.dataset.act === 'psearch') {
       b.textContent = '…';
-      const hits = await geoSearch($('#pq').value, f.country.value, f.si.value);
+      await loadGeo(); const hits = await geoSearch($('#pq').value, f.country.value, f.si.value);
       b.textContent = '검색';
-      showHits($('#phits'), hits, h => { f.name.value ||= h.name; f.lat.value = h.lat; f.lng.value = h.lng; if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
+      showHits($('#phits'), hits, h => { f.name.value ||= h.name; f.lat.value = h.lat; f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
     }
   });
   f.addEventListener('submit', e => {
     e.preventDefault(); const d = Object.fromEntries(new FormData(f));
     const prevSpot = p.spot_id;
-    Object.assign(p, { type: d.type, region: d.region.trim() || 'domestic', name: d.name.trim(), country: d.country, address: d.address.trim() || null,
+    Object.assign(p, { type: d.type, region: (d.country !== 'KR' && (!d.region.trim() || d.region.trim() === 'domestic')) ? ((d.si || '').trim().toLowerCase().replace(/\s+/g, '') || regionEn(d.country).toLowerCase()) : (d.region.trim() || 'domestic'), name: d.name.trim(), country: d.country, address: d.address.trim() || null,
       do: d.do.trim() || null, si: d.si.trim() || null, rating: +d.rating || 0, signature: d.signature.trim() || null, desc: d.desc.trim() || null,
       pros: d.pros.trim() || null, cons: d.cons.trim() || null, note: d.note.trim() || null, spot_id: d.spot_id || null,
       lat: d.lat ? +d.lat : null, lng: d.lng ? +d.lng : null,
@@ -2001,10 +2001,19 @@ async function geoSearch(q, country, area) {
     let hits = await kakaoSearch(area ? `${area} ${q}` : q);
     if (!hits.length && area) hits = await kakaoSearch(q);
     if (!hits.length) hits = await osmSearch(q, 'KR');
+    if (!hits.length && /[A-Za-z]{3,}/.test(q)) return geoSearch(q, 'OTHER');   // 영문 입력(예: italy firenze)이면 해외로 다시
     return hits;
   }
-  if (googleKey()) { const g = await googleSearch(q, S.base); if (g.length) return g; }
-  return osmSearch(q, country);
+  const cc = country && country !== 'OTHER' ? country : '';
+  if (googleKey()) { const g = await googleSearch(cc ? `${q} ${regionEn(cc)}` : q, null); if (g.length) return g; }   // 해외: 거점(덕소) 주변으로 좁히지 않음
+  let r = await osmSearch(q, cc); if (!r.length && cc) r = await osmSearch(q, ''); return r;
+}
+function ccAt(lat, lng) { if (lat == null || !S.geoWorld) return ''; const f = S.geoWorld.features.find(f => geoHit(f.geometry, +lng, +lat)); return f ? f.properties.cc : ''; }
+function countryOptions(sel) {                                     // 나라 선택 (자주 + 전체 가나다)
+  const all = (S.geoWorld?.features || []).map(f => [f.properties.cc, f.properties.n]).filter(([c]) => c && c.length === 2).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
+  const top = ['KR', 'VN', 'TH', 'GU', 'JP', 'AU', 'US'], ko = c => G_COUNTRY_KO[c] || (all.find(x => x[0] === c) || [])[1] || c;
+  if (sel && !top.includes(sel) && !all.some(x => x[0] === sel)) top.push(sel);
+  return `<optgroup label="자주">${top.map(c => `<option value="${c}"${c === sel ? ' selected' : ''}>${esc(ko(c))}</option>`).join('')}</optgroup>${all.length ? `<optgroup label="전체 (가나다)">${all.filter(([c]) => !top.includes(c)).map(([c, n]) => `<option value="${c}"${c === sel ? ' selected' : ''}>${esc(n)}</option>`).join('')}</optgroup>` : ''}<option value="OTHER"${sel === 'OTHER' ? ' selected' : ''}>기타</option>`;
 }
 async function geocodePlace(p) {
   const name = p.name.replace(/\s*\(.*?\)\s*/g, ' ').trim();
@@ -3085,7 +3094,7 @@ function boot(re) {
   if (!re) handleHash();
 }
 (async function main() {
-  applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
+  applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   // 나라 목록·국가 판별용 경계 미리 받기 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', applyTheme);
   window.JJ = { S, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
