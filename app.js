@@ -2479,8 +2479,9 @@ function openTonePicker() {
     <div class="gt" style="margin-top:14px">밝기</div><div class="seg tn-th">${[['auto', '시스템'], ['light', '라이트'], ['dark', '다크']].map(([v, n]) => `<button data-th="${v}" class="${th === v ? 'on' : ''}">${n}</button>`).join('')}</div>
     <p class="cap3" style="margin-top:10px">기기마다 따로 저장 · 지도·지구본 색도 함께 바뀜</p></div></div>`);
   $('#sheet-inner').onclick = e => {
+    if (!$('#sheet-inner .tn-grid')) return;   /* 다른 시트로 바뀐 뒤엔 무시 */
     if (e.target.closest('[data-close]')) return closeSheet();
-    const t = e.target.closest('[data-tone]'), m = e.target.closest('[data-th]'); if (!t && !m) return;
+    const t = e.target.closest('button.tn[data-tone]'), m = e.target.closest('.tn-th button[data-th]'); if (!t && !m) return;   /* html에도 data-tone 있음 → 버튼만 */
     if (t) LS.set('tone', t.dataset.tone); if (m) LS.set('theme', m.dataset.th);
     applyTheme(); S.homeStale = true; openTonePicker(); if (!$('#settings')?.hidden) renderSettings();
     try { if (S.view === 'home') renderHome(); } catch {}
@@ -3364,7 +3365,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openDetail, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, openDetail, openTripEdit, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
