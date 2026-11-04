@@ -2802,10 +2802,19 @@ async function drawGlobe(s, C, st) {
     if (label) { const t = mk('text', { y: r + 14, 'text-anchor': 'middle', class: 'gl-lbl' }, g); t.textContent = label; }
     g.addEventListener('click', onClick); pins.push({ ll, g }); };
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) if (x.loc) pinImg([x.loc.lng, x.loc.lat], (tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], 15, x.st === 'plan' ? C.plan : '#fff', () => tripTitle(x.t), '');   // 나라 이름표와 겹치지 않게 도시명 생략
-  lv.forEach(h => { const ph = (h.photos || []).map(x => photoUrl(x.path)).find(Boolean); pinImg([h.lng, h.lat], ph, 11, C.wish, () => { const parts = String(h.address || h.name || '').split(',').map(x => x.trim()).filter(Boolean); let big = (h.country || 'KR') === 'KR' ? parts[0]?.split(' ')[0] : (parts.find(x => !/\d/.test(x)) || parts[0]); locTitle(CITY_EN[big] || big, [regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); }, '⌂ ' + h.name); });
-  const gL = mk('g'), labels = [...s.done, ...s.plan, { cc: 'KR', state: 'home' }].map(o => { const GLP = { KR: [124.2, 35.4], VN: [106.2, 21.6], TH: [98.6, 16.4], JP: [140.5, 38], AU: [134, -25], US: [-98.5, 39.5] };   // 겹치지 않게 손본 이름 위치 (경도, 위도)
+  const HOUSE_D = 'M12 3.2 2.6 11.6h2.9v8.2h5v-5.2h3v5.2h5v-8.2h2.9z';
+  lv.forEach((h, i) => { const ph = (h.photos || []).map(x => photoUrl(x.path)).find(Boolean), g = mk('g', { class: 'gl-pin gl-lv' }, gP), id = 'glh' + i;   // 살았던 곳: 보라 네모 + 집 아이콘 (사진 있으면 사진 + 집 배지)
+    if (ph) { const cp = mk('clipPath', { id }, defs); mk('rect', { x: -11, y: -11, width: 22, height: 22, rx: 5 }, cp); mk('rect', { x: -13, y: -13, width: 26, height: 26, rx: 6, fill: C.wish }, g); mk('image', { href: ph, x: -11, y: -11, width: 22, height: 22, 'clip-path': `url(#${id})`, preserveAspectRatio: 'xMidYMid slice' }, g);
+      mk('circle', { cx: -11, cy: 11, r: 6.5, fill: C.wish, stroke: '#fff', 'stroke-width': 1.5 }, g); mk('path', { d: HOUSE_D, fill: '#fff', transform: 'translate(-16.4,6) scale(.45)' }, g); }
+    else { mk('rect', { x: -11, y: -11, width: 22, height: 22, rx: 6, fill: C.wish, stroke: '#fff', 'stroke-width': 2 }, g); mk('path', { d: HOUSE_D, fill: '#fff', transform: 'translate(-7.8,-8.2) scale(.65)' }, g); }
+    const nb = mk('g', { transform: 'translate(10,-10)' }, g); mk('circle', { r: 6.5, fill: '#fff' }, nb); const tn = mk('text', { 'text-anchor': 'middle', 'dominant-baseline': 'central', class: 'gl-n' }, nb); tn.textContent = i + 1;
+    const tt = mk('title', {}, g); tt.textContent = `⌂ ${h.name}${livedYears(h) ? ' · ' + livedYears(h) : ''}`;
+    g.addEventListener('click', () => { const parts = String(h.address || h.name || '').split(',').map(x => x.trim()).filter(Boolean); let big = (h.country || 'KR') === 'KR' ? parts[0]?.split(' ')[0] : (parts.find(x => !/\d/.test(x)) || parts[0]); locTitle(CITY_EN[big] || big, [(h.country || 'KR') === 'KR' ? h.name : regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); });
+    pins.push({ ll: [h.lng, h.lat], g }); });
+  const gL = mk('g'), labels = [...s.done, ...s.plan, { cc: 'KR', state: 'home' }].map(o => { const GLP = { KR: [123.2, 34.2], VN: [106.2, 21.6], TH: [98.6, 16.4], JP: [140.5, 38], AU: [134, -25], US: [-98.5, 39.5] };   // 겹치지 않게 손본 이름 위치 (경도, 위도)
     const f = S.geoWorld.features.find(f => f.properties.cc === o.cc), c = GLP[o.cc] || (f ? d3.geoCentroid(f) : (OV_PIN[o.cc] ? [OV_PIN[o.cc][1], OV_PIN[o.cc][0] - 4] : null)); if (!c) return null;
     const g = mk('g', { class: 'gl-cl ' + (o.state || '') }, gL); const a = mk('text', { 'text-anchor': 'middle', class: 'ko' }, g); a.textContent = f ? f.properties.n : (G_COUNTRY_KO[o.cc] || o.cc); const b = mk('text', { 'text-anchor': 'middle', y: 13, class: 'en' }, g); b.textContent = regionEn(o.cc).toUpperCase(); return { c, g }; }).filter(Boolean);
+  svg.insertBefore(gL, gP);   // 나라 이름은 핀 아래에 (핀이 가려지지 않게)
   const vis = ll => d3.geoDistance(ll, [-rot[0], -rot[1]]) < Math.PI / 2 - .02;
   const render = now => {
     proj.rotate(rot).scale(scale); const d = path({ type: 'Sphere' });
