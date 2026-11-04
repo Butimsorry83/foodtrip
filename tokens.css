@@ -151,3 +151,12 @@
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"])[data-tone="mocha"]{ --bg:#1a130e; --bg-subtle:#241a14; --panel:#2e2119; --panel-2:#3c2a20; --hero:#140e0b; --text-1:#f1ecea; --text-2:#c2b5ae; --text-3:#8c7c73; --line:#453126; --line-strong:#604434; --primary:#cca285; --primary-2:#d8b8a2; --primary-soft:#433023; --on-primary:#1a130e; --accent:#f2d08a; --accent-soft:#4b3d2a; --stamp:#c7916b; --cat-spot:#d4a17d; } }
 :root[data-theme="dark"][data-tone="charcoal"]{ --bg:#121417; --bg-subtle:#191c1f; --panel:#202328; --panel-2:#292d33; --hero:#0e0f11; --text-1:#eaedf1; --text-2:#aeb6c2; --text-3:#737e8c; --line:#2f353c; --line-strong:#414953; --primary:#95a9bb; --primary-2:#aebdcb; --primary-soft:#2d3339; --on-primary:#121417; --accent:#ffbc00; --accent-soft:#453a16; --stamp:#6b9bc7; --cat-spot:#7daad4; }
 @media (prefers-color-scheme:dark){ :root:not([data-theme="light"])[data-tone="charcoal"]{ --bg:#121417; --bg-subtle:#191c1f; --panel:#202328; --panel-2:#292d33; --hero:#0e0f11; --text-1:#eaedf1; --text-2:#aeb6c2; --text-3:#737e8c; --line:#2f353c; --line-strong:#414953; --primary:#95a9bb; --primary-2:#aebdcb; --primary-soft:#2d3339; --on-primary:#121417; --accent:#ffbc00; --accent-soft:#453a16; --stamp:#6b9bc7; --cat-spot:#7daad4; } }
+/* ── 11/05 글씨체 세트 (data-font) · 글자 크기 (data-fz) — 손글씨·장소 타이틀은 그대로 ── */
+:root{ --fz:1; }
+:root[data-fz="s"]{ --fz:.92; } :root[data-fz="l"]{ --fz:1.1; } :root[data-fz="xl"]{ --fz:1.2; }
+:root[data-font="round"]{ --font-body:"나눔스퀘어라운드","NanumSquareRound","Pretendard Variable",sans-serif; --font-head:"Jua","나눔스퀘어라운드",sans-serif; }
+:root[data-font="suit"]{ --font-body:"SUIT Variable","Pretendard Variable",sans-serif; --font-head:"SUIT Variable","Pretendard Variable",sans-serif; }
+:root[data-font="classic"]{ --font-body:"Gowun Dodum","Pretendard Variable",sans-serif; --font-head:"Nanum Myeongjo","Gowun Batang",serif; }
+:root[data-font="bold"]{ --font-body:"Noto Sans KR","Pretendard Variable",sans-serif; --font-head:"Do Hyeon","Noto Sans KR",sans-serif; }
+:root[data-font="story"]{ --font-body:"Gowun Batang","Nanum Myeongjo",serif; --font-head:"Gowun Batang","Nanum Myeongjo",serif; }
+:root[data-font]{ --font-nav:var(--font-head); --font-serif:var(--font-head); --font-display:var(--font-head); --font-num:var(--font-body); }

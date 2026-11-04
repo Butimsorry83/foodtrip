@@ -1793,7 +1793,7 @@ function renderHomePhone(d) {
   const tripCover = t => `<button class="trip-cover" data-trip="${t.id}" style="${tripCoverStyle(t)}"><span class="yr">${t.year} · ${COUNTRY_EN[t.country] || t.country}</span><span class="city">${esc(tripCity(t))}</span><span class="sub">${esc(tripSub(t))}</span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</button>`;
   return `
     <div class="ph-hero" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 72%,transparent),color-mix(in srgb,var(--hero) 82%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><button class="hero-pick ph" data-act="heropick">🖼</button><div class="dots"></div><div class="sun"></div>
-      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><button class="theme-tg" data-act="tone" title="색 테마">🎨</button><button class="theme-tg" data-act="theme" title="다크모드">${isDark() ? '☀' : '☾'}</button><button class="bell" data-act="settings" title="설정">${ICO.bell}</button></div>
+      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">🎨</button><button class="theme-tg" data-act="theme" title="다크모드">${isDark() ? '☀' : '☾'}</button><button class="bell" data-act="settings" title="설정">${ICO.bell}</button></div>
       <div class="ph-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · ${esc(baseShort())} 기준</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         <p class="sub">${esc(d.famName)} 휴양지 ${d.spots.length}곳, 맛집 ${d.rests.length}곳</p>
@@ -1833,7 +1833,7 @@ function renderHomePC(d) {
       <div class="note"><span>${esc(d.season)} 배경 · 계절마다 자동 교체</span><button class="hero-pick" data-act="heropick">🖼 배경 바꾸기</button></div>
       <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'journal', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '기록', '설정'][k]}</button>`).join('')}</div></nav>
       <div class="pc-logo"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:70px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:112px"></div>
-      <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마">🎨</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? '☀' : '☾'}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
+      <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">🎨</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? '☀' : '☾'}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
       <div class="pc-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · 우리 가족 식도락</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         ${fp ? `<p class="body"><span class="nm"><span class="lbl">이번 계절 ${i + 1}순위</span>${esc(fp.name)}</span>${esc(areaOf(fp))} · ${esc(distText(fp))}<span class="why">${d.why(feat).map(w => `<span>${esc(w)}</span>`).join('')}</span></p><div class="cta"><button class="wt-btn" data-reco="${fp.id}">근처 식당 ${d.nearRest(fp)}곳</button></div>` : ''}
@@ -2478,24 +2478,34 @@ function maskKey(k) { k = (k || '').trim(); if (!k) return ''; return k.length >
 function themePref() { return LS.get('theme', 'auto'); }
 /* 11/04 색 테마 (data-tone) — 기기별 저장, PC·폰 공통. [id, 이름, 진한바탕, 보조, 강조] */
 const TONES = [['sea', '딥씨 (기본)', '#0e3a4b', '#288d9d', '#ffbc00'], ['lagoon', '라군', '#0b4a52', '#22a3a8', '#ffd166'], ['ocean', '오션 블루', '#0f2f5c', '#3d86d6', '#ffc94a'], ['forest', '포레스트', '#1f3d2b', '#4f9a6a', '#e8b83a'], ['sage', '세이지', '#3a4a3c', '#86a68a', '#e9c46a'], ['sunset', '선셋', '#4a1f2b', '#d0605e', '#ffb36b'], ['blossom', '벚꽃', '#5a2541', '#e07aa3', '#ffd27a'], ['tangerine', '귤', '#5a2c12', '#e8833a', '#ffd166'], ['midnight', '미드나잇', '#232046', '#7a6fd0', '#ffcf5a'], ['lavender', '라벤더', '#3b2d55', '#a58bd6', '#ffd98a'], ['mocha', '모카', '#3b2a20', '#a87a5a', '#f2d08a'], ['charcoal', '차콜', '#22262b', '#6b7a88', '#ffbc00']];
+/* 11/05 글씨체 세트 — [id, 이름, 본문/제목, 불러올 CSS(선택 시에만)] */
+const GF = 'https://fonts.googleapis.com/css2?display=swap&family=';
+const FONTS = [['base', '기본', 'Pretendard / Gmarket Sans', ''], ['round', '둥글게', '나눔스퀘어라운드 / 주아', ['https://cdn.jsdelivr.net/npm/@kfonts/nanum-square-round@0.2.0/index.css', GF + 'Jua']], ['suit', '단정', 'SUIT', ['https://cdn.jsdelivr.net/npm/@sun-typeface/suit@2.0.5/fonts/variable/woff2/SUIT-Variable.css']], ['classic', '클래식', '고운돋움 / 나눔명조', [GF + 'Gowun+Dodum&family=Nanum+Myeongjo:wght@400;700;800']], ['bold', '또박또박', 'Noto Sans KR / 배민 도현', [GF + 'Do+Hyeon']], ['story', '감성', '고운바탕', [GF + 'Gowun+Batang:wght@400;700']]];
+const FZ = [['s', '작게'], ['m', '보통'], ['l', '크게'], ['xl', '아주 크게']];
+function fontPref() { const f = LS.get('font', 'base'); return FONTS.some(x => x[0] === f) ? f : 'base'; }
+function fzPref() { const f = LS.get('fz', 'm'); return FZ.some(x => x[0] === f) ? f : 'm'; }
+function loadFontCss(id) { const f = FONTS.find(x => x[0] === id); (f?.[3] || []).forEach(u => { if (document.querySelector(`link[data-fcss="${u}"]`)) return; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = u; l.dataset.fcss = u; document.head.appendChild(l); }); }
 function tonePref() { const t = LS.get('tone', 'sea'); return TONES.some(x => x[0] === t) ? t : 'sea'; }
 function cssv(n, d) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || d; }
 function openTonePicker() {
   const cur = tonePref(), th = themePref();
-  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-close>닫기</button><b>색 테마</b><span></span></div><div class="vf-scroll" style="padding:16px">
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-close>닫기</button><b>색 테마 · 글씨체</b><span></span></div><div class="vf-scroll" style="padding:16px">
     <div class="tn-grid">${TONES.map(([id, nm, a, b, c]) => `<button class="tn${id === cur ? ' on' : ''}" data-tone="${id}"><span class="tn-sw" style="background:linear-gradient(135deg,${a} 0 55%,${b} 55% 82%,${c} 82%)"></span><span>${nm}</span></button>`).join('')}</div>
     <div class="gt" style="margin-top:14px">밝기</div><div class="seg tn-th">${[['auto', '시스템'], ['light', '라이트'], ['dark', '다크']].map(([v, n]) => `<button data-th="${v}" class="${th === v ? 'on' : ''}">${n}</button>`).join('')}</div>
-    <p class="cap3" style="margin-top:10px">기기마다 따로 저장 · 지도·지구본 색도 함께 바뀜</p></div></div>`);
+    <div class="gt" style="margin-top:18px">글씨체</div><div class="fo-grid">${FONTS.map(([id, nm, sub]) => `<button class="fo${id === fontPref() ? ' on' : ''}" data-fo="${id}"><b data-fo-prev="${id}">${nm} 가나다 Aa</b><span>${sub}</span></button>`).join('')}</div>
+    <div class="gt" style="margin-top:14px">글자 크기</div><div class="seg tn-th">${FZ.map(([v, n]) => `<button data-fz="${v}" class="${fzPref() === v ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <p class="cap3" style="margin-top:10px">기기마다 따로 저장 · 지도·지구본 색도 함께 바뀜 · 손글씨·장소 타이틀 글씨는 그대로</p></div></div>`);
+  FONTS.forEach(f => loadFontCss(f[0]));   /* 미리보기용: 창을 열 때만 6개 다 불러옴 */
   $('#sheet-inner').onclick = e => {
     if (!$('#sheet-inner .tn-grid')) return;   /* 다른 시트로 바뀐 뒤엔 무시 */
     if (e.target.closest('[data-close]')) return closeSheet();
-    const t = e.target.closest('button.tn[data-tone]'), m = e.target.closest('.tn-th button[data-th]'); if (!t && !m) return;   /* html에도 data-tone 있음 → 버튼만 */
-    if (t) LS.set('tone', t.dataset.tone); if (m) LS.set('theme', m.dataset.th);
-    applyTheme(); S.homeStale = true; openTonePicker(); if (!$('#settings')?.hidden) renderSettings();
+    const t = e.target.closest('button.tn[data-tone]'), m = e.target.closest('.tn-th button[data-th]'), fo = e.target.closest('button.fo[data-fo]'), fz = e.target.closest('.tn-th button[data-fz]'); if (!t && !m && !fo && !fz) return;   /* html에도 data-tone·data-font 있음 → 버튼만 */
+    if (t) LS.set('tone', t.dataset.tone); if (m) LS.set('theme', m.dataset.th); if (fo) LS.set('font', fo.dataset.fo); if (fz) LS.set('fz', fz.dataset.fz);
+    const sy = $('#sheet-inner .vf-scroll')?.scrollTop || 0; applyTheme(); S.homeStale = true; openTonePicker(); const sc = $('#sheet-inner .vf-scroll'); if (sc) sc.scrollTop = sy; if (!$('#settings')?.hidden) renderSettings();
     try { if (S.view === 'home') renderHome(); } catch {}
   };
 }
-function applyTheme() { const t = themePref(), tn = tonePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (tn === 'sea') delete document.documentElement.dataset.tone; else document.documentElement.dataset.tone = tn; document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
+function applyTheme() { const t = themePref(), tn = tonePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (tn === 'sea') delete document.documentElement.dataset.tone; else document.documentElement.dataset.tone = tn; const fo = fontPref(), fz = fzPref(), de = document.documentElement.dataset; if (fo === 'base') delete de.font; else { de.font = fo; loadFontCss(fo); } if (fz === 'm') delete de.fz; else de.fz = fz; document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
 function seasonPref() { return LS.get('season', 'auto'); }
 function seasonHome() { const s = seasonPref(); return s === 'auto' ? seasonNow() : s; }
 const KEY_DEFS = {                                         // 키 입력 화면(행 탭): 입력칸 + 붙여넣기 + 연결 확인
@@ -2620,7 +2630,7 @@ function renderSettings() {
       <button data-act="xlsx"><span style="flex:1;text-align:left">엑셀로 내보내기<p class="cap3">원본 양식 · 장소 ${S.db.places.length} · 여행 ${S.db.trips.length}</p></span><span class="cap num">.xlsx</span></button>
       <button data-act="export"><span style="flex:1;text-align:left">JSON 백업</span><span class="cap num">.json</span></button>
       <label class="st-import"><span style="flex:1;text-align:left">JSON 불러오기<p class="cap3">백업 파일로 전체 교체</p></span><span class="cap num">.json</span><input type="file" id="s-import" accept=".json" hidden></label>
-      <button data-act="tone"><span style="flex:1;text-align:left">색 테마<p class="cap3">${esc(TONES.find(x => x[0] === tonePref())[1])} · 밝기 ${themeTxt}</p></span><span class="tn-mini">${TONES.slice(0, 6).map(x => `<i style="background:${x[2]}"></i>`).join('')}</span><span class="cap">›</span></button><button data-act="theme"><span style="flex:1;text-align:left">다크모드</span><span class="cap">${themeTxt} ›</span></button>
+      <button data-act="tone"><span style="flex:1;text-align:left">색 테마 · 글씨체<p class="cap3">${esc(TONES.find(x => x[0] === tonePref())[1])} · 밝기 ${themeTxt} · 글씨 ${esc(FONTS.find(x => x[0] === fontPref())[1])} · 크기 ${esc(FZ.find(x => x[0] === fzPref())[1])}</p></span><span class="tn-mini">${TONES.slice(0, 6).map(x => `<i style="background:${x[2]}"></i>`).join('')}</span><span class="cap">›</span></button><button data-act="theme"><span style="flex:1;text-align:left">다크모드</span><span class="cap">${themeTxt} ›</span></button>
       <button data-act="usage"><span style="flex:1;text-align:left">저장 공간<p class="cap3" id="st-usage">사진 ${photoCount()}장 · 저장소 용량 확인 중…</p></span><span class="cap num" id="st-usage-v">/ 1GB</span></button>
       <button data-act="trash"><span style="flex:1;text-align:left">휴지통<p class="cap3">삭제한 장소·여행 30일 보관 · 복원 가능</p></span><span class="cap num">${(S.db.trash || []).length}</span></button>
       <button data-act="naver"><span style="flex:1;text-align:left">네이버 전국 맛집 지도<p class="cap3">MY플레이스 리스트 링크 · 상세의 N저장✔ 연동</p></span><span class="cap">${S.db.meta.naverListUrl ? '열기 ›' : '미입력'}</span></button>
