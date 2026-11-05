@@ -2624,7 +2624,7 @@ function openFamilyEdit() {
   openSheet(`<div class="ks-sheet">
     <div class="hd"><button class="back" data-act="back">‹</button><div style="flex:1"><p class="cap3">추천·방문 기록의 기준</p><b>가족 프로필</b></div></div>
     <form class="ks-body" id="fam-form">
-      <label class="ks-field"><span class="cap">가족 이름 (쉼표로 · 순서대로 표시)</span><input name="names" value="${esc(familyNames().join(', '))}" placeholder="아빠, 엄마, 하준, 이준"></label>
+      <label class="ks-field"><span class="cap">가족 이름 (쉼표로 구분 · 순서대로 표시 · 앞쪽이 우리 가족, 최대 30명)</span><input name="names" value="${esc(familyNames().join(', '))}" placeholder="아빠, 엄마, 하준, 이준"></label>
       <div class="three">
         <label class="ks-field"><span class="cap">성인</span><input name="adults" type="number" min="0" value="${f.adults ?? 2}"></label>
         <label class="ks-field"><span class="cap">아이 나이</span><input name="kids" value="${esc((f.kids || []).join(', '))}" placeholder="9, 6"></label>
@@ -2635,7 +2635,7 @@ function openFamilyEdit() {
     </form></div>`);
   const form = $('#fam-form');
   form.onsubmit = e => { e.preventDefault(); const d = Object.fromEntries(new FormData(form));
-    S.db.meta.family = { ...f, names: d.names.split(/[,\s]+/).map(s => s.trim()).filter(Boolean).slice(0, 8), adults: +d.adults || 0, kids: d.kids.split(/[,\s]+/).map(Number).filter(n => n > 0 && n < 20), seniors: +d.seniors || 0, spicyOK: !!d.spicyOK, notes: d.notes.trim() };
+    S.db.meta.family = { ...f, names: [...new Set(d.names.split(/[,，、\n]+/).map(s => s.trim()).filter(Boolean))].slice(0, 30),   /* 11/05 8명 → 30명, 쉼표로만 구분(「큰 이모」 OK) */ adults: +d.adults || 0, kids: d.kids.split(/[,\s]+/).map(Number).filter(n => n > 0 && n < 20), seniors: +d.seniors || 0, spicyOK: !!d.spicyOK, notes: d.notes.trim() };
     markDirty(); closeSheet(); toast('가족 프로필 저장'); renderSettings(); S.homeStale = true; };
   $('#sheet-inner').onclick = e => { if (e.target.closest('[data-act=back]')) { closeSheet(); renderSettings(); } };
 }
@@ -2733,15 +2733,18 @@ function draftStory(p, v, n = 0) {
   const d = v.date ? new Date(v.date + 'T00:00') : null, M = d ? d.getMonth() + 1 : null;
   const season = M ? (M <= 2 || M === 12 ? '겨울' : M <= 5 ? '봄' : M <= 8 ? '여름' : '가을') : '';
   const when = d ? `${M}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일` : '어느 날';
-  const fam = familyNames(), who = (v.who || []).filter(Boolean);
-  const whoTxt = who.length && fam.length && fam.every(x => who.includes(x)) && who.length === fam.length ? '가족 모두' : who.length ? who.join(', ') : '';
+  const fam = familyNames(), who = (v.who || []).filter(Boolean), F = S.db.meta.family || {};
+  const REL = /(이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|사촌|조카|장모|장인|손님)/, ci = fam.findIndex(x => REL.test(x)), core = ci < 0 ? fam : fam.slice(0, Math.max(2, ci));   /* 앞쪽 = 우리 가족 (첫 친척 이름 전까지) */
+  const allCore = core.length && core.every(x => who.includes(x)), extra = who.filter(x => !core.includes(x));
+  const whoTxt = allCore ? (extra.length ? `가족 모두, ${extra.join(', ')}` : '가족 모두') : who.length ? who.join(', ') : '';
   const nm = p.name, spot = p.type === 'spot', area = areaOf(p) || (p.country && p.country !== 'KR' ? ccKo(p.country) : '');
   const meal = v.meal && !spot ? v.meal : '', di = distInfo(p), r = +v.rating || 0;
   const menu = (v.menu || []).map(x => typeof x === 'string' ? x : x.name).filter(Boolean);
   const ps = [];
   /* ① 도입 */
-  const kids = who.some(x => !/^(아빠|엄마|남편|아내|와이프)$/.test(x) && fam.includes(x)), two = who.length === 2 && !kids && who.every(x => fam.includes(x));
-  const whoP = whoTxt ? (whoTxt === '가족 모두' ? '가족 모두 함께' : two ? `${who.join(', ')} 둘이서` : `${josa(whoTxt, '과', '와')} 함께`) : '';
+  const ADULT = /(아빠|엄마|남편|아내|와이프|이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|어머니|아버지|장모|장인)$/;
+  const kids = who.some(x => !ADULT.test(x) && fam.includes(x)), two = who.length === 2 && !kids && who.every(x => core.includes(x));
+  const whoP = whoTxt ? (whoTxt.startsWith('가족 모두') ? (extra.length ? `${josa(whoTxt, '과', '와')} 함께` : '가족 모두 함께') : two ? `${who.join(', ')} 둘이서` : `${josa(whoTxt, '과', '와')} 함께`) : '';
   ps.push([
     pick([`${when}${season ? `, ${season} 기운이 완연한 날` : ''}.`, `${season ? season + '날, ' : ''}${when}.`, `${when}의 기록.`]),
     [whoP, area ? `${area}에 있는` : '', `${spot ? josa(nm, '을', '를') + ' 찾았다.' : josa(nm, '에', '에') + (meal ? ` ${meal}을 먹으러 갔다.` : ' 다녀왔다.')}`].filter(Boolean).join(' ').replace(/에에 /, '에 '),
