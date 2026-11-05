@@ -519,7 +519,28 @@ function renderList() {
 }
 
 /* ---------------- 상세 ---------------- */
-function openSheet(html) { S.sheetDirty = false; const s = $('#sheet'); $('#sheet-inner').innerHTML = html; s.hidden = false; $('#sheet-inner').scrollTop = 0; const sc = $('#sheet-inner .sheet-scroll'); if (sc) sc.scrollTop = 0; }
+function openSheet(html) { S.sheetDirty = false; const s = $('#sheet'); $('#sheet-inner').innerHTML = html; s.hidden = false; $('#sheet-inner').scrollTop = 0; const sc = $('#sheet-inner .sheet-scroll'); if (sc) sc.scrollTop = 0; kbDates($('#sheet-inner')); }
+/* 11/06 PC(마우스)에서 날짜 칸을 키보드로: 숫자만 쳐도 2013-05-29로 맞춰짐 · 📅 = 달력 · 폰은 원래 달력 그대로 */
+function kbDates(root) {
+  if (!root || !matchMedia('(pointer: fine)').matches) return;
+  root.querySelectorAll('input[type=date]:not([data-kd])').forEach(o => {
+    o.dataset.kd = 1; const w = document.createElement('span'); w.className = 'kd'; o.parentNode.insertBefore(w, o);
+    const t = document.createElement('input'); t.type = 'text'; t.className = (o.className || '') + ' kd-t'; t.inputMode = 'numeric'; t.placeholder = 'YYYY-MM-DD'; t.maxLength = 10; t.value = o.value; t.autocomplete = 'off'; if (o.id) t.setAttribute('aria-label', o.id);
+    const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'kd-b'; bt.title = '달력'; bt.textContent = '📅';
+    w.append(t, bt, o); o.classList.add('kd-o'); o.tabIndex = -1;
+    const fmt = v => { const d = v.replace(/\D/g, '').slice(0, 8); return d.length > 6 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}` : d.length > 4 ? `${d.slice(0, 4)}-${d.slice(4)}` : d; };
+    const ok = v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(new Date(v + 'T00:00')) && new Date(v + 'T00:00').toISOString().slice(0, 10) === v || (/^\d{4}-\d{2}-\d{2}$/.test(v) && (() => { const [y, m, d] = v.split('-').map(Number), x = new Date(y, m - 1, d); return x.getFullYear() === y && x.getMonth() === m - 1 && x.getDate() === d; })());
+    const push = v => { if (o.max && v > o.max) { toast(`${o.max.replace(/-/g, '.')} 이후 날짜는 넣을 수 없어요`); return false; } if (o.min && v < o.min) { toast(`${o.min.replace(/-/g, '.')} 이전 날짜는 넣을 수 없어요`); return false; } o.value = v; o.dispatchEvent(new Event('input', { bubbles: true })); o.dispatchEvent(new Event('change', { bubbles: true })); return true; };
+    const norm = v => { const ps = v.trim().split(/[-./\s]+/).filter(Boolean); if (ps.length === 3 && ps[0].length === 4) return `${ps[0]}-${ps[1].padStart(2, '0')}-${ps[2].padStart(2, '0')}`; return fmt(v); };
+    t.addEventListener('input', () => { if (!/[./\s]/.test(t.value)) t.value = fmt(t.value); const v = norm(t.value); if (v.length === 10 && ok(v) && (/[./\s]/.test(t.value) ? /\d{1,2}$/.test(t.value) && t.value.split(/[-./\s]+/).filter(Boolean).length === 3 && t.value.split(/[-./\s]+/)[2].length === 2 : true)) push(v); });   /* 숫자만 → 자동 - · 점·빗금으로 쳐도 OK */
+    t.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); } if (/^Arrow(Up|Down)$/.test(e.key) && ok(t.value)) { e.preventDefault(); const x = new Date(t.value + 'T00:00'); x.setDate(x.getDate() + (e.key === 'ArrowUp' ? 1 : -1)); const v = `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; t.value = v; push(v); } });
+    t.addEventListener('focus', () => { if (document.activeElement === t && !t.value) t.value = o.value; t.select(); });
+    t.addEventListener('blur', () => { const v = norm(t.value); if (!t.value.trim()) { if (o.value) { o.value = ''; o.dispatchEvent(new Event('change', { bubbles: true })); } return; }
+      if (ok(v) && push(v)) t.value = v; else { if (!ok(v)) toast('날짜를 2013-05-29처럼 넣어주세요'); t.value = o.value; } });
+    o.addEventListener('change', () => { if (document.activeElement !== t) t.value = o.value; });
+    bt.onclick = () => { try { o.showPicker(); } catch { o.focus(); } };
+  });
+}
 function closeSheet() { $('#sheet').hidden = true; }
 function nocoordHtml(p) {                                       // 시안 11c: 좌표 없음
   const ap = approxCoord(p);
@@ -781,7 +802,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
   const drawStars = () => { $$('#vstars [data-r]').forEach(x => { const n = +x.dataset.r; x.classList.toggle('on', n <= st.rating); x.classList.toggle('half', n - .5 === st.rating); }); $('#vval').textContent = st.rating ? (st.rating % 1 ? st.rating.toFixed(1) : st.rating + '.0') : '—'; };
   drawPhotos(); drawMenu(); if (st.rating) drawStars();
   $('#vdate').onchange = e => { $('#vdate-txt').textContent = dateTxt(e.target.value || today()).slice(-3); };   // 요일 표시
-  $('#vdate').onclick = e => { try { e.target.showPicker(); } catch {} };   // 칸 어디를 눌러도 달력 열기 (지난 날짜 선택)
+  $('#vdate').addEventListener('pointerup', e => { if (e.pointerType === 'touch') { try { e.target.showPicker(); } catch {} } });   /* PC는 kbDates가 글자 칸으로 */   /* 11/06 폰: 칸 어디를 눌러도 달력 · PC: 숫자 키보드로 입력(달력 아이콘은 그대로) */
   $('#vfile').onchange = async e => { const fs = [...e.target.files]; let k = 0; for (const f of fs) { k++; if (fs.length > 3) $('#vgrid').dataset.busy = `사진 줄이는 중 ${k}/${fs.length}`; try { const b64 = await resizeImage(f); st.photos.push({ b64, url: 'data:image/jpeg;base64,' + b64 }); } catch { toast('사진을 읽지 못했습니다'); } } delete $('#vgrid').dataset.busy; drawPhotos(); e.target.value = ''; };
   sheet.onclick = async e => {
     const b = e.target.closest('button, [data-r]'); if (!b) return;
@@ -1963,7 +1984,7 @@ function renderHome() {
   $('#hero-search').onsubmit = e => { e.preventDefault(); S.q = $('#hq').value.trim(); $('#q').value = S.q; S.region = 'all'; renderRegionChips(); renderTagChips(); renderList(); showView('explore'); fitToVisible(); };
   el.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.view) return showView(b.dataset.view);
+    if (b.dataset.view) return navTo(b.dataset.view);
     if (b.dataset.act === 'heropick') return openHeroPicker(d.season);
     if (b.dataset.wish) { const p = placeById(b.dataset.wish); p.wish = !p.wish; markDirty(); renderHome(); return; }
     if (b.dataset.go) return openDetail(b.dataset.go);
@@ -3672,6 +3693,13 @@ function initBackNav() {
     askExit();   /* 지금은 root — 「나가기」면 한 번 더 뒤로 → 앱 종료 */
   });
 }
+/* 11/06 메뉴 탭을 누르면 그 탭의 첫 화면부터 (보던 여행 상세·열린 창 닫기) */
+function navTo(v) {
+  if (!$('#sheet').hidden) { if (S.sheetDirty && !confirm('작성 중인 내용이 있습니다. 창을 닫고 이동할까요?')) return; closeSheet(); }
+  $('#lb')?.remove(); if (S.tmFull) { S.tmFull = false; document.body.classList.remove('tm-full-on'); }
+  if (v === 'trips') S.trip = null;
+  showView(v); window.scrollTo?.(0, 0); document.querySelector({ trips: '#view-trips', journal: '#view-journal', settings: '#view-settings', home: '#view-home' }[v] || '#main')?.scrollTo?.(0, 0);
+}
 function showView(v) {
   const sheetState = v === 'map' ? 'peek' : v === 'list' ? '' : null;
   if (v === 'map' || v === 'list') v = 'explore';
@@ -3690,8 +3718,8 @@ function showView(v) {
 
 /* ---------------- 부트 ---------------- */
 function bindOnce() {
-  $('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) showView(b.dataset.view); };
-  $('#mobile-nav').onclick = e => { const b = e.target.closest('button'); if (b) showView(b.dataset.view); };
+  $('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) navTo(b.dataset.view); };
+  $('#mobile-nav').onclick = e => { const b = e.target.closest('button'); if (b) navTo(b.dataset.view); };
   $('#base-btn').onclick = e => { e.stopPropagation(); baseMenu(e.currentTarget); };
   $('#base-chip').onclick = e => { e.stopPropagation(); baseMenu(e.currentTarget); };
   $('#q-pc').oninput = $('#q-hdr').oninput = e => { S.q = e.target.value; $('#q').value = S.q; renderList(); if (S.view !== 'explore' && S.q) showView('explore'); };

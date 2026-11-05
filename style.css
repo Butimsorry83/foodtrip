@@ -1147,3 +1147,14 @@ body.tm-full-on { overflow: hidden; }
 :root[data-mapst="clean"] #map::after { content: ''; position: absolute; inset: 0; z-index: 250; pointer-events: none; background: color-mix(in srgb, var(--primary-2) 12%, transparent); mix-blend-mode: multiply; }
 :root[data-mapst="clean"] body.dark-tiles #map::after { background: color-mix(in srgb, var(--primary-2) 18%, transparent); mix-blend-mode: soft-light; }
 .lg-solo { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+/* 11/06 PC 날짜 칸: 키보드 입력 + 📅 */
+.kd { position: relative; display: inline-flex; align-items: center; width: 100%; min-width: 0; }
+.kd .kd-t { flex: 1; min-width: 0; width: 100%; padding-right: 40px !important; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.kd .kd-b { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-size: 16px; padding: 0; }
+.kd .kd-b:hover { background: var(--bg-subtle); }
+.kd .kd-o { position: absolute; right: 6px; bottom: 0; width: 30px; height: 30px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+/* 날짜 글자 칸이 원래 날짜 칸 모양을 그대로 따르게 */
+.field .kd-t { border: 0; background: none; color: var(--text-1); font-size: calc(15px * var(--fz, 1)); padding: 0 40px 0 0; outline: none; }
+.field .kd { width: 150px; flex: 0 0 150px; }
+.vtrip .kd { width: 170px; } .vtrip .kd-t { height: 34px; border: 1px solid var(--line); border-radius: 10px; padding: 0 40px 0 10px; background: var(--panel); color: var(--text-1); font-size: 14px; }
+.kd-t:focus { outline: none; box-shadow: 0 0 0 2px var(--primary-soft); border-radius: 8px; }
