@@ -563,7 +563,7 @@ function openDetail(id) {
         <div class="nophoto"><span>아직 사진이 없어요</span><button class="rw" data-act="visitlog">+ 첫 사진 올리기</button></div></div>`;
   openSheet(`
     <div class="sheet-scroll">
-    <div style="position:relative">${cover}<div class="cover-acts"><button data-act="share" title="공유">↗</button><button data-act="close">✕</button></div></div>
+    <div style="position:relative">${cover}<div class="cover-acts"><button class="rw" data-act="edit" title="이름·정보 수정">✎</button><button data-act="share" title="공유">↗</button><button data-act="close">✕</button></div></div>
     <div class="d-head">
       <div class="kind"><span class="chip" style="--cat:${catColor(p)}">${esc(kind)}</span><span>${esc(areaOf(p))}${p.address ? ' · ' + esc(p.address.replace(/^\S+\s/, '')) : ''}</span></div>
       <h1>${esc(p.name)}</h1>
@@ -1972,13 +1972,14 @@ function openPlaceForm(p) {
   openSheet(`
     <div class="sheet-head"><h2>${isNew ? '장소 추가' : '수정'}</h2><button class="close" data-act="close">✕</button></div>
     <form class="form" id="pf">
-      <div class="inline"><label>장소 검색 (카카오·OSM)<input id="pq" value="${esc(p.name)}" placeholder="상호명 + 지역"></label><button type="button" class="primary" data-act="psearch">검색</button></div>
+      ${isNew ? '' : '<label class="pf-name">이름 <small style="color:var(--text-3)">(화면에 보이는 이름 · 한글/영문 자유)</small><input name="name" value="' + esc(p.name) + '" required></label>'}
+      <div class="inline"><label>${isNew ? '장소 검색 (카카오·OSM)' : '위치 다시 찾기 <small style="color:var(--text-3)">(이름은 안 바뀜 · 좌표만)</small>'}<input id="pq" value="" placeholder="${isNew ? '상호명 + 지역' : '예: ' + esc(p.address || p.name)}"></label><button type="button" class="primary" data-act="psearch">검색</button></div>
       <div class="hits" id="phits" hidden></div>
+      ${isNew ? '<label class="pf-name">이름 <small style="color:var(--text-3)">(검색 결과를 고르면 자동 · 직접 고쳐도 됨)</small><input name="name" value="" required></label>' : ''}
       <div class="two">
         <label>유형<select name="type"><option value="restaurant"${p.type === 'restaurant' ? ' selected' : ''}>식당</option><option value="spot"${p.type === 'spot' ? ' selected' : ''}>휴양지</option><option value="mine"${isMine(p) ? ' selected' : ''}>우리 장소 (본가 등)</option></select></label>
         <label>지역 그룹<input name="region" list="regions" value="${esc(p.region)}"><datalist id="regions">${regionsInDb().map(([r]) => `<option value="${r}">${REGION_LABEL[r] || niceName(r)}</option>`).join('')}</datalist></label>
       </div>
-      <label>이름<input name="name" value="${esc(p.name)}" required></label>
       <div class="three">
         <label>국가<select name="country">${countryOptions(p.country || 'KR')}</select></label>
         <label>위도<input name="lat" value="${p.lat ?? ''}" inputmode="decimal"></label>
@@ -2007,7 +2008,7 @@ function openPlaceForm(p) {
     if (b.dataset.act === 'close') closeSheet();
     if (b.dataset.act === 'psearch') {
       b.textContent = '…';
-      await loadGeo(); const hits = await geoSearch($('#pq').value, f.country.value, f.si.value);
+      await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value);
       b.textContent = '검색';
       showHits($('#phits'), hits, h => { if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
     }
@@ -3444,7 +3445,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openDetail, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
