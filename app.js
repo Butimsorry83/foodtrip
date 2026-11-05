@@ -726,6 +726,8 @@ function openHoursForm(p) {
 
 /* ---------------- 방문 기록 ---------------- */
 const FAMILY_DEFAULT = ['아빠', '엄마', '하준', '이준'];
+const REL_RE = /(이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|사촌|조카|장모|장인|손님)/;
+function coreFamily() { const f = familyNames(), i = f.findIndex(x => REL_RE.test(x)); return i < 0 ? f : f.slice(0, Math.max(2, i)); }   /* 11/05 앞쪽 = 우리 가족 (첫 친척 이름 전까지) */
 function familyNames() { const f = S.db.meta.family || {}; return (f.names || []).length ? f.names : FAMILY_DEFAULT; }
 function openVisitForm(p, edit, back) {                          // 시안 07: 방문 기록 · 내 사진 올리기 (edit = 기존 기록 편집)
   const di = distInfo(p); const mealNow = (() => { const h = new Date().getHours(); return h < 11 ? '아침' : h < 15 ? '점심' : h < 17 ? '간식' : '저녁'; })();
@@ -1740,6 +1742,10 @@ const ICO = {
   map: '<svg class="i" viewBox="0 0 24 24"><path d="m9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Z"></path><path d="M9 4v14M15 6v14"></path></svg>',
   star: '<svg class="i" viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z"></path></svg>',
   loc: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v4M12 18v4M2 12h4M18 12h4"></path></svg>',
+  palette: '<svg class="i" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.2 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8Z"></path><circle cx="7.5" cy="11" r="1.2"></circle><circle cx="10" cy="7" r="1.2"></circle><circle cx="15" cy="7.5" r="1.2"></circle></svg>',
+  moon: '<svg class="i" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5Z"></path></svg>',
+  sun: '<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>',
+  image: '<svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2.5"></rect><circle cx="8.5" cy="10" r="1.6"></circle><path d="m21 16-5-5-8 8"></path></svg>',
 };
 // 거점 기준 거리·소요 (카카오 경로 캐시 → 도로 추정 → 엑셀 집 기준 거리)
 function distInfo(p) {
@@ -1769,7 +1775,7 @@ function homeData() {
   const trips = S.db.trips.slice().sort((a, b) => b.year - a.year);
   const totalVisits = S.db.places.reduce((n, p) => n + (p.visits || 0), 0);
   const fam = S.db.meta.family || {};
-  const famName = (fam.names || []).length ? fam.names.join('·') + '이네' : '우리 가족';
+  const famName = (fam.names || []).length ? coreFamily().join('·') + '이네' : '우리 가족';
   const ym = new Date(); const ymText = `${ym.getFullYear()}.${String(ym.getMonth() + 1).padStart(2, '0')}`;
   const nearRest = p => rests.filter(r => r.spot_id === p.id || (hasCoord(r) && hasCoord(p) && haversine(r, p) <= 5) || (!hasCoord(r) && r.si && r.si === p.si)).length;
   const why = x => [...x.reasons.filter(r => !/km$/.test(r)).slice(0, 1), ...(x.s.tags || []).slice(0, 3).map(t => '#' + t)].slice(0, 4);
@@ -1806,8 +1812,8 @@ function renderHomePhone(d) {
     return `<button class="wish-row" data-go="${p.id}">${thumbHtml(p, 'tile')}<div style="flex:1;min-width:0"><b>${esc(p.name)}</b><p>${esc(kindLabel(p))} · ${esc(areaOf(p))}${dd ? ` <span class="mono">· ${fmtKm(dd.km)}km</span>` : ''}</p></div>${ol ? `<span class="chip op-${ol[1]}">${ol[0]}</span>` : (p.hours?.open ? `<span class="chip op-off">${esc(p.hours.open)} 오픈</span>` : '')}</button>`; };
   const tripCover = t => `<button class="trip-cover" data-trip="${t.id}" style="${tripCoverStyle(t)}"><span class="yr">${t.year} · ${COUNTRY_EN[t.country] || t.country}</span><span class="city">${esc(tripName(t))}</span><span class="sub">${esc(tripSub(t))}</span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</button>`;
   return `
-    <div class="ph-hero" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 72%,transparent),color-mix(in srgb,var(--hero) 82%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><button class="hero-pick ph" data-act="heropick">🖼</button><div class="dots"></div><div class="sun"></div>
-      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">🎨</button><button class="theme-tg" data-act="theme" title="다크모드">${isDark() ? '☀' : '☾'}</button><button class="bell" data-act="settings" title="설정">${ICO.bell}</button></div>
+    <div class="ph-hero" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 72%,transparent),color-mix(in srgb,var(--hero) 82%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><div class="dots"></div><div class="sun"></div>
+      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><div class="ph-tools"><button data-act="tone" title="색 테마 · 글씨체">${ICO.palette}</button><button data-act="theme" title="다크모드">${isDark() ? ICO.sun : ICO.moon}</button><button data-act="heropick" title="배경 바꾸기">${ICO.image}</button></div></div>
       <div class="ph-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · ${esc(baseShort())} 기준</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         <p class="sub">${esc(d.famName)} 휴양지 ${d.spots.length}곳, 맛집 ${d.rests.length}곳</p>
@@ -1847,7 +1853,7 @@ function renderHomePC(d) {
       <div class="note"><span>${esc(d.season)} 배경 · 계절마다 자동 교체</span><button class="hero-pick" data-act="heropick">🖼 배경 바꾸기</button></div>
       <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'journal', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '발자취', '설정'][k]}</button>`).join('')}</div></nav>
       <div class="pc-logo"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:70px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:112px"></div>
-      <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">🎨</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? '☀' : '☾'}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
+      <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">${ICO.palette}</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? ICO.sun : ICO.moon}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
       <div class="pc-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · 우리 가족 식도락</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         ${fp ? `<p class="body"><span class="nm"><span class="lbl">이번 계절 ${i + 1}순위</span>${esc(fp.name)}</span>${esc(areaOf(fp))} · ${esc(distText(fp))}<span class="why">${d.why(feat).map(w => `<span>${esc(w)}</span>`).join('')}</span></p><div class="cta"><button class="wt-btn" data-reco="${fp.id}">근처 식당 ${d.nearRest(fp)}곳</button></div>` : ''}
@@ -2734,7 +2740,7 @@ function draftStory(p, v, n = 0) {
   const season = M ? (M <= 2 || M === 12 ? '겨울' : M <= 5 ? '봄' : M <= 8 ? '여름' : '가을') : '';
   const when = d ? `${M}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일` : '어느 날';
   const fam = familyNames(), who = (v.who || []).filter(Boolean), F = S.db.meta.family || {};
-  const REL = /(이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|사촌|조카|장모|장인|손님)/, ci = fam.findIndex(x => REL.test(x)), core = ci < 0 ? fam : fam.slice(0, Math.max(2, ci));   /* 앞쪽 = 우리 가족 (첫 친척 이름 전까지) */
+  const core = coreFamily();
   const allCore = core.length && core.every(x => who.includes(x)), extra = who.filter(x => !core.includes(x));
   const whoTxt = allCore ? (extra.length ? `가족 모두, ${extra.join(', ')}` : '가족 모두') : who.length ? who.join(', ') : '';
   const nm = p.name, spot = p.type === 'spot', area = areaOf(p) || (p.country && p.country !== 'KR' ? ccKo(p.country) : '');
