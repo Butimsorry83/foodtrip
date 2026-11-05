@@ -1094,3 +1094,9 @@ body.tm-full-on { overflow: hidden; }
 .lb-gr.date, .lb-date { position: absolute; left: 50%; transform: translateX(-50%); bottom: 116px; z-index: 2; }
 .lb-gr.date { background: rgba(255,255,255,.92); color: #10202a; }
 .lb-date { height: 42px; border-radius: 999px; border: 0; padding: 0 16px; font-size: 15px; background: #fff; color: #10202a; }
+/* 11/06 성장 앨범 사진 편집 */
+.lb-gr.lb-edit { bottom: 64px; white-space: nowrap; background: rgba(255,255,255,.94); color: #10202a; }
+.ge-ph { width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; background: var(--bg-subtle) center/contain no-repeat; margin-bottom: 14px; }
+#ge-who .chip small { color: var(--text-3); font-size: 10px; margin-left: 2px; }
+.lb .lb-gr { width: auto; height: auto; min-width: 0; border-radius: 999px; padding: 10px 20px; font-size: 14px; line-height: 1.2; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.lb .lb-gr.lb-edit { bottom: 70px; background: rgba(255,255,255,.95); color: #10202a; font-weight: 800; box-shadow: 0 4px 14px rgba(0,0,0,.3); }

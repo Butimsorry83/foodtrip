@@ -2849,14 +2849,27 @@ function openGrowth(opts) {
       openLightbox(list.map(g => photoUrl(g.photo)), k, who || '성장 앨범');
       const lb = $('#lb'); if (lb && !isRO()) {
         const curG = () => { const src = lb.querySelector('img')?.getAttribute('src'); return list.find(g => photoUrl(g.photo) === src) || list[k]; };   /* 넘겨 본 사진 기준 */
-        const dt = document.createElement('button'); dt.className = 'lb-gr date'; dt.textContent = '📅 날짜 고치기';
-        dt.onclick = ev => { ev.stopPropagation(); const g = curG(); const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'lb-date'; inp.value = g.date || ''; inp.max = today(); inp.onclick = e2 => e2.stopPropagation();
-          inp.onchange = () => { if (!inp.value) return; g.date = inp.value; markDirty(); toast(`날짜 ${inp.value.replace(/-/g, '.')}로 고침`); lb.remove(); openGrowth({ page: true, gwho: who }); };
-          dt.replaceWith(inp); inp.focus(); try { inp.showPicker?.(); } catch {} };
-        lb.appendChild(dt);
-        const del = document.createElement('button'); del.className = 'lb-gr del'; del.textContent = '이 사진 앨범에서 빼기'; del.onclick = ev => { ev.stopPropagation(); if (!del.dataset.c) { del.dataset.c = 1; del.textContent = '정말 뺄까요? (원본 파일은 남음)'; return; } const cur = list[k]; S.db.growth = (S.db.growth || []).filter(g => g.id !== cur.id); markDirty(); lb.remove(); toast('성장 앨범에서 뺌'); openGrowth(opts); }; lb.appendChild(del); }
+        const ed = document.createElement('button'); ed.className = 'lb-gr lb-edit'; ed.textContent = '✎ 편집';   /* 11/06 날짜·사람·메모·빼기 한 곳에서 */
+        ed.onclick = ev => { ev.stopPropagation(); const g = curG(); lb.remove(); openGrowthEdit(g, () => openGrowth({ page: true, gwho: who })); };
+        lb.appendChild(ed); }
       return; }
   };
+}
+function openGrowthEdit(g, done) {   /* 11/06 성장 앨범 사진 편집: 날짜 · 사진 속 사람 · 메모 · 앨범에서 빼기 */
+  const who = new Set(g.who || []), by = (S.db.meta.family || {}).birthYear || {};
+  const warn = () => { const y = +($('#ge-date')?.value || '').slice(0, 4); const bad = [...who].filter(n => by[n] && y && y < by[n]); $('#ge-warn').textContent = bad.length ? `⚠ ${bad.join('·')}는 ${y}년에 아직 안 태어났어요 — 날짜를 확인해 주세요` : ''; };
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>성장 앨범 사진</b><button class="lnk pri" data-act="gesave">저장</button></div><div class="vf-scroll" style="padding:16px">
+    <div class="ge-ph" style="background-image:url('${photoUrl(g.photo)}')"></div>
+    <div class="ti-f"><label>찍은 날짜</label><input type="date" id="ge-date" value="${esc(g.date || '')}" max="${today()}"></div><p class="cap3" id="ge-warn" style="color:var(--warning);min-height:16px"></p>
+    <div class="ti-f"><label>사진 속 사람</label><div class="chips" id="ge-who">${familyNames().map(n => `<button type="button" class="chip${who.has(n) ? ' on' : ''}" data-gw="${esc(n)}">${esc(n)}${by[n] ? ` <small>${by[n]}</small>` : ''}</button>`).join('')}</div></div>
+    <div class="ti-f"><label>메모</label><input id="ge-memo" value="${esc(g.memo || '')}" placeholder="예: 하준이 돌잔치"></div>
+    <button class="btn-line" data-act="gedel" style="margin-top:18px;width:100%;color:var(--danger)">이 사진 성장 앨범에서 빼기 <span class="cap3">(원본 사진은 남음)</span></button></div></div>`);
+  warn(); $('#ge-date').oninput = warn;
+  $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.act === 'back') { closeSheet(); return done?.(); }
+    if (b.dataset.gw) { who.has(b.dataset.gw) ? who.delete(b.dataset.gw) : who.add(b.dataset.gw); b.classList.toggle('on'); return warn(); }
+    if (b.dataset.act === 'gedel') { if (!b.dataset.c) { b.dataset.c = 1; b.innerHTML = '정말 뺄까요? 한 번 더 누르면 빠져요'; return; } S.db.growth = (S.db.growth || []).filter(x => x.id !== g.id); markDirty(); closeSheet(); toast('성장 앨범에서 뺐어요'); return done?.(); }
+    if (b.dataset.act === 'gesave') { if (!who.size) return toast('사진 속 사람을 한 명 이상 골라주세요'); g.date = $('#ge-date').value || null; g.who = [...who]; g.memo = $('#ge-memo').value.trim() || null; markDirty(); closeSheet(); toast('저장했어요'); return done?.(); } };
 }
 function openJournal(opts = {}) {
   if (opts.growth) return openGrowth(opts);
