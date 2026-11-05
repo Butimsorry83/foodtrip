@@ -729,6 +729,27 @@ const FAMILY_DEFAULT = ['아빠', '엄마', '하준', '이준'];
 const REL_RE = /(이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|사촌|조카|장모|장인|손님)/;
 function coreFamily() { const f = familyNames(), i = f.findIndex(x => REL_RE.test(x)); return i < 0 ? f : f.slice(0, Math.max(2, i)); }   /* 11/05 앞쪽 = 우리 가족 (첫 친척 이름 전까지) */
 function familyNames() { const f = S.db.meta.family || {}; return (f.names || []).length ? f.names : FAMILY_DEFAULT; }
+/* 11/05 사진 순서 바꾸기 — PC는 바로 끌기, 폰은 꾹(0.3초) 눌렀다 끌기 · 첫 장 = 표지 */
+function bindReorder(grid, getList, redraw) {
+  if (!grid || grid._rd) return; grid._rd = true;
+  let from = null, timer = null, sx = 0, sy = 0, active = false, ghost = null;
+  const itemAt = (x, y) => document.elementFromPoint(x, y)?.closest('.rd[data-ri]');
+  const end = () => { clearTimeout(timer); timer = null; if (active) { grid.classList.remove('rd-on'); ghost?.remove(); ghost = null; redraw(); S.sheetDirty = true; } active = false; from = null; };
+  const start = (x, y) => { active = true; grid.classList.add('rd-on'); const it = grid.querySelector(`.rd[data-ri="${from}"]`); it?.classList.add('rd-me'); navigator.vibrate?.(15);
+    if (it) { ghost = it.cloneNode(true); ghost.className = 'vph rd-ghost'; const r = it.getBoundingClientRect(); ghost.style.width = r.width + 'px'; ghost.style.height = r.height + 'px'; document.body.appendChild(ghost); move(x, y); } };
+  const move = (x, y) => { if (ghost) { ghost.style.left = x - ghost.offsetWidth / 2 + 'px'; ghost.style.top = y - ghost.offsetHeight / 2 + 'px'; }
+    ghost && (ghost.style.visibility = 'hidden'); const t = itemAt(x, y); ghost && (ghost.style.visibility = '');
+    if (!t || !grid.contains(t)) return; const to = +t.dataset.ri; if (to === from) return;
+    const me = grid.querySelector(`.rd[data-ri="${from}"]`); if (!me) return; to > from ? t.after(me) : t.before(me);   /* 요소를 옮기기만 (다시 그리면 잡고 있던 터치가 끊김) */
+    const L = getList(); const [m] = L.splice(from, 1); L.splice(to, 0, m); [...grid.querySelectorAll('.rd[data-ri]')].forEach((x, k) => { x.dataset.ri = k; }); from = to; };
+  grid.addEventListener('pointerdown', e => { const it = e.target.closest('.rd[data-ri]'); if (!it || e.target.closest('button')) return; from = +it.dataset.ri; sx = e.clientX; sy = e.clientY;
+    if (e.pointerType === 'mouse') { const mv = ev => { if (!active && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) start(ev.clientX, ev.clientY); if (active) move(ev.clientX, ev.clientY); }; const up = () => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); end(); }; window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up); e.preventDefault(); }
+    else timer = setTimeout(() => start(sx, sy), 300); });
+  /* 끄는 중 사진이 다시 그려지면 처음 누른 요소가 사라져 터치 이벤트가 grid까지 안 옴 → 문서 전체에서 받기 */
+  document.addEventListener('touchmove', e => { if (from == null) return; const t = e.touches[0]; if (active) { e.preventDefault(); move(t.clientX, t.clientY); } else if (timer && Math.hypot(t.clientX - sx, t.clientY - sy) > 10) { clearTimeout(timer); timer = null; } }, { passive: false });
+  document.addEventListener('touchend', () => { if (from != null || timer) end(); }); document.addEventListener('touchcancel', () => { if (from != null || timer) end(); });
+  grid.addEventListener('contextmenu', e => { if (e.target.closest('.rd')) e.preventDefault(); });
+}
 function openVisitForm(p, edit, back) {                          // 시안 07: 방문 기록 · 내 사진 올리기 (edit = 기존 기록 편집)
   const di = distInfo(p); const mealNow = (() => { const h = new Date().getHours(); return h < 11 ? '아침' : h < 15 ? '점심' : h < 17 ? '간식' : '저녁'; })();
   const st = edit ? { photos: (edit.photos?.length ? edit.photos : edit.photo ? [edit.photo] : []).map(path => ({ path, url: photoUrl(path) })), rating: edit.rating || 0, who: new Set(edit.who || []), menu: (edit.menu || []).map(m => typeof m === 'string' ? m : m.name || '') } : { photos: [], rating: 0, who: new Set(familyNames()), menu: [] };
@@ -749,7 +770,8 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       <div style="height:20px"></div></div>
     <div class="vf-foot">${edit ? '<button class="btn-line" data-act="vdelete" style="flex:0 0 auto;padding:0 16px;color:var(--danger)">기록 삭제</button>' : ''}<button class="btn-pri" data-act="save">${edit ? '수정 저장' : '기록 저장하고 스탬프 찍기'}</button></div></div>`);
   const sheet = $('#sheet-inner');
-  const drawPhotos = () => { $('#vgrid').innerHTML = st.photos.map((ph, i) => `<div class="vph" style="background-image:url('${ph.url}')">${i === 0 ? '<span class="cv">표지</span>' : ''}<button type="button" class="x" data-rm="${i}">✕</button></div>`).join('') + (true ? '<button type="button" class="vph add" data-act="addphoto"><b>+</b>사진 추가</button>' : ''); };
+  const drawPhotos = () => { $('#vgrid').innerHTML = st.photos.map((ph, i) => `<div class="vph rd" data-ri="${i}" style="background-image:url('${ph.url}')">${i === 0 ? '<span class="cv">표지</span>' : `<button type="button" class="cvset" data-cover="${i}" title="표지로">★</button>`}<button type="button" class="x" data-rm="${i}">✕</button></div>`).join('') + '<button type="button" class="vph add" data-act="addphoto"><b>+</b>사진 추가</button>' + (st.photos.length > 1 ? '<p class="cap3 rd-tip">사진을 꾹 눌러 끌면 순서 변경 · ★ = 표지로</p>' : ''); };
+  bindReorder($('#vgrid'), () => st.photos, drawPhotos);
   const drawMenu = () => { $('#vmenu').innerHTML = st.menu.map((m, i) => `<button type="button" class="chip soft" data-rmmenu="${i}">${esc(m)} ✕</button>`).join('') + '<button type="button" class="chip" data-menu="+">+ 메뉴</button>'; };
   drawPhotos(); drawMenu(); if (st.rating) { $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); }
   $('#vdate').onchange = e => { $('#vdate-txt').textContent = dateTxt(e.target.value || today()).slice(-3); };   // 요일 표시
@@ -765,6 +787,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       const v = { ...(edit || {}), id: edit?.id || p.id + ($('#vdate').value || ''), date: $('#vdate').value, meal: $('#vmeal')?.value, memo: $('#vmemo').value.trim(), rating: st.rating || edit?.rating || 0, who: [...st.who], menu: st.menu, photos: st.photos.map(x => x.path || x.url) };
       ta.value = draftStory(p, v, st.draftN); ta.dataset.draft = ta.value; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; toast(st.draftN ? '다른 문장으로 다시 썼어요' : '초안 완성 · 직접 다듬어도 돼요'); return; }
     if (b.dataset.rm != null) { st.photos.splice(+b.dataset.rm, 1); drawPhotos(); return; }
+    if (b.dataset.cover != null) { const [x] = st.photos.splice(+b.dataset.cover, 1); st.photos.unshift(x); S.sheetDirty = true; drawPhotos(); toast('표지로 바꿨어요 · 저장하면 적용'); return; }
     if (b.dataset.r) { st.rating = +b.dataset.r; $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); return; }
     if (b.dataset.who) { if (b.dataset.who === '+') { const n = prompt('함께 간 사람 이름'); if (n && n.trim()) { st.who.add(n.trim()); b.insertAdjacentHTML('beforebegin', `<button type="button" class="chip on" data-who="${esc(n.trim())}">${esc(n.trim())}</button>`); } return; } st.who.has(b.dataset.who) ? st.who.delete(b.dataset.who) : st.who.add(b.dataset.who); b.classList.toggle('on'); return; }
     if (b.dataset.menu === '+') { const m = prompt('먹은 메뉴'); if (m && m.trim()) { st.menu.push(m.trim()); drawMenu(); } return; }
@@ -1722,7 +1745,7 @@ function artHtml(p, cls = 'art', extra = '') {
 const TRIP_COVER = { '다낭': 'danang', '평창': 'pyeongchang', '괌': 'guam', '방콕': 'bangkok', '나트랑': 'nhatrang' };
 const COUNTRY_EN = { KR: 'KOREA', VN: 'VIETNAM', TH: 'THAILAND', GU: 'GUAM', JP: 'JAPAN', US: 'USA' };
 function tripCoverStyle(t) {
-  { const ph = (t.photos || []).map(x => photoUrl(x.path)).find(Boolean) || ((t.items || []).length ? null : tripAllPhotos(t).map(x => photoUrl(x.path))[0]); if (ph) return `background-image:url('${ph}')`; }   // 여행 사진 첫 장이 표지
+  { const ph = (t.coverPhoto && photoUrl(t.coverPhoto)) || (t.photos || []).map(x => photoUrl(x.path)).find(Boolean) || ((t.items || []).length ? null : tripAllPhotos(t).map(x => photoUrl(x.path))[0]); if (ph) return `background-image:url('${ph}')`; }   // 여행 사진 첫 장이 표지
   const key = Object.keys(TRIP_COVER).find(k => (t.city || '').includes(k));
   if (key) return `background-image:url('${asset('assets/trip-cover-' + TRIP_COVER[key] + '.jpg')}')`;
   const hues = { KR: ['#0f766e', '#2dd4bf'], VN: ['#be123c', '#fb923c'], TH: ['#7c3aed', '#f0abfc'], GU: ['#0369a1', '#38bdf8'], JP: ['#b91c1c', '#fda4af'] };
@@ -2200,7 +2223,7 @@ function renderTrips() {
     if (b.dataset.addplace != null) { const it = t.items[b.dataset.addplace]; openPlaceForm({ id: uid(), type: 'restaurant', country: t.country, region, name: it.place, cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, note: it.activity }); }
     if (b.dataset.act === 'additem') openItemForm(t);
     if (b.dataset.act === 'tphoto') return isRO() ? goToken() : openTripPhotos(t);
-    if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), date: null }); }
+    if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), date: null, cover: S.token || OFFLINE ? path => { t.coverPhoto = path; markDirty(); renderTrips(); toast('여행 표지로 지정했어요'); } : null, coverNow: t.coverPhoto }); }
     if (b.dataset.act === 'edit-trip') openTripEdit(t);
     if (b.dataset.act === 'tshare') shareLink('t', t.id, t.title);
     if (b.dataset.act === 'txlsx') exportXlsx({ trip: t });
@@ -3431,9 +3454,9 @@ function visitRaw(v) { return (v.photos && v.photos.length ? v.photos : v.photo 
 function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크게 보기 (좌우 넘김 · 스와이프) · meta: { raws, date } 있으면 「성장 앨범」 버튼
   document.getElementById('lb')?.remove(); if (!srcs.length) return;
   const el = document.createElement('div'); el.id = 'lb'; el.className = 'lb'; document.body.appendChild(el);
-  const draw = () => { el.innerHTML = `<img src="${srcs[i]}" alt=""><button class="x" data-lbx="1">✕</button>${srcs.length > 1 ? `<button class="pv" data-lbp="-1">‹</button><button class="nx" data-lbp="1">›</button>` : ''}<p class="cap">${esc(cap)}${srcs.length > 1 ? ` · ${i + 1}/${srcs.length}` : ''}</p>${meta?.raws?.[i] ? '<button class="lb-gr" data-lbg="1">🌱 성장 앨범에 넣기</button>' : ''}`; };
+  const draw = () => { el.innerHTML = `<img src="${srcs[i]}" alt=""><button class="x" data-lbx="1">✕</button>${srcs.length > 1 ? `<button class="pv" data-lbp="-1">‹</button><button class="nx" data-lbp="1">›</button>` : ''}<p class="cap">${esc(cap)}${srcs.length > 1 ? ` · ${i + 1}/${srcs.length}` : ''}</p>${meta?.raws?.[i] ? `<div class="lb-acts">${meta.cover ? `<button class="lb-gr" data-lbcv="1">${meta.coverNow === meta.raws[i] ? '✓ 지금 표지' : '★ 여행 표지로'}</button>` : ''}<button class="lb-gr" data-lbg="1">🌱 성장 앨범에 넣기</button></div>` : ''}`; };
   draw();
-  el.onclick = e => { const b = e.target.closest('button'); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.lbg) return growthAddFromVisit(meta.raws[i], meta.date, b); if (b.dataset.lbx) el.remove(); if (b.dataset.lbp) { i = (i + +b.dataset.lbp + srcs.length) % srcs.length; draw(); } };
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.lbg) return growthAddFromVisit(meta.raws[i], meta.date, b); if (b.dataset.lbcv) { meta.cover(meta.raws[i]); meta.coverNow = meta.raws[i]; return draw(); } if (b.dataset.lbx) el.remove(); if (b.dataset.lbp) { i = (i + +b.dataset.lbp + srcs.length) % srcs.length; draw(); } };
   let x0 = null; el.ontouchstart = e => { x0 = e.touches[0].clientX; }; el.ontouchend = e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50 && srcs.length > 1) { i = (i + (dx < 0 ? 1 : -1) + srcs.length) % srcs.length; draw(); } x0 = null; };
   document.addEventListener('keydown', function k(ev) { if (!document.getElementById('lb')) return document.removeEventListener('keydown', k); if (ev.key === 'Escape') el.remove(); if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { i = (i + (ev.key === 'ArrowRight' ? 1 : -1) + srcs.length) % srcs.length; draw(); } });
 }
@@ -3459,15 +3482,19 @@ function askExit() {
   if ($('#exitask')) return; const el = document.createElement('div'); el.id = 'exitask'; el.className = 'exitask';
   el.innerHTML = `<div class="ex-box"><img src="${asset('assets/mark-faces.png')}" alt=""><b>준준 TRIP을 나갈까요?</b><div class="ex-btns"><button data-ex="stay">계속 보기</button><button data-ex="go" class="pri">나가기</button></div></div>`;
   document.body.appendChild(el);
-  el.onclick = e => { const b = e.target.closest('[data-ex]'); if (!b && e.target !== el) return; el.remove(); if (b?.dataset.ex === 'go') { S.exiting = true; history.back(); } else history.pushState({ jj: 'guard' }, ''); };
+  el.onclick = e => { const b = e.target.closest('[data-ex]'); if (!b && e.target !== el) return; el.remove(); if (b?.dataset.ex === 'go') { S.exiting = true; history.back(); } else armGuard(); };
 }
+/* 크롬은 화면을 건드리지 않고 만든 뒤로 가기 기록은 건너뜀 → 가드는 「터치·클릭·키 입력 때」 다시 깔기 */
+let guardOn = false;
+function armGuard() { if (guardOn || S.exiting) return; try { history.pushState({ jj: 'guard' }, ''); guardOn = true; } catch {} }
 function initBackNav() {
-  try { history.replaceState({ jj: 'root' }, ''); history.pushState({ jj: 'guard' }, ''); } catch { return; }
+  try { history.replaceState({ jj: 'root' }, ''); } catch { return; }
+  ['pointerdown', 'keydown', 'touchstart'].forEach(ev => window.addEventListener(ev, armGuard, { capture: true, passive: true }));
   window.addEventListener('popstate', () => {
-    if (S.exiting) return;
-    const ex = $('#exitask'); if (ex) { ex.remove(); history.pushState({ jj: 'guard' }, ''); return; }
-    if (backStep()) { history.pushState({ jj: 'guard' }, ''); return; }
-    askExit();   /* 지금은 root 상태 — 「나가기」면 한 번 더 뒤로 → 앱 종료 */
+    if (S.exiting) return; guardOn = false;
+    const ex = $('#exitask'); if (ex) { ex.remove(); armGuard(); return; }
+    if (backStep()) { armGuard(); return; }   /* 다음 터치 때 다시 깔리지만, 바로 한 번 더 깔아 둠 */
+    askExit();   /* 지금은 root — 「나가기」면 한 번 더 뒤로 → 앱 종료 */
   });
 }
 function showView(v) {

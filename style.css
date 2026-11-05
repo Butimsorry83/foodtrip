@@ -1074,3 +1074,13 @@ body.tm-full-on { overflow: hidden; }
 /* 11/05 장소 추가: 고른 검색 결과 표시 */
 .pf-picked { margin: -2px 0 10px; padding: 9px 12px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pf-picked span { color: var(--text-3); margin-left: 4px; }
+/* 11/05 사진 순서·표지 */
+.vph .cvset { position: absolute; left: 6px; top: 6px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: #fff; font-size: 12px; display: grid; place-items: center; padding: 0; cursor: pointer; }
+.vph .cvset:hover { background: var(--accent); color: #000; }
+.vph.rd { cursor: grab; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.vgrid.rd-on .vph.rd { transition: transform .15s; } .vgrid.rd-on .vph.rd-me { opacity: .25; outline: 2px dashed var(--accent); }
+.rd-ghost { position: fixed; z-index: 6000; pointer-events: none; border-radius: var(--r-md); background-size: cover; background-position: center; box-shadow: 0 12px 30px rgba(0,0,0,.35); transform: scale(1.06) rotate(-2deg); opacity: .95; }
+.rd-ghost .x, .rd-ghost .cvset, .rd-ghost .cv { display: none; }
+.rd-tip { grid-column: 1 / -1; margin: 2px 0 0; }
+.lb-acts { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: max-content; max-width: 92vw; }
+.lb-acts .lb-gr { position: static; transform: none; }
