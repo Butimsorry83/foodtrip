@@ -1100,3 +1100,6 @@ body.tm-full-on { overflow: hidden; }
 #ge-who .chip small { color: var(--text-3); font-size: 10px; margin-left: 2px; }
 .lb .lb-gr { width: auto; height: auto; min-width: 0; border-radius: 999px; padding: 10px 20px; font-size: 14px; line-height: 1.2; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .lb .lb-gr.lb-edit { bottom: 70px; background: rgba(255,255,255,.95); color: #10202a; font-weight: 800; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+/* 11/06 가족 프로필: 긴 이름은 알약 모양으로 늘어나기 (외할머니 등) · 줄 넘치면 다음 줄 */
+.st-fam { flex-wrap: wrap; row-gap: 8px !important; }
+.st-fam .fc { width: auto; min-width: 40px; padding: 0 12px; border-radius: 999px; white-space: nowrap; word-break: keep-all; }
