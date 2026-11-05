@@ -1986,7 +1986,7 @@ function openPlaceForm(p) {
       ${isNew ? '' : '<label class="pf-name">이름 <small style="color:var(--text-3)">(화면에 보이는 이름 · 한글/영문 자유)</small><input name="name" value="' + esc(p.name) + '" required></label>'}
       <div class="inline"><label>${isNew ? '장소 검색 (카카오·OSM)' : '위치 다시 찾기 <small style="color:var(--text-3)">(이름은 안 바뀜 · 좌표만)</small>'}<input id="pq" value="" placeholder="${isNew ? '상호명 + 지역' : '예: ' + esc(p.address || p.name)}"></label><button type="button" class="primary" data-act="psearch">검색</button></div>
       <div class="hits" id="phits" hidden></div>
-      ${isNew ? '<label class="pf-name">이름 <small style="color:var(--text-3)">(검색 결과를 고르면 자동 · 직접 고쳐도 됨)</small><input name="name" value="" required></label>' : ''}
+      ${isNew ? '<div class="pf-picked" id="pf-picked" hidden></div><label class="pf-name">이름 <small style="color:var(--text-3)">(검색 결과를 고르면 자동 · 비워 두면 첫 번째 결과로)</small><input name="name" value="" placeholder="검색 결과를 누르면 채워져요"></label>' : ''}
       <div class="two">
         <label>유형<select name="type"><option value="restaurant"${p.type === 'restaurant' ? ' selected' : ''}>식당</option><option value="spot"${p.type === 'spot' ? ' selected' : ''}>휴양지</option><option value="mine"${isMine(p) ? ' selected' : ''}>우리 장소 (본가 등)</option></select></label>
         <label>지역 그룹<input name="region" list="regions" value="${esc(p.region)}"><datalist id="regions">${regionsInDb().map(([r]) => `<option value="${r}">${REGION_LABEL[r] || niceName(r)}</option>`).join('')}</datalist></label>
@@ -2021,11 +2021,20 @@ function openPlaceForm(p) {
       b.textContent = '…';
       await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value);
       b.textContent = '검색';
-      showHits($('#phits'), hits, h => { if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
+      f._hits = hits; f._picked = null;
+      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
     }
   });
+  $('#pq').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); f.querySelector('[data-act=psearch]').click(); } });   /* 11/05 검색칸 엔터 = 검색 (저장 X) */
   f.addEventListener('submit', e => {
-    e.preventDefault(); const d = Object.fromEntries(new FormData(f));
+    e.preventDefault();
+    if (!f.name.value.trim()) {   /* 11/05 이름 비었으면: 고른 결과 → 첫 번째 결과 → 검색어 */
+      const h = f._picked || (f._hits || [])[0];
+      if (h) $('#phits').querySelector(`[data-i="${(f._hits || []).indexOf(h)}"]`)?.click();
+      if (!f.name.value.trim()) f.name.value = $('#pq').value.trim();
+      if (!f.name.value.trim()) { toast('장소를 검색하거나 이름을 넣어주세요'); f.name.focus(); return; }
+    }
+    const d = Object.fromEntries(new FormData(f));
     const prevSpot = p.spot_id;
     Object.assign(p, { type: d.type, region: (d.country !== 'KR' && (!d.region.trim() || d.region.trim() === 'domestic')) ? ((d.si || '').trim().toLowerCase().replace(/\s+/g, '') || regionEn(d.country).toLowerCase()) : (d.region.trim() || 'domestic'), name: niceName(d.name), country: d.country, address: d.address.trim() || null,
       do: d.do.trim() || null, si: d.si.trim() || null, rating: +d.rating || 0, signature: d.signature.trim() || null, desc: d.desc.trim() || null,
@@ -2051,7 +2060,7 @@ function showHits(el, hits, pick) {
   if (!hits.length) { el.hidden = false; el.innerHTML = '<button type="button" disabled>검색 결과 없음</button>'; return; }
   el.hidden = false;
   el.innerHTML = hits.map((h, i) => `<button type="button" data-i="${i}">${esc(h.name)}<small>${esc(h.address || '')} · ${h.src}</small></button>`).join('');
-  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; pick(hits[b.dataset.i]); el.hidden = true; toast('좌표 입력됨'); };
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; const h = hits[b.dataset.i]; pick(h); el.hidden = true; toast(`「${h.name}」 선택 · 이름·주소·좌표 입력됨`); };
 }
 
 /* ---------------- 지오코딩 ---------------- */
