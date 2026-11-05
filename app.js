@@ -1845,7 +1845,7 @@ function renderHomePC(d) {
     <div class="pc-hero-wrap" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 78%,transparent),color-mix(in srgb,var(--hero) 78%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><div class="pc-hero" id="pc-hero">
       <div class="bg" style="background-image:linear-gradient(90deg,color-mix(in srgb,var(--hero) 82%,transparent) 0%,color-mix(in srgb,var(--hero) 55%,transparent) 40%,color-mix(in srgb,var(--hero) 0%,transparent) 62%),linear-gradient(180deg,color-mix(in srgb,var(--hero) 55%,transparent),color-mix(in srgb,var(--hero) 0%,transparent) 30%),linear-gradient(0deg,color-mix(in srgb,var(--hero) 60%,transparent),color-mix(in srgb,var(--hero) 0%,transparent) 45%),url('${heroSrc(d.season)}')"></div>
       <div class="note"><span>${esc(d.season)} 배경 · 계절마다 자동 교체</span><button class="hero-pick" data-act="heropick">🖼 배경 바꾸기</button></div>
-      <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'journal', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '기록', '설정'][k]}</button>`).join('')}</div></nav>
+      <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'journal', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '발자취', '설정'][k]}</button>`).join('')}</div></nav>
       <div class="pc-logo"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:70px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:112px"></div>
       <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">🎨</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? '☀' : '☾'}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
       <div class="pc-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · 우리 가족 식도락</div>
@@ -2935,7 +2935,7 @@ function travelCardHtml(s, mode) {
   const bs = badgeList(s), got = bs.filter(b => b.ok).length;
   return `<div class="tm-hd"><div><p class="cap3">다녀온 곳</p><b class="serif">우리 가족 여행 지도</b></div>
       <div class="tm-hdr"><button class="tm-lvb" data-act="lived">⌂ 살았던 곳 <b>${(S.db.lived || []).length}</b></button><div class="tm-tg"><button class="${mode === 'kr' ? 'on' : ''}" data-tm="kr">국내</button><button class="${mode === 'world' ? 'on' : ''}" data-tm="world">세계</button><button class="${mode === 'globe' ? 'on' : ''}" data-tm="globe">🌐 지구본</button></div></div></div>
-    <div class="tm-body"><div class="tm-map" id="tm-map"></div>
+    <div class="tm-body"><div class="tm-mapw${S.tmFull ? ' full' : ''}"><div class="tm-map" id="tm-map"></div><button class="tm-fs" data-tmfs="1" title="${S.tmFull ? '작게 (Esc)' : '크게 보기'}">${S.tmFull ? '✕ 닫기' : '⤢ 크게 보기'}</button>${S.tmFull ? `<div class="tm-fs-modes seg">${[['kr', '국내'], ['world', '세계'], ['globe', '🌐 지구본']].map(([m, n]) => `<button data-tm="${m}" class="${(S.tmMode || 'kr') === m ? 'on' : ''}">${n}</button>`).join('')}</div>` : ''}</div>
       <div class="tm-side">
         <div class="tm-stats">
           <div><b class="num">${nDo}<small>/17</small></b><span>국내 시·도</span></div>
@@ -3026,13 +3026,14 @@ async function drawGlobe(s, C, st) {
   zb.onclick = e => { const b = e.target.closest('[data-gz]'); if (!b) return; scale = Math.max(R0 * .7, Math.min(R0 * 4, scale * (+b.dataset.gz > 0 ? 1.25 : .8))); idleAt = performance.now() + 2500; };
   requestAnimationFrame(loop);
 }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && S.tmFull) { S.tmFull = false; document.body.classList.remove('tm-full-on'); drawTravelCard(); } });   /* 11/05 여행 지도 크게 보기 닫기 */
 async function drawTravelCard(mode) {
   const el = $('#tm-card'); if (!el) return; mode ||= S.tmMode || 'kr'; S.tmMode = mode;
   const ok = await loadGeo(); if (!$('#tm-card')) return;
   const s = travelStats(); el.innerHTML = travelCardHtml(s, mode);
   if (!S.tmAnimated) { countUp(el.querySelector('.tm-stats')); S.tmAnimated = true; }   // 숫자 올라가기 (탭 처음 열 때)
   badgeCheck(badgeList(s)).forEach(n => [...el.querySelectorAll('.bdg')].find(x => x.querySelector('b')?.textContent === n)?.classList.add('new'));
-  el.onclick = e => { const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList(); };
+  el.onclick = e => { if (e.target.closest('[data-tmfs]')) { S.tmFull = !S.tmFull; document.body.classList.toggle('tm-full-on', S.tmFull); return drawTravelCard(mode); } const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList(); };
   if (!ok || !window.L) { $('#tm-map').innerHTML = '<div class="help">지도 경계를 불러오지 못했어요</div>'; return; }
   try { S.tmMap?.remove(); } catch {} S.tmMap = null;
   const cs = getComputedStyle(document.body), v = n => cs.getPropertyValue(n).trim();

@@ -1048,3 +1048,14 @@ h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b
 .fo-pick-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-3); } .fo-pick-n.on { color: var(--text-1); font-weight: 600; }
 .fo-pick:hover { border-color: var(--primary-2); }
 .vstory-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+/* 11/05 우리 가족 여행 지도 — 더 크게 + 화면 가득 보기 */
+.tm-mapw { position: relative; min-width: 0; }
+.tm-map { height: min(62vh, 520px); }
+@media (min-width: 861px) { .tm-map { height: clamp(560px, 70vh, 780px); } }
+.tm-fs { position: absolute; right: 10px; top: 10px; z-index: 500; border: 0; border-radius: 999px; padding: 7px 12px; background: color-mix(in srgb, var(--panel) 92%, transparent); color: var(--text-1); font-size: 12px; font-weight: 700; box-shadow: var(--sh-float); cursor: pointer; }
+.tm-mapw.full { position: fixed; inset: 0; z-index: 3000; background: var(--bg); }
+.tm-mapw.full .tm-map { height: 100vh; height: 100dvh; border-radius: 0; }
+.tm-mapw.full .tm-fs { top: max(12px, env(safe-area-inset-top)); right: 12px; padding: 9px 16px; font-size: 13px; }
+body.tm-full-on { overflow: hidden; }
+.tm-fs-modes { position: absolute; left: 50%; transform: translateX(-50%); top: max(12px, env(safe-area-inset-top)); z-index: 500; box-shadow: var(--sh-float); background: var(--panel); }
+@media (max-width: 860px) { .tm-mapw.full .tm-fs-modes { top: auto; bottom: max(16px, env(safe-area-inset-bottom)); } }
