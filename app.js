@@ -742,7 +742,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       <div class="vsec"><h4>함께 간 사람</h4><div class="chips" id="vwho">${[...new Set([...familyNames(), ...st.who])].map(n => `<button type="button" class="chip${st.who.has(n) ? ' on' : ''}" data-who="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="chip" data-who="+">+ 손님</button></div></div>
       <div class="vsec"><h4>별점</h4><div class="vstars" id="vstars">${[1, 2, 3, 4, 5].map(n => `<span data-r="${n}">★</span>`).join('')}<span class="num val" id="vval">—</span></div></div>
       <div class="vsec"><h4>한줄평</h4><textarea id="vmemo" class="vmemo" placeholder="예: 하준이가 순두부 국물까지 다 마심">${esc(edit?.memo || '')}</textarea></div>
-      <div class="vsec"><h4>여행기 본문 <span class="cap3">선택 · 클로드로 다듬은 글을 붙여넣기</span></h4><textarea id="vstory" class="vmemo vstory" placeholder="길게 남기고 싶은 이야기. 「여행기 글 만들기」로 재료를 복사해 클로드에 붙이면 글을 다듬어 줍니다">${esc(edit?.story || '')}</textarea>${edit ? '<button type="button" class="chip" data-act="storykit" style="margin-top:8px">✎ 여행기 글 만들기 (재료 복사)</button>' : ''}</div>
+      <div class="vsec"><h4>여행기 본문 <span class="cap3">선택 · 초안은 인터넷 없이 · 다시 누르면 다른 문장</span></h4><textarea id="vstory" class="vmemo vstory" placeholder="길게 남기고 싶은 이야기. 「여행기 글 만들기」로 재료를 복사해 클로드에 붙이면 글을 다듬어 줍니다">${esc(edit?.story || '')}</textarea><div class="vstory-acts"><button type="button" class="chip on" data-act="storydraft">✍ 바로 초안 쓰기</button>${edit ? '<button type="button" class="chip" data-act="storykit">✎ 클로드로 다듬기 (재료 복사)</button>' : ''}</div></div>
       <div class="vsec"><h4>먹은 메뉴</h4><div class="chips" id="vmenu"><button type="button" class="chip" data-menu="+">+ 메뉴</button></div></div>
       <div style="height:20px"></div></div>
     <div class="vf-foot">${edit ? '<button class="btn-line" data-act="vdelete" style="flex:0 0 auto;padding:0 16px;color:var(--danger)">기록 삭제</button>' : ''}<button class="btn-pri" data-act="save">${edit ? '수정 저장' : '기록 저장하고 스탬프 찍기'}</button></div></div>`);
@@ -759,6 +759,9 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
     if (b.dataset.act === 'vdelete') { if (!b.dataset.c) { b.dataset.c = 1; b.textContent = '정말 삭제?'; return; } p.visitLog = (p.visitLog || []).filter(v => v !== edit); p.visits = Math.max(0, (p.visits || 1) - 1); markDirty(); toast('기록 삭제'); return back ? back() : openDetail(p.id); }
     if (b.dataset.act === 'addphoto') return $('#vfile').click();
     if (b.dataset.act === 'storykit') return copyStoryKit([{ p, v: { ...edit, memo: $('#vmemo').value.trim() || edit.memo, rating: st.rating || edit.rating, who: [...st.who], menu: st.menu } }]);
+    if (b.dataset.act === 'storydraft') { const ta = $('#vstory'); if (ta.value.trim() && ta.dataset.draft !== ta.value && !confirm('지금 쓴 본문을 초안으로 바꿀까요?')) return; st.draftN = (st.draftN ?? -1) + 1;
+      const v = { ...(edit || {}), id: edit?.id || p.id + ($('#vdate').value || ''), date: $('#vdate').value, meal: $('#vmeal')?.value, memo: $('#vmemo').value.trim(), rating: st.rating || edit?.rating || 0, who: [...st.who], menu: st.menu, photos: st.photos.map(x => x.path || x.url) };
+      ta.value = draftStory(p, v, st.draftN); ta.dataset.draft = ta.value; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; toast(st.draftN ? '다른 문장으로 다시 썼어요' : '초안 완성 · 직접 다듬어도 돼요'); return; }
     if (b.dataset.rm != null) { st.photos.splice(+b.dataset.rm, 1); drawPhotos(); return; }
     if (b.dataset.r) { st.rating = +b.dataset.r; $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); return; }
     if (b.dataset.who) { if (b.dataset.who === '+') { const n = prompt('함께 간 사람 이름'); if (n && n.trim()) { st.who.add(n.trim()); b.insertAdjacentHTML('beforebegin', `<button type="button" class="chip on" data-who="${esc(n.trim())}">${esc(n.trim())}</button>`); } return; } st.who.has(b.dataset.who) ? st.who.delete(b.dataset.who) : st.who.add(b.dataset.who); b.classList.toggle('on'); return; }
@@ -2513,13 +2516,13 @@ function openFontAdd() {
       <div class="jr-tabs" style="margin-bottom:12px"><button class="${mode === 'gf' ? 'on' : ''}" data-fm="gf">구글 폰트 이름</button><button class="${mode === 'file' ? 'on' : ''}" data-fm="file">글꼴 파일</button></div>
       ${mode === 'gf' ? `<div class="ti-f"><label>구글 폰트 이름 (영문 그대로)</label><input id="fo-gf" placeholder="예: Black Han Sans · Sunflower · Hi Melody · Dongle"></div>
         <p class="cap3">fonts.google.com 에서 언어 Korean으로 찾은 이름 그대로 · <a href="https://fonts.google.com/?subset=korean" target="_blank" rel="noopener">구글 폰트 열기</a></p>`
-      : `<div class="ti-f"><label>글꼴 파일 (.woff2 · .woff · .ttf · .otf, 8MB 이하)</label><input id="fo-file" type="file" accept=".woff2,.woff,.ttf,.otf"></div>
+      : `<div class="ti-f"><label>글꼴 파일 (.woff2 · .woff · .ttf · .otf, 8MB 이하)</label><label class="fo-pick"><input id="fo-file" type="file" accept=".woff2,.woff,.ttf,.otf" hidden><span class="fo-pick-b">📁 파일 고르기</span><span class="fo-pick-n" id="fo-fname">선택한 파일 없음</span></label></div>
         <p class="cap3">예: <a href="https://noonnu.cc" target="_blank" rel="noopener">눈누</a>에서 상업적 이용 무료 글꼴 받기 · 가능하면 .woff2 (가장 작음) · 저장소 photos 옆 fonts/ 폴더에 저장</p>`}
       <div class="ti-f"><label>이름 (목록에 보일 이름)</label><input id="fo-name" placeholder="예: 검은고딕"></div>
       <div class="ti-f"><label>어디에 쓸까요</label><div class="seg tn-th fo-use">${[['both', '본문·제목'], ['head', '제목만'], ['body', '본문만']].map(([v, n], i) => `<button data-use="${v}" class="${i ? '' : 'on'}">${n}</button>`).join('')}</div></div>
       <p class="cap3" style="margin-top:8px">추가한 글꼴은 가족 모두의 글씨체 목록에 보입니다 · 고르는 건 기기마다 따로</p>
       <div id="fo-prev" class="fo-prev">가을 식도락, 어디로 갈까? 2026.11.05 Firenze</div></div></div>`);
-    const fi = $('#fo-file'); if (fi) fi.onchange = () => { file = fi.files[0] || null; if (file && !$('#fo-name').value) $('#fo-name').value = file.name.replace(/\.[^.]+$/, ''); if (file) file.arrayBuffer().then(buf => { const fam = 'jjprev' + Date.now(); new FontFace(fam, buf).load().then(ff => { document.fonts.add(ff); $('#fo-prev').style.fontFamily = `"${fam}"`; }).catch(() => toast('이 파일은 글꼴로 읽을 수 없어요')); }); };
+    const fi = $('#fo-file'); if (fi) fi.onchange = () => { file = fi.files[0] || null; $('#fo-fname').textContent = file ? `${file.name} · ${(file.size / 1048576).toFixed(1)}MB` : '선택한 파일 없음'; $('#fo-fname').classList.toggle('on', !!file); if (file && !$('#fo-name').value) $('#fo-name').value = file.name.replace(/\.[^.]+$/, ''); if (file) file.arrayBuffer().then(buf => { const fam = 'jjprev' + Date.now(); new FontFace(fam, buf).load().then(ff => { document.fonts.add(ff); $('#fo-prev').style.fontFamily = `"${fam}"`; }).catch(() => toast('이 파일은 글꼴로 읽을 수 없어요')); }); };
     const gi = $('#fo-gf'); if (gi) gi.onchange = () => { const n = gi.value.trim(); if (!n) return; if (!$('#fo-name').value) $('#fo-name').value = n; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = GF + encodeURIComponent(n).replace(/%20/g, '+'); document.head.appendChild(l); $('#fo-prev').style.fontFamily = `"${n}"`; };
     $('#sheet-inner').onclick = async e => {
       const b = e.target.closest('button'); if (!b) return;
@@ -2722,6 +2725,42 @@ function renderSettings() {
 /* ---------------- 우리 가족 기록 (블로그형 피드 · 시안 외 추가) ---------------- */
 function visitPhotos(v) { return (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []).map(photoUrl).filter(Boolean); }
 function storyHtml(t) { return String(t || '').split(/\n{2,}/).map(par => `<p>${esc(par).replace(/\n/g, '<br>')}</p>`).join(''); }
+/* 11/05 여행기 초안 (오프라인 · AI 없이) — 기록 재료로 일기체 글 조립. n = 다시 쓰기 횟수(문장 틀 바꿈) */
+function josa(w, a, b) { const c = (w || '').trim().slice(-1); if (/[가-힣]/.test(c)) return w + (((c.charCodeAt(0) - 0xAC00) % 28) ? a : b); if (/[0-9]/.test(c)) return w + ('013678'.includes(c) ? a : b); if (/[lmnr]$/i.test(c)) return w + a; return w + b; }
+function draftStory(p, v, n = 0) {
+  const seed = [...(v.id || p.id || 'x')].reduce((a, c) => a + c.charCodeAt(0), 0) + n * 7;
+  const pick = (arr, k = 0) => arr[(seed + k * 3) % arr.length];
+  const d = v.date ? new Date(v.date + 'T00:00') : null, M = d ? d.getMonth() + 1 : null;
+  const season = M ? (M <= 2 || M === 12 ? '겨울' : M <= 5 ? '봄' : M <= 8 ? '여름' : '가을') : '';
+  const when = d ? `${M}월 ${d.getDate()}일 ${'일월화수목금토'[d.getDay()]}요일` : '어느 날';
+  const fam = familyNames(), who = (v.who || []).filter(Boolean);
+  const whoTxt = who.length && fam.length && fam.every(x => who.includes(x)) && who.length === fam.length ? '가족 모두' : who.length ? who.join(', ') : '';
+  const nm = p.name, spot = p.type === 'spot', area = areaOf(p) || (p.country && p.country !== 'KR' ? ccKo(p.country) : '');
+  const meal = v.meal && !spot ? v.meal : '', di = distInfo(p), r = +v.rating || 0;
+  const menu = (v.menu || []).map(x => typeof x === 'string' ? x : x.name).filter(Boolean);
+  const ps = [];
+  /* ① 도입 */
+  const kids = who.some(x => !/^(아빠|엄마|남편|아내|와이프)$/.test(x) && fam.includes(x)), two = who.length === 2 && !kids && who.every(x => fam.includes(x));
+  const whoP = whoTxt ? (whoTxt === '가족 모두' ? '가족 모두 함께' : two ? `${who.join(', ')} 둘이서` : `${josa(whoTxt, '과', '와')} 함께`) : '';
+  ps.push([
+    pick([`${when}${season ? `, ${season} 기운이 완연한 날` : ''}.`, `${season ? season + '날, ' : ''}${when}.`, `${when}의 기록.`]),
+    [whoP, area ? `${area}에 있는` : '', `${spot ? josa(nm, '을', '를') + ' 찾았다.' : josa(nm, '에', '에') + (meal ? ` ${meal}을 먹으러 갔다.` : ' 다녀왔다.')}`].filter(Boolean).join(' ').replace(/에에 /, '에 '),
+    di ? (di.fly ? `집에서 비행기로 한참 날아가야 닿는 곳이다.` : pick([`${S.base?.name ? josa(S.base.name.replace(/\s*\(.*\)/, ''), '에서', '에서') : '집에서'} ${fmtKm(di.km)}km, 차로 ${di.min >= 60 ? Math.floor(di.min / 60) + '시간 ' + (di.min % 60 ? di.min % 60 + '분' : '') : di.min + '분'} 남짓 걸렸다.`, `가는 길은 ${fmtKm(di.km)}km 정도${di.min < 40 ? ', 생각보다 금방이었다' : di.min > 120 ? ', 꽤 먼 길이었다' : ''}.`], 1).replace(/에서에서/, '에서').replace(/ +남짓/, ' 남짓')) : ''].filter(Boolean).join(' '));
+  /* ② 본문 */
+  const body = [];
+  if (menu.length) body.push(pick([`우리가 고른 건 ${menu.join(', ')}.`, `${josa(menu.join(', '), '을', '를')} 시켰다.`, `이날의 메뉴는 ${menu.join(', ')}.`], 2));
+  const feel = spot ? { 5: ['다들 아쉬워서 쉽게 발이 안 떨어졌다.', kids ? '아이들이 제일 신나 했던 곳으로 꼽을 만했다.' : '오래도록 마음에 남을 풍경이었다.', '시간 가는 줄 모르고 보냈다.'], 4: ['기대만큼 즐거운 시간이었다.', '한 번쯤 다시 와도 좋겠다는 이야기가 나왔다.'], 3: ['무난하게 쉬어 가기 좋았다.', '특별하진 않아도 편하게 둘러봤다.'], 2: ['솔직히 기대보다는 아쉬웠다.', '다음엔 다른 곳을 찾아보기로 했다.'] }
+    : { 5: ['하나같이 맛있어서 다음에 또 오자는 말이 절로 나왔다.', '접시가 금방 비었다. 우리 가족 단골 후보.', '오래 기억에 남을 맛이었다.'], 4: ['전체적으로 만족스러운 한 끼였다.', '맛도 분위기도 괜찮았다.'], 3: ['무난한 한 끼였다.', '그럭저럭 괜찮았다.'], 2: ['아쉬운 점이 더 많았다.', '다시 찾을 것 같지는 않다.'] };
+  if (p.desc && p.desc.length < 120) body.push(/[다요]\.?$/.test(p.desc.trim()) ? `참고로 ${josa(nm, '은', '는')} ${p.desc.trim().replace(/\.?$/, '.')}` : `이곳의 포인트는 ${p.desc.trim().replace(/\.$/, '')}.`);
+  if (r) body.push(pick(feel[Math.max(2, Math.min(5, Math.round(r)))], 3) + ` 우리 별점은 ${r}점.`);
+  if (v.memo) body.push(pick([`그날의 한 줄을 남기자면 — "${v.memo}"`, `기억해 두고 싶은 장면: ${v.memo.replace(/[.!?~]*$/, '')}.`, `"${v.memo}" 이 말이 이날을 다 설명해 준다.`], 4));
+  if (body.length) ps.push(body.join(' '));
+  /* ③ 마무리 */
+  const ph = visitPhotos(v).length;
+  ps.push([ph ? pick([`사진 ${ph}장에 그날을 담아 두었다.`, `남은 사진 ${ph}장을 보니 그때가 또 생각난다.`], 5) : '',
+    pick(r >= 4 ? ['다음에 또 오자.', `${season ? season + '이 다시 오면 ' : '다음에 '}또 와야지.`, '좋은 하루였다.'] : r && r <= 2 ? ['그래도 함께라서 즐거운 하루였다.', '이것도 다 추억.'] : ['오늘도 무사히, 즐거운 하루.', '그렇게 하루가 지나갔다.'], 6)].filter(Boolean).join(' '));
+  return ps.join('\n\n');
+}
 async function copyStoryKit(list, trip) {                         // 여행기 본문 재료 → 클로드에 붙여 블로그 글쓰기 스킬로 다듬기 (준준트립 기록용)
   list = (list || []).filter(Boolean); if (!list.length) return toast('기록이 없습니다');
   const leg = p => { const b = baseFor ? baseFor(p) : S.base; return b && hasCoord(b) && hasCoord(p) ? `${b.name}에서 약 ${fmtKm(haversine(b, p))}km` : ''; };
@@ -3445,7 +3484,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();

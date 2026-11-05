@@ -1042,3 +1042,9 @@ h1, h2, h3, .sheet-title, .hd b, .jr-sheet .hd b, .tp-hd b, .tm-hd b, .gr-band b
 .fo-add { border-style: dashed; justify-content: center; } .fo-add b { color: var(--primary-2); }
 .fo-prev { margin-top: 14px; padding: 16px; border-radius: 12px; background: var(--bg-subtle); font-size: 20px; line-height: 1.5; color: var(--text-1); }
 .fo:has(.fo-x) b { padding-right: 20px; word-break: break-all; }
+/* 11/05 글꼴 파일 고르기 — 기본 파일 버튼 대신 앱 버튼 */
+.ti-f .fo-pick { margin: 0; color: inherit; display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); cursor: pointer; }
+.fo-pick-b { flex: none; padding: 9px 14px; border-radius: 9px; background: var(--primary); color: var(--on-primary); font-size: 13px; font-weight: 700; }
+.fo-pick-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-3); } .fo-pick-n.on { color: var(--text-1); font-weight: 600; }
+.fo-pick:hover { border-color: var(--primary-2); }
+.vstory-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
