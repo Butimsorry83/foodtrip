@@ -1084,3 +1084,13 @@ body.tm-full-on { overflow: hidden; }
 .rd-tip { grid-column: 1 / -1; margin: 2px 0 0; }
 .lb-acts { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; width: max-content; max-width: 92vw; }
 .lb-acts .lb-gr { position: static; transform: none; }
+/* 11/06 성장 앨범 음악 · 날짜 확인 */
+.mu-list { display: flex; flex-direction: column; gap: 8px; }
+.mu { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--text-1); text-align: left; cursor: pointer; }
+.mu b { font-size: 15px; } .mu span { font-size: 12px; color: var(--text-3); } .mu.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.gr-warn { position: absolute; left: 6px; top: 6px; font-style: normal; font-size: 10px; font-weight: 800; background: var(--warning); color: #fff; padding: 3px 7px; border-radius: 999px; }
+.gr-ph { position: relative; }
+.gr-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.lb-gr.date, .lb-date { position: absolute; left: 50%; transform: translateX(-50%); bottom: 116px; z-index: 2; }
+.lb-gr.date { background: rgba(255,255,255,.92); color: #10202a; }
+.lb-date { height: 42px; border-radius: 999px; border: 0; padding: 0 16px; font-size: 15px; background: #fff; color: #10202a; }

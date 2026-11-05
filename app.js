@@ -502,7 +502,7 @@ function emptyAct(act) {
   if (act === 'clear') { S.flags.clear(); S.tags.clear(); S.scope = 'all'; $$('#f-scope button').forEach(x => x.classList.toggle('on', x.dataset.v === 'all')); renderRegionChips(); renderTagChips(); renderList(); }
   if (act === 'km') { const nextKm = ({ 10: 30, 30: 60, 60: null })[S.radius] ?? null; S.radius = nextKm; LS.set('radius', S.radius); $$('#km-pills button').forEach(b => b.classList.toggle('on', S.radius != null && +b.dataset.km <= S.radius)); $('#fab-km').textContent = S.radius ? S.radius + 'km' : 'km'; $('#fab-km').classList.toggle('on', !!S.radius); renderList(); }
   if (act === 'allregion') { S.region = 'all'; LS.set('region', 'all'); renderRegionChips(); renderTagChips(); renderList(); fitToVisible(); }
-  if (act === 'newplace') { const foreign = /[A-Za-z]{3,}/.test(S.q); const p = { id: uid(), type: foreign ? 'spot' : 'restaurant', country: foreign ? 'OTHER' : S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : S.region, name: S.q.trim(), cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, tags: [], visitLog: [] }; openPlaceForm(p); if (p.name) setTimeout(() => $('#pf [data-act=psearch]')?.click(), 50); }
+  if (act === 'newplace') { const foreign = /[A-Za-z]{3,}/.test(S.q); const rc = S.region && !['all', 'domestic'].includes(S.region) ? (S.db.places.find(x => x.region === S.region && x.country && x.country !== 'KR')?.country || regionCountry(S.region)) : null; /* 11/06 Italy 필터 중이면 이탈리아 */ const p = { id: uid(), type: foreign ? 'spot' : 'restaurant', country: rc && rc !== 'OTHER' && rc !== 'KR' ? rc : foreign ? 'OTHER' : S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : S.region, name: S.q.trim(), cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, tags: [], visitLog: [] }; openPlaceForm(p); if (p.name) setTimeout(() => $('#pf [data-act=psearch]')?.click(), 50); }
 }
 function renderList() {
   const items = sorted(filtered());
@@ -2007,7 +2007,7 @@ function openPlaceForm(p) {
     <div class="sheet-head"><h2>${isNew ? '장소 추가' : '수정'}</h2><button class="close" data-act="close">✕</button></div>
     <form class="form" id="pf">
       ${isNew ? '' : '<label class="pf-name">이름 <small style="color:var(--text-3)">(화면에 보이는 이름 · 한글/영문 자유)</small><input name="name" value="' + esc(p.name) + '" required></label>'}
-      <div class="inline"><label>${isNew ? '장소 검색 (카카오·OSM)' : '위치 다시 찾기 <small style="color:var(--text-3)">(이름은 안 바뀜 · 좌표만)</small>'}<input id="pq" value="" placeholder="${isNew ? '상호명 + 지역' : '예: ' + esc(p.address || p.name)}"></label><button type="button" class="primary" data-act="psearch">검색</button></div>
+      <div class="inline"><label>${isNew ? '장소 검색 (카카오·OSM)' : '위치 다시 찾기 <small style="color:var(--text-3)">(이름은 안 바뀜 · 좌표만)</small>'}<input id="pq" value="${isNew ? esc(p.name || '') : ''}" placeholder="${isNew ? '상호명 + 지역' : '예: ' + esc(p.address || p.name)}"></label><button type="button" class="primary" data-act="psearch">검색</button></div>
       <div class="hits" id="phits" hidden></div>
       ${isNew ? '<div class="pf-picked" id="pf-picked" hidden></div><label class="pf-name">이름 <small style="color:var(--text-3)">(검색 결과를 고르면 자동 · 비워 두면 첫 번째 결과로)</small><input name="name" value="" placeholder="검색 결과를 누르면 채워져요"></label>' : ''}
       <div class="two">
@@ -2843,10 +2843,18 @@ function openGrowth(opts) {
     if (b.dataset.grwho != null) return openGrowth({ ...opts, gwho: b.dataset.grwho });
     if (b.dataset.act === 'grup') return isRO() ? goToken() : openGrowthUpload(who);
     if (b.dataset.act === 'grplay') return growthPlay(who);
+    if (b.dataset.act === 'grmusic') return openGrowthMusic(() => openGrowth({ page: true, gwho: who }));
     if (b.dataset.act === 'grbirth') return isRO() ? goToken() : openGrowthBirth();
     if (b.dataset.gr) { const list = growthEnts(who), k = list.findIndex(g => g.id === b.dataset.gr);
       openLightbox(list.map(g => photoUrl(g.photo)), k, who || '성장 앨범');
-      const lb = $('#lb'); if (lb && !isRO()) { const del = document.createElement('button'); del.className = 'lb-gr del'; del.textContent = '이 사진 앨범에서 빼기'; del.onclick = ev => { ev.stopPropagation(); if (!del.dataset.c) { del.dataset.c = 1; del.textContent = '정말 뺄까요? (원본 파일은 남음)'; return; } const cur = list[k]; S.db.growth = (S.db.growth || []).filter(g => g.id !== cur.id); markDirty(); lb.remove(); toast('성장 앨범에서 뺌'); openGrowth(opts); }; lb.appendChild(del); }
+      const lb = $('#lb'); if (lb && !isRO()) {
+        const curG = () => { const src = lb.querySelector('img')?.getAttribute('src'); return list.find(g => photoUrl(g.photo) === src) || list[k]; };   /* 넘겨 본 사진 기준 */
+        const dt = document.createElement('button'); dt.className = 'lb-gr date'; dt.textContent = '📅 날짜 고치기';
+        dt.onclick = ev => { ev.stopPropagation(); const g = curG(); const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'lb-date'; inp.value = g.date || ''; inp.max = today(); inp.onclick = e2 => e2.stopPropagation();
+          inp.onchange = () => { if (!inp.value) return; g.date = inp.value; markDirty(); toast(`날짜 ${inp.value.replace(/-/g, '.')}로 고침`); lb.remove(); openGrowth({ page: true, gwho: who }); };
+          dt.replaceWith(inp); inp.focus(); try { inp.showPicker?.(); } catch {} };
+        lb.appendChild(dt);
+        const del = document.createElement('button'); del.className = 'lb-gr del'; del.textContent = '이 사진 앨범에서 빼기'; del.onclick = ev => { ev.stopPropagation(); if (!del.dataset.c) { del.dataset.c = 1; del.textContent = '정말 뺄까요? (원본 파일은 남음)'; return; } const cur = list[k]; S.db.growth = (S.db.growth || []).filter(g => g.id !== cur.id); markDirty(); lb.remove(); toast('성장 앨범에서 뺌'); openGrowth(opts); }; lb.appendChild(del); }
       return; }
   };
 }
@@ -3254,6 +3262,8 @@ function openLivedList() {
     <button class="btn-line rw" data-act="lvadd" style="margin-top:12px;width:100%">＋ 살았던 곳 추가</button></div></div>`);
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') { closeSheet(); return drawTravelCard(); } if (b.dataset.act === 'lvadd') return isRO() ? goToken() : openLivedForm(); if (b.dataset.lv) return isRO() ? goToken() : openLivedForm((S.db.lived || []).find(x => x.id === b.dataset.lv)); };
 }
+function lvUntag(h) { return (h?.photos || []).filter(x => !(x.who || []).length); }
+function lvPre(h) { if (!lvUntag(h).length) return []; const by = (S.db.meta.family || {}).birthYear || {}, end = h.to || new Date().getFullYear(); return coreFamily().filter(n => !by[n] || by[n] <= end); }   /* 사람 안 고른 사진이 있으면 그때 함께 산 우리 가족 미리 선택 */
 async function openLivedForm(h) {
   await loadGeo(); const st = { ...(h || { country: 'KR' }) };
   const all = (S.geoWorld?.features || []).map(f => [f.properties.cc, f.properties.n]).filter(([c]) => c && c.length === 2).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
@@ -3271,12 +3281,12 @@ async function openLivedForm(h) {
     <p class="cap3" id="lv-pos" style="margin-top:8px">${st.lat != null ? `위치 지정됨 · ${(+st.lat).toFixed(4)}, ${(+st.lng).toFixed(4)}` : '검색 결과를 고르거나, 지도를 직접 눌러 위치를 정하세요'}</p>
     <div class="vsec" style="margin-top:14px"><h4>그 집에서의 사진 <span class="cap3">촬영일 자동 · 장수 제한 없음</span></h4>
       <div class="lv-phs" id="lv-phs"></div><button type="button" class="btn-line" data-act="lvpick" style="width:100%;margin-top:8px">＋ 사진 올리기</button><input type="file" id="lv-file" accept="image/*" multiple hidden>
-      <div class="lv-gr"><span class="cap3">누구 사진인가요 (선택)</span><div class="chips" id="lv-who">${familyNames().map(n => `<button type="button" class="chip" data-lw="${esc(n)}">${esc(n)}</button>`).join('')}</div>
-      <label class="ti-chk"><input type="checkbox" id="lv-togr" checked> 고른 사람의 🌱 성장 앨범에도 넣기</label></div></div>
+      <div class="lv-gr"><span class="cap3">누구 사진인가요 (선택)${lvUntag(h).length ? ` · <b style="color:var(--warning)">사람 안 고른 사진 ${lvUntag(h).length}장 있음 → 고르고 저장하면 함께 지정</b>` : ''}</span><div class="chips" id="lv-who">${familyNames().map(n => `<button type="button" class="chip${lvPre(h).includes(n) ? ' on' : ''}" data-lw="${esc(n)}">${esc(n)}</button>`).join('')}</div>
+      <label class="ti-chk"><input type="checkbox" id="lv-togr" checked> 고른 사람의 🌱 성장 앨범에도 넣기 <span class="cap3">(사진 날짜에 태어난 사람만)</span></label></div></div>
     <p class="cap3" style="margin-top:12px">⚠ 저장소가 공개라 주소가 보일 수 있어요. 동·아파트 이름 정도로만 넣는 것을 권장합니다</p>
     ${h ? '<button class="btn-line" data-act="lvdel" style="margin-top:16px;color:var(--danger)">삭제</button>' : ''}</div></div>`);
   $('#lv-q').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('[data-act=lvfind]').click(); } };
-  st.photos = (st.photos || []).slice(); const newPh = [], lwho = new Set();   // 사진: 기존(path) + 새로 고른 것(b64)
+  st.photos = (st.photos || []).slice(); const newPh = [], lwho = new Set(lvPre(h));   // 사진: 기존(path) + 새로 고른 것(b64)
   const drawPh = () => { $('#lv-phs').innerHTML = [...st.photos.map((x, i) => `<div class="lv-ph" style="background-image:url('${photoUrl(x.path)}')"><small>${esc((x.date || '').slice(0, 7).replace('-', '.'))}</small><button type="button" data-lvrm="o${i}">✕</button></div>`), ...newPh.map((x, i) => `<div class="lv-ph new" style="background-image:url('${x.url}')"><small>${esc((x.date || '').slice(0, 7).replace('-', '.'))}</small><button type="button" data-lvrm="n${i}">✕</button></div>`)].join(''); };
   drawPh();
   $('#lv-file').onchange = async e => { for (const f of [...e.target.files]) { try { const ex = exifDate(await f.slice(0, 256 * 1024).arrayBuffer()); const b64 = await resizeImage(f); const lm0 = f.lastModified ? new Date(f.lastModified) : null;
@@ -3306,8 +3316,11 @@ async function openLivedForm(h) {
         const up = await uploadPhotos(newPh, `lived/${it.id}`, { who: [...lwho], toGrowth: !!toGr, memo: it.name, onStep: (i, n) => { b.textContent = `사진 ${i}/${n}`; } });   // 커밋 1번
         it.photos.push(...up);
         it.photos.sort((a, c) => (a.date || '').localeCompare(c.date || '')); }
+      let nTag = 0; if (lwho.size) { const by = (S.db.meta.family || {}).birthYear || {}; S.db.growth ||= []; const inGr = new Set(S.db.growth.map(g => g.photo));   /* 11/06 사람 안 고른 기존 사진 → 고른 사람(그 날짜에 태어난 사람만) + 성장 앨범 */
+        for (const x of it.photos) { if ((x.who || []).length) continue; const y = +(x.date || '').slice(0, 4); const w = [...lwho].filter(n => !by[n] || !y || by[n] <= y); if (!w.length) continue; x.who = w; nTag++;
+          if ($('#lv-togr')?.checked && !inGr.has(x.path)) { S.db.growth.push({ id: uid('g'), who: w, date: x.date || null, photo: x.path, memo: it.name }); inGr.add(x.path); } } }
       S.db.lived ||= []; const i = S.db.lived.findIndex(x => x.id === it.id); if (i >= 0) S.db.lived[i] = it; else S.db.lived.push(it);
-      markDirty(); toast('살았던 곳 저장'); return openLivedList(); }
+      markDirty(); toast(nTag ? `살았던 곳 저장 · 사진 ${nTag}장 사람 지정${$('#lv-togr')?.checked ? '·성장 앨범 추가' : ''}` : '살았던 곳 저장', 3500); return openLivedList(); }
   };
 }
 
@@ -3328,10 +3341,10 @@ function growthHtml(who) {
   const fam = familyNames(), list = growthEnts(who), years = [...new Set(list.map(g => (g.date || '').slice(0, 4) || '날짜 없음'))];
   const by = (S.db.meta.family || {}).birthYear || {};
   return `<div class="gr-hd"><div class="gr-people">${['', ...fam].map(n => `<button class="chip${(who || '') === n ? ' on' : ''}" data-grwho="${esc(n)}">${n ? esc(n) + (by[n] ? ` <small>${by[n]}</small>` : '') : '전체'}</button>`).join('')}</div>
-      <div class="gr-acts"><button class="btn-pri rw" data-act="grup">＋ 사진 올리기</button><button class="btn-line" data-act="grplay" ${list.length ? '' : 'disabled'}>▶ 연도순 재생</button><button class="btn-line rw" data-act="grbirth" title="나이 표시용 · 생년만 저장">생년 설정</button></div></div>
+      <div class="gr-acts"><button class="btn-pri rw" data-act="grup">＋ 사진 올리기</button><button class="btn-line" data-act="grplay" ${list.length ? '' : 'disabled'}>▶ 연도순 재생</button><button class="btn-line" data-act="grmusic" title="재생 음악">♪ ${esc(musicLabel())}</button><button class="btn-line rw" data-act="grbirth" title="나이 표시용 · 생년만 저장">생년 설정</button></div></div>
     ${list.length ? years.map(y => { const ys = list.filter(g => ((g.date || '').slice(0, 4) || '날짜 없음') === y);
-      return `<section class="gr-year"><div class="gr-band"><b class="serif">${y}</b><span>${who && growthAge(who, ys[0].date) ? esc(who + ' · ' + growthAge(who, ys[0].date)) : !who ? fam.filter(n => by[n] && y !== '날짜 없음').map(n => `${n} ${+y - by[n] + 1}살`).join(' · ') : ''}</span><small>${ys.length}장</small></div>
-        <div class="gr-grid">${ys.map(g => `<button class="gr-ph" data-gr="${g.id}" style="background-image:url('${photoUrl(g.photo)}')"><span>${esc((g.date || '').slice(5).replace('-', '.'))}${!who && (g.who || []).length ? ' · ' + esc(g.who.join('·')) : ''}</span></button>`).join('')}</div></section>`; }).join('')
+      return `<section class="gr-year"><div class="gr-band"><b class="serif">${y}</b><span>${who && growthAge(who, ys[0].date) ? esc(who + ' · ' + growthAge(who, ys[0].date)) : !who ? fam.filter(n => by[n] && y !== '날짜 없음' && +y >= by[n]).map(n => `${n} ${+y - by[n] + 1}살`).join(' · ') : ''}</span><small>${ys.length}장</small></div>
+        <div class="gr-grid">${ys.map(g => `<button class="gr-ph" data-gr="${g.id}" style="background-image:url('${photoUrl(g.photo)}')">${g.date && (g.who || []).some(n => by[n] && +g.date.slice(0, 4) < by[n]) ? '<i class="gr-warn" title="태그한 사람이 태어나기 전 날짜예요">날짜 확인</i>' : ''}<span>${esc((g.date || '').slice(5).replace('-', '.'))}${!who && (g.who || []).length ? ' · ' + esc(g.who.join('·')) : ''}</span></button>`).join('')}</div></section>`; }).join('')
       : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>성장 앨범이 비어 있어요</b><p class="cap">「＋ 사진 올리기」로 아이·가족 사진을 넣으면 연도별로 쌓입니다. 방문 기록 사진은 크게 보기에서 「🌱 성장 앨범」으로 바로 넣을 수 있어요</p></div>`}`;
 }
 function openGrowthUpload(who0) {
@@ -3369,23 +3382,73 @@ function openGrowthBirth() {
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') return closeSheet();
     if (b.dataset.act === 'bysave') { const o = {}; $$('[data-by]').forEach(i => { if (+i.value) o[i.dataset.by] = +i.value; }); S.db.meta.family ||= {}; S.db.meta.family.birthYear = o; markDirty(); closeSheet(); toast('생년 저장'); openJournal({ page: true, growth: true, gwho: S.gwho || '' }); } };
 }
+/* 11/06 성장 앨범 재생 음악 — 기본: 앱이 직접 연주하는 오르골(Web Audio, 저작권 무관) · 내 음악 파일(가족 공유, music/) · 끄기 */
+function musicPref() { return S.db.meta.growthMusic || { kind: 'box' }; }
+function musicLabel() { const m = musicPref(); return m.kind === 'off' ? '음악 끔' : m.kind === 'file' ? (m.name || '내 음악') : '오르골'; }
+function musicBox() {   /* 잔잔한 오르골: C–Am–F–G 아르페지오 + 은은한 메아리, 16마디 반복 */
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+  const ac = new AC(), out = ac.createGain(); out.gain.value = 0; out.connect(ac.destination);
+  const dl = ac.createDelay(); dl.delayTime.value = .33; const fb = ac.createGain(); fb.gain.value = .28; const wet = ac.createGain(); wet.gain.value = .35; dl.connect(fb); fb.connect(dl); dl.connect(wet); wet.connect(out);
+  const hz = n => 440 * 2 ** ((n - 69) / 12);
+  const prog = [[60, 64, 67, 72], [57, 60, 64, 69], [53, 57, 60, 65], [55, 59, 62, 67]], pat = [0, 1, 2, 3, 2, 1, 2, 3];
+  const mel = [76, 74, 72, 74, 76, 76, 76, null, 74, 74, 74, null, 76, 79, 79, null];
+  const note = (n, t, len, vol, type = 'sine') => { const o = ac.createOscillator(), g = ac.createGain(), o2 = ac.createOscillator(), g2 = ac.createGain(); o.type = type; o.frequency.value = hz(n); o2.type = 'sine'; o2.frequency.value = hz(n) * 4; g2.gain.value = .08;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0008, t + len);
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(out); g.connect(dl); o.start(t); o2.start(t); o.stop(t + len + .05); o2.stop(t + len + .05); };
+  const beat = .3; let bar = 0, next = ac.currentTime + .1, alive = true, tm = null;
+  const sched = () => { if (!alive) return; while (next < ac.currentTime + 1.2) { const ch = prog[bar % 4];
+      pat.forEach((k, j) => note(ch[k], next + j * beat, 1.6, .09, 'triangle'));
+      note(ch[0] - 12, next, 2.4, .07);
+      const m1 = mel[(bar * 2) % mel.length], m2 = mel[(bar * 2 + 1) % mel.length];
+      if (bar % 8 >= 4) { if (m1) note(m1, next, 1.2, .07); if (m2) note(m2, next + beat * 4, 1.2, .07); }
+      next += beat * 8; bar++; }
+    tm = setTimeout(sched, 300); };
+  ac.resume?.(); sched(); out.gain.linearRampToValueAtTime(.9, ac.currentTime + 1.5);
+  return { stop() { alive = false; clearTimeout(tm); try { out.gain.cancelScheduledValues(ac.currentTime); out.gain.setValueAtTime(out.gain.value, ac.currentTime); out.gain.linearRampToValueAtTime(0, ac.currentTime + .8); setTimeout(() => ac.close(), 900); } catch {} },
+    mute(m) { try { out.gain.setTargetAtTime(m ? 0 : .9, ac.currentTime, .15); } catch {} } };
+}
+function musicStart() {
+  const m = musicPref(); if (m.kind === 'off') return null;
+  if (m.kind === 'file' && m.path) { const src = m.path.startsWith('local:') ? LS.get('music', {})[m.path] : (/^https?:/.test(m.path) ? m.path : rawUrl(m.path)); if (src) { const a = new Audio(src); a.loop = true; a.volume = 0; a.play().catch(() => {}); let v = 0; const fi = setInterval(() => { v = Math.min(.8, v + .08); a.volume = v; if (v >= .8) clearInterval(fi); }, 120);
+      return { stop() { clearInterval(fi); let w = a.volume; const fo = setInterval(() => { w = Math.max(0, w - .1); a.volume = w; if (!w) { clearInterval(fo); a.pause(); } }, 80); }, mute(x) { a.muted = x; } }; } }
+  return musicBox();
+}
+function openGrowthMusic(back) {
+  const m = musicPref(); let file = null;
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">닫기</button><b>성장 앨범 음악</b><span></span></div><div class="vf-scroll" style="padding:16px">
+    <div class="mu-list">${[['box', '🎵 오르골 (기본)', '앱이 직접 연주하는 잔잔한 곡 · 데이터 안 씀'], ['file', '📁 내 음악', m.kind === 'file' && m.name ? m.name : 'mp3 · m4a 파일 올리기 (15MB 이하)'], ['off', '🔇 음악 끄기', '사진만 재생']].map(([k, t, d]) => `<button class="mu${m.kind === k ? ' on' : ''}" data-mu="${k}"><b>${t}</b><span>${esc(d)}</span></button>`).join('')}</div>
+    <button class="btn-line" data-act="mutest" style="margin-top:12px;width:100%">▶ 미리 듣기 (5초)</button>
+    <div id="mu-file" ${m.kind === 'file' ? '' : 'hidden'} style="margin-top:14px"><label class="fo-pick"><input id="mu-in" type="file" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav" hidden><span class="fo-pick-b">📁 음악 파일 고르기</span><span class="fo-pick-n" id="mu-fname">${m.kind === 'file' && m.name ? esc(m.name) : '선택한 파일 없음'}</span></label>
+      <p class="cap3" style="margin-top:6px">가족 모두에게 같이 적용 · 저장소 music/ 폴더에 저장 · 저작권 있는 곡은 가족끼리만 보는 용도로</p></div></div></div>`);
+  const fi = $('#mu-in'); if (fi) fi.onchange = async () => { file = fi.files[0]; if (!file) return; if (file.size > 15 * 1048576) { toast('15MB 이하 파일만 가능해요'); return; }
+    $('#mu-fname').textContent = `${file.name} · 올리는 중…`; const buf = await file.arrayBuffer(); let bin = ''; const u8 = new Uint8Array(buf); for (let k = 0; k < u8.length; k += 32768) bin += String.fromCharCode.apply(null, u8.subarray(k, k + 32768));
+    const ext = (file.name.match(/\.(mp3|m4a|aac|ogg|wav)$/i) || [, 'mp3'])[1].toLowerCase(); let path = null;
+    if (S.token && !OFFLINE) { try { path = (await ghPutFiles([{ path: `music/growth_${Date.now().toString(36)}.${ext}`, b64: btoa(bin) }], `jjtrip: music ${file.name}`))[0]; } catch (err) { toast('업로드 실패: ' + err.message, 3500); } }
+    if (!path) { if (file.size > 3 * 1048576) { $('#mu-fname').textContent = '선택한 파일 없음'; return toast('토큰 없는 기기는 3MB 이하만 이 기기에 저장돼요'); } const lm = LS.get('music', {}); path = 'local:music:' + Date.now().toString(36); lm[path] = `data:${file.type || 'audio/mpeg'};base64,${btoa(bin)}`; LS.set('music', lm); }
+    S.db.meta.growthMusic = { kind: 'file', path, name: file.name.replace(/\.[^.]+$/, '') }; markDirty(); $('#mu-fname').textContent = file.name; toast('성장 앨범 음악으로 지정'); };
+  let test = null;
+  $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.act === 'back') { test?.stop(); return back ? (closeSheet(), back()) : closeSheet(); }
+    if (b.dataset.mu) { const k = b.dataset.mu; $$('.mu').forEach(x => x.classList.toggle('on', x === b)); $('#mu-file').hidden = k !== 'file'; if (k !== 'file' || musicPref().path) { S.db.meta.growthMusic = { ...musicPref(), kind: k }; markDirty(); } if (k === 'file' && !musicPref().path) $('#mu-in').click(); return; }
+    if (b.dataset.act === 'mutest') { test?.stop(); test = musicStart(); if (!test) return toast('음악 꺼짐'); b.textContent = '♪ 재생 중…'; setTimeout(() => { test?.stop(); test = null; b.textContent = '▶ 미리 듣기 (5초)'; }, 5000); } };
+}
 function growthPlay(who) {                                         // 연도순 재생 (전체 화면 · 자동 넘김)
   const list = growthEnts(who); if (!list.length) return;
   document.getElementById('grplay')?.remove(); const el = document.createElement('div'); el.id = 'grplay'; el.className = 'grplay'; document.body.appendChild(el);
-  let i = 0, on = true, tm = null;
-  let lastY = null;
+  let i = 0, on = true, tm = null, muted = !!LS.get('grMute', false);
+  let lastY = null; const mus = musicStart(); mus?.mute(muted);
   const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []); const newY = y && y !== lastY && !REDUCE(); lastY = y;
     el.innerHTML = `<div class="gp-img" style="background-image:url('${photoUrl(g.photo)}')"></div><div class="gp-cap"><b class="serif">${esc(y || '')}</b><span>${esc(names.map(n => n + (growthAge(n, g.date) ? ' ' + growthAge(n, g.date) : '')).join(' · '))}</span>${g.memo ? `<em class="hand">${esc(g.memo)}</em>` : ''}<small class="num">${esc((g.date || '').replace(/-/g, '.'))} · ${i + 1}/${list.length}</small></div>
       <div class="gp-bar"><i style="width:${(i + 1) / list.length * 100}%"></i></div>
       ${newY ? `<div class="gp-title"><div class="big">${[...y].map((c, k) => `<span style="animation-delay:${(k * .07).toFixed(2)}s">${c}</span>`).join('')}</div><div class="sub">${esc(names.map(n => (n + (growthAge(n, g.date) ? ' · ' + growthAge(n, g.date) : ''))).join('  '))}</div></div>` : ''}
-      <div class="gp-ctl"><button data-gp="-1">‹</button><button data-gp="0">${on ? '❚❚' : '▶'}</button><button data-gp="1">›</button><button data-gp="x">✕</button></div>`;
+      <div class="gp-ctl"><button data-gp="-1">‹</button><button data-gp="0">${on ? '❚❚' : '▶'}</button><button data-gp="1">›</button>${mus ? `<button data-gp="m" title="음악">${muted ? '🔇' : '🔊'}</button>` : ''}<button data-gp="x">✕</button></div>`;
     const nx = list[i + 1]; if (nx) new Image().src = photoUrl(nx.photo); };
   const go = d => { i = Math.max(0, Math.min(list.length - 1, i + d)); draw(); };
   const tick = () => { clearTimeout(tm); if (!on) return; tm = setTimeout(() => { if (i >= list.length - 1) { on = false; draw(); return; } go(1); tick(); }, el.querySelector('.gp-title') ? 4000 : 2800); };
-  const close = () => { clearTimeout(tm); el.remove(); document.removeEventListener('keydown', key); };
+  const close = () => { clearTimeout(tm); mus?.stop(); el.remove(); document.removeEventListener('keydown', key); };
   const key = e => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') { go(1); tick(); } else if (e.key === 'ArrowLeft') { go(-1); tick(); } else if (e.key === ' ') { e.preventDefault(); on = !on; draw(); tick(); } };
   document.addEventListener('keydown', key);
-  el.onclick = e => { const b = e.target.closest('[data-gp]'); if (!b) return; const a = b.dataset.gp; if (a === 'x') return close(); if (a === '0') { on = !on; draw(); return tick(); } go(+a); tick(); };
+  el.onclick = e => { const b = e.target.closest('[data-gp]'); if (!b) return; const a = b.dataset.gp; if (a === 'x') return close(); if (a === 'm') { muted = !muted; LS.set('grMute', muted); mus?.mute(muted); return draw(); } if (a === '0') { on = !on; draw(); return tick(); } go(+a); tick(); };
   draw(); tick();
 }
 function growthAddFromVisit(path, date, anchor) {                   // 방문 기록 사진 → 성장 앨범 (같은 파일 재사용, 새로 안 올림)
@@ -3568,7 +3631,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
