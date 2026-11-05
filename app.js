@@ -60,7 +60,9 @@ function roadEst(km, country) {           // 직선 → 도로거리·소요시�
   const road = km * f; return { road, min: Math.round(road / v * 60) + 5 };
 }
 function fmtMin(m) { return m == null ? '—' : m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`; }
-function stars(n) { return n ? '★'.repeat(n) + '<span style="opacity:.25">' + '★'.repeat(5 - n) + '</span>' : '<span style="opacity:.35">미평가</span>'; }
+/* 11/06 별점 반 개: 4.5 → ★★★★ + 반쪽 ★ */
+function starHtml(n, dim = .25) { n = Math.round((+n || 0) * 2) / 2; const f = Math.floor(n), h = n - f >= .5; return '★'.repeat(f) + (h ? '<span class="hst">★</span>' : '') + `<span style="opacity:${dim}">` + '★'.repeat(5 - f - (h ? 1 : 0)) + '</span>'; }
+function stars(n) { return n ? starHtml(n) : '<span style="opacity:.35">미평가</span>'; }
 function toast(msg, ms = 2200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(t._t); t._t = setTimeout(() => t.hidden = true, ms); }
 function uid(p = 'p') { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function placeById(id) { return S.db.places.find(p => p.id === id) || S.tmpPlaces?.get(id); }   // tmp: 플래너가 카카오에서 임시로 가져온 현지 관광지
@@ -440,9 +442,9 @@ function ratingOf(p) { if (p.rating) return p.rating; if (p.type === 'restaurant
 function renderRegionChips() {
   const el = $('#f-region'); if (!el) return;
   const regs = regionsInDb();
-  el.innerHTML = regs.map(([r, n]) => `<button data-v="${r}" class="${S.region === r ? 'on' : ''}">${REGION_LABEL[r] || niceName(r)} <span class="mono" style="opacity:.6">${n}</span></button>`).join('')
+  el.innerHTML = regs.map(([r, n]) => `<button data-v="${r}" class="${S.region === r ? 'on' : ''}">${regionLabel(r)} <span class="mono" style="opacity:.6">${n}</span></button>`).join('')
     + `<button data-v="all" class="${S.region === 'all' ? 'on' : ''}">전체</button>`;
-  const dd = $('#region-dd'); if (dd) { dd.textContent = (S.region === 'all' ? '전체 지역' : REGION_LABEL[S.region] || niceName(S.region)) + ' ▾'; dd.classList.toggle('on', S.region !== 'all'); }
+  const dd = $('#region-dd'); if (dd) { dd.textContent = (S.region === 'all' ? '전체 지역' : regionLabel(S.region)) + ' ▾'; dd.classList.toggle('on', S.region !== 'all'); }
   const sd = $('#season-dd'); if (sd) { const cur = ['봄', '여름', '가을', '겨울'].find(x => S.flags.has(x)); sd.textContent = (cur || '계절') + ' ▾'; sd.classList.toggle('on', !!cur); }
   $$('#f-season button[data-v]').forEach(x => x.classList.toggle('on', S.flags.has(x.dataset.v)));
   $('#base-name2') && ($('#base-name2').textContent = baseShort());
@@ -492,7 +494,7 @@ function rowHtml(p) {
 }
 function filterCount() { return S.flags.size + S.tags.size + (S.scope !== 'all' ? 1 : 0) + (S.radius ? 1 : 0); }
 function emptyHtml() {                                         // 시안 11a: 결과 없음
-  const where = S.region === 'all' ? '내 리스트' : (REGION_LABEL[S.region] || niceName(S.region)), n = filterCount(), q = S.q.trim();
+  const where = S.region === 'all' ? '내 리스트' : (regionLabel(S.region)), n = filterCount(), q = S.q.trim();
   const sub = [q ? `「${esc(q)}」` : '', n ? `필터 ${n}개 적용 중` : '', S.radius ? `${S.radius}km 이내` : ''].filter(Boolean).join(' · ') || '등록된 장소 없음';
   const nextKm = S.radius ? ({ 10: 30, 30: 60, 60: null })[S.radius] : null;
   return `<div class="empty11"><img src="${asset('assets/mark-globe.png')}" alt=""><b>${esc(where)}에서는 못 찾았어요</b><p class="cap">${sub}</p>
@@ -615,7 +617,7 @@ function openDetail(id) {
     const go = e.target.closest('[data-go]'); if (go) return openDetail(go.dataset.go);
     const tg = e.target.closest('[data-tag]');
     if (tg) { if (document.body.classList.contains('ro')) return; const t = tg.dataset.tag; const set = new Set(p.tags || []); set.has(t) ? set.delete(t) : set.add(t); p.tags = [...set]; tg.classList.toggle('tag'); tg.classList.toggle('off'); markDirty(); renderTagChips(); renderList(); return; }
-    const vlb = e.target.closest('[data-vlb]'); if (vlb) { const v = p.visitLog[+vlb.dataset.vlb]; openLightbox(visitPhotos(v), +vlb.dataset.k, `${p.name} · ${(v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(v), date: v.date }); return; }
+    const vlb = e.target.closest('[data-vlb]'); if (vlb) { const v = p.visitLog[+vlb.dataset.vlb]; openLightbox(visitPhotos(v), +vlb.dataset.k, `${p.name} · ${(v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(v), date: v.date, who: v.who }); return; }
     const vedit = e.target.closest('[data-vedit]'); if (vedit) { openVisitForm(p, p.visitLog[+vedit.dataset.vedit]); return; }
     const vdel = e.target.closest('[data-vdel]');
     if (vdel) { if (vdel.dataset.confirm) { p.visitLog.splice(+vdel.dataset.vdel, 1); p.visits = Math.max(0, (p.visits || 1) - 1); markDirty(); openDetail(id); } else { vdel.dataset.confirm = 1; vdel.textContent = '삭제?'; } return; }
@@ -726,6 +728,9 @@ function openHoursForm(p) {
 
 /* ---------------- 방문 기록 ---------------- */
 const FAMILY_DEFAULT = ['아빠', '엄마', '하준', '이준'];
+/* 11/06 지역 이름: 정해진 이름 → 해외 지역이 나라 이름(italy 등)이면 한글 나라 이름(이탈리아) → 첫 글자 대문자 */
+function regionLabel(r) { if (!r) return ''; if (REGION_LABEL[r]) return REGION_LABEL[r]; const cs = [...new Set((S.db?.places || []).filter(p => p.region === r && p.country && p.country !== 'KR').map(p => p.country))];
+  if (cs.length === 1) { const ko = ccKo(cs[0]), en = (regionEn(cs[0]) || '').toLowerCase().replace(/\s+/g, ''); if (ko && en === r.toLowerCase().replace(/[\s_-]+/g, '')) return ko; } return niceName(r); }
 const REL_RE = /(이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|사촌|조카|장모|장인|손님)/;
 function coreFamily() { const f = familyNames(), i = f.findIndex(x => REL_RE.test(x)); return i < 0 ? f : f.slice(0, Math.max(2, i)); }   /* 11/05 앞쪽 = 우리 가족 (첫 친척 이름 전까지) */
 function familyNames() { const f = S.db.meta.family || {}; return (f.names || []).length ? f.names : FAMILY_DEFAULT; }
@@ -763,7 +768,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       <div class="vsec"><h4>날짜</h4><label class="field vdate-f"><input type="date" id="vdate" class="num" value="${d0}" max="${today()}"><span class="cap" id="vdate-txt">${dateTxt(d0).slice(-3)}</span><select id="vmeal" class="cap" style="margin-left:auto">${['아침', '점심', '간식', '저녁', '야식'].map(m => `<option${m === (edit?.meal || mealNow) ? ' selected' : ''}>${m}</option>`).join('')}</select></label>
         <div class="vtrip"><label class="cap">마지막 날 <span class="cap3">(여행이면)</span><input type="date" id="vend" class="num" value="${esc(edit?.dateEnd || '')}" max="${today()}"></label><label class="ti-chk" style="margin:0"><input type="checkbox" id="vtie" ${(edit?.trip || (p.country && p.country !== 'KR')) ? 'checked' : ''}> ✈ 여행으로도 묶기</label></div></div>
       <div class="vsec"><h4>함께 간 사람</h4><div class="chips" id="vwho">${[...new Set([...familyNames(), ...st.who])].map(n => `<button type="button" class="chip${st.who.has(n) ? ' on' : ''}" data-who="${esc(n)}">${esc(n)}</button>`).join('')}<button type="button" class="chip" data-who="+">+ 손님</button></div></div>
-      <div class="vsec"><h4>별점</h4><div class="vstars" id="vstars">${[1, 2, 3, 4, 5].map(n => `<span data-r="${n}">★</span>`).join('')}<span class="num val" id="vval">—</span></div></div>
+      <div class="vsec"><h4>별점 <span class="cap3">별 왼쪽을 누르면 반 개</span></h4><div class="vstars" id="vstars">${[1, 2, 3, 4, 5].map(n => `<span data-r="${n}">★</span>`).join('')}<span class="num val" id="vval">—</span></div></div>
       <div class="vsec"><h4>한줄평</h4><textarea id="vmemo" class="vmemo" placeholder="예: 하준이가 순두부 국물까지 다 마심">${esc(edit?.memo || '')}</textarea></div>
       <div class="vsec"><h4>여행기 본문 <span class="cap3">선택 · 초안은 인터넷 없이 · 다시 누르면 다른 문장</span></h4><textarea id="vstory" class="vmemo vstory" placeholder="길게 남기고 싶은 이야기. 「여행기 글 만들기」로 재료를 복사해 클로드에 붙이면 글을 다듬어 줍니다">${esc(edit?.story || '')}</textarea><div class="vstory-acts"><button type="button" class="chip on" data-act="storydraft">✍ 바로 초안 쓰기</button>${edit ? '<button type="button" class="chip" data-act="storykit">✎ 클로드로 다듬기 (재료 복사)</button>' : ''}</div></div>
       <div class="vsec"><h4>먹은 메뉴</h4><div class="chips" id="vmenu"><button type="button" class="chip" data-menu="+">+ 메뉴</button></div></div>
@@ -773,7 +778,8 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
   const drawPhotos = () => { $('#vgrid').innerHTML = st.photos.map((ph, i) => `<div class="vph rd" data-ri="${i}" style="background-image:url('${ph.url}')">${i === 0 ? '<span class="cv">표지</span>' : `<button type="button" class="cvset" data-cover="${i}" title="표지로">★</button>`}<button type="button" class="x" data-rm="${i}">✕</button></div>`).join('') + '<button type="button" class="vph add" data-act="addphoto"><b>+</b>사진 추가</button>' + (st.photos.length > 1 ? '<p class="cap3 rd-tip">사진을 꾹 눌러 끌면 순서 변경 · ★ = 표지로</p>' : ''); };
   bindReorder($('#vgrid'), () => st.photos, drawPhotos);
   const drawMenu = () => { $('#vmenu').innerHTML = st.menu.map((m, i) => `<button type="button" class="chip soft" data-rmmenu="${i}">${esc(m)} ✕</button>`).join('') + '<button type="button" class="chip" data-menu="+">+ 메뉴</button>'; };
-  drawPhotos(); drawMenu(); if (st.rating) { $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); }
+  const drawStars = () => { $$('#vstars [data-r]').forEach(x => { const n = +x.dataset.r; x.classList.toggle('on', n <= st.rating); x.classList.toggle('half', n - .5 === st.rating); }); $('#vval').textContent = st.rating ? (st.rating % 1 ? st.rating.toFixed(1) : st.rating + '.0') : '—'; };
+  drawPhotos(); drawMenu(); if (st.rating) drawStars();
   $('#vdate').onchange = e => { $('#vdate-txt').textContent = dateTxt(e.target.value || today()).slice(-3); };   // 요일 표시
   $('#vdate').onclick = e => { try { e.target.showPicker(); } catch {} };   // 칸 어디를 눌러도 달력 열기 (지난 날짜 선택)
   $('#vfile').onchange = async e => { const fs = [...e.target.files]; let k = 0; for (const f of fs) { k++; if (fs.length > 3) $('#vgrid').dataset.busy = `사진 줄이는 중 ${k}/${fs.length}`; try { const b64 = await resizeImage(f); st.photos.push({ b64, url: 'data:image/jpeg;base64,' + b64 }); } catch { toast('사진을 읽지 못했습니다'); } } delete $('#vgrid').dataset.busy; drawPhotos(); e.target.value = ''; };
@@ -788,7 +794,8 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       ta.value = draftStory(p, v, st.draftN); ta.dataset.draft = ta.value; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; toast(st.draftN ? '다른 문장으로 다시 썼어요' : '초안 완성 · 직접 다듬어도 돼요'); return; }
     if (b.dataset.rm != null) { st.photos.splice(+b.dataset.rm, 1); drawPhotos(); return; }
     if (b.dataset.cover != null) { const [x] = st.photos.splice(+b.dataset.cover, 1); st.photos.unshift(x); S.sheetDirty = true; drawPhotos(); toast('표지로 바꿨어요 · 저장하면 적용'); return; }
-    if (b.dataset.r) { st.rating = +b.dataset.r; $$('#vstars [data-r]').forEach(x => x.classList.toggle('on', +x.dataset.r <= st.rating)); $('#vval').textContent = st.rating.toFixed(1); return; }
+    if (b.dataset.r) { const rc = b.getBoundingClientRect(), half = e.clientX && e.clientX < rc.left + rc.width / 2; let r = +b.dataset.r - (half ? .5 : 0); if (r === st.rating) r = r - .5 >= .5 ? r - .5 : r;   /* 왼쪽 반 = .5 · 같은 칸 다시 누르면 반 개 내림 */
+      st.rating = r; drawStars(); return; }
     if (b.dataset.who) { if (b.dataset.who === '+') { const n = prompt('함께 간 사람 이름'); if (n && n.trim()) { st.who.add(n.trim()); b.insertAdjacentHTML('beforebegin', `<button type="button" class="chip on" data-who="${esc(n.trim())}">${esc(n.trim())}</button>`); } return; } st.who.has(b.dataset.who) ? st.who.delete(b.dataset.who) : st.who.add(b.dataset.who); b.classList.toggle('on'); return; }
     if (b.dataset.menu === '+') { const m = prompt('먹은 메뉴'); if (m && m.trim()) { st.menu.push(m.trim()); drawMenu(); } return; }
     if (b.dataset.rmmenu != null) { st.menu.splice(+b.dataset.rmmenu, 1); drawMenu(); return; }
@@ -1184,7 +1191,7 @@ function openPlanner(prefill = {}) {
   const ovCities = S.db.meta.ovCities || [];                       // 해외 도시 직접 추가분 [{cc, name, lat, lng}] — db.json에 저장(가족 공유)
   const ovCountries = [...new Set([...S.db.places.filter(p => p.country && p.country !== 'KR').map(p => p.country), ...S.db.bases.filter(b => b.country !== 'KR').map(b => b.country), ...ovCities.map(c => c.cc), 'VN', 'TH', 'JP', 'GU', 'PH', 'TW', 'SG', 'MY', 'ID', 'AU', 'US'])];
   const cc = zone === 'KR' ? 'KR' : (prefill.country || (S.base?.country !== 'KR' ? S.base?.country : null) || (prefill.region && regionCountry(prefill.region)) || ovCountries[0]);
-  const ovRegions = zone === 'KR' ? [] : [...regionsInDb().filter(([r]) => regionCountry(r) === cc).map(([r, n]) => ({ key: r, label: `${REGION_LABEL[r] || niceName(r)} (${n})` })), ...ovCities.filter(c => c.cc === cc).map(c => ({ key: 'c:' + c.name, label: c.name + ' (직접 추가)' }))];
+  const ovRegions = zone === 'KR' ? [] : [...regionsInDb().filter(([r]) => regionCountry(r) === cc).map(([r, n]) => ({ key: r, label: `${regionLabel(r)} (${n})` })), ...ovCities.filter(c => c.cc === cc).map(c => ({ key: 'c:' + c.name, label: c.name + ' (직접 추가)' }))];
   const region = zone === 'KR' ? 'domestic' : (prefill.region && ovRegions.some(r => r.key === prefill.region) ? prefill.region : ovRegions[0]?.key || 'c:');
   const custom = region.startsWith('c:') ? ovCities.find(c => c.cc === cc && 'c:' + c.name === region) : null;
   const base = zone === 'KR' ? (homeB || S.base) : (S.db.bases.find(b => b.default_for === region) || S.db.bases.find(b => b.country === cc) || (custom ? { id: 'c_' + custom.name, name: custom.name + ' 시내', lat: custom.lat, lng: custom.lng, country: cc, approx: true } : S.base));
@@ -1585,7 +1592,7 @@ function xlOverall(wb, used) {
     const by = cu => rests.filter(x => (cuisineOf(x)[0] || '기타') === cu).map(x => x.name).join('\n') || null;
     const dist = s.dist_home_km ?? (home && hasCoord(s) ? Math.round(haversine(home, s) * 1.3) : null);
     const row = ws.getRow(r);
-    row.values = [null, s.rating ? '★'.repeat(s.rating) : '-', s.do === '서울' ? null : s.do, s.si, s.name, dist, s.lodging || '-',
+    row.values = [null, s.rating ? starsTxt(s.rating) + ` ${s.rating}` : '-', s.do === '서울' ? null : s.do, s.si, s.name, dist, s.lodging || '-',
       ...['봄', '여름', '가을', '겨울'].map(x => (s.seasons || []).includes(x) ? 'O' : null),
       by('한식'), by('중식'), by('일식'), by('양식'), [by('기타'), s.note].filter(Boolean).join('\n') || null, s.desc, s.pros, s.cons, s.visits || 0];
     r++;
@@ -1595,7 +1602,7 @@ function xlOverall(wb, used) {
 }
 function xlRegion(wb, used, region) {
   const list = S.db.places.filter(p => p.region === region && p.type === 'restaurant'); if (!list.length) return;
-  const label = REGION_LABEL[region] || region, base = S.db.bases.find(b => b.default_for === region);
+  const label = regionLabel(region), base = S.db.bases.find(b => b.default_for === region);
   const ws = wb.addWorksheet(sheetName(label + ' 식당', used), { views: [{ state: 'frozen', ySplit: 4 }] });
   ws.columns = [0.5, 5.2, 23.9, 4.2, 4.2, 4.2, 4.2, 4.2, 4.2, 4.2, 52.7, 7.9, 7.9, 4.2, 4.2, 4.2, 32.5, 27.1].map(w => ({ width: w }));
   ws.getCell('A1').value = `■ ${label} 구역별 식당 분류표`; ws.getCell('A1').font = { ...XL.font, size: 11, bold: true };
@@ -1784,7 +1791,7 @@ function minText(m) { return m >= 60 ? `${Math.floor(m / 60)}시간 ${m % 60 ? m
 function baseShort(p) { return ((p ? baseFor(p) : S.base)?.name || '거점').replace(/^집\s*\((.*)\)$/, '$1').replace(/\s*\(.*\)/, ''); }
 function distText(p) { const d = distInfo(p); return d ? `${baseShort(p)}에서 ${fmtKm(d.km)}km · ${d.fly ? '비행 약' : '차로'} ${minText(d.min)}` : '위치 없음'; }
 function catDot(p) { return isMine(p) ? '우리 장소' + ((p.tags || [])[0] ? ' · ' + p.tags[0] : '') : p.type === 'spot' ? '휴양지' + ((p.tags || [])[0] ? ' · ' + p.tags[0] : '') : cuisineOf(p).join(' · ') || '식당'; }
-function starsTxt(n) { return n ? '★'.repeat(n) + '☆'.repeat(5 - n) : ''; }
+function starsTxt(n) { n = Math.round((+n || 0) * 2) / 2; if (!n) return ''; const f = Math.floor(n), h = n - f >= .5; return '★'.repeat(f) + (h ? '½' : '') + '☆'.repeat(5 - f - (h ? 1 : 0)); }
 function homeData() {
   const season = seasonHome(), base = S.base, ctx = { origin: base, season, family: famProfile() };
   const spots = S.db.places.filter(p => p.type === 'spot'), rests = S.db.places.filter(p => p.type === 'restaurant');
@@ -1812,7 +1819,7 @@ const tripCity = t => (t.city || '').replace(/\s*\(.*\)/, '');
 function tripCities(t) {   /* 기록 장소를 30km 묶음으로 → [{name, en, p}] (첫 방문 순) */
   const out = []; for (const { p } of tripVisits(t).sort((a, b) => (a.v.date || '').localeCompare(b.v.date || ''))) {
     if (out.some(c => c.p === p || (hasCoord(p) && hasCoord(c.p) && haversine(p, c.p) < 30))) continue;
-    const nm = niceName(p.si || p.name); out.push({ name: nm, en: /[가-힣]/.test(nm) ? (CITY_EN[nm] || CITY_EN[nm.split(' ')[0]] || nm) : nm, p }); }
+    const nm = niceName(p.si || p.name); out.push({ name: nm, en: enName(nm, p.country || t.country), p }); }
   return out;
 }
 function tripAuto(t) { if ((t.items || []).length || t.country === 'KR') return null; const cs = tripCities(t); if (!cs.length) return null;
@@ -1821,7 +1828,7 @@ function tripAuto(t) { if ((t.items || []).length || t.country === 'KR') return 
 const tripName = t => t.cover || tripAuto(t)?.name || (!(t.items || []).length && t.title ? (t.title.replace(/^\s*\d{4}\s*/, '').trim() || tripCity(t)) : tripCity(t));
 function collectionsHtml(d, pc) {
   const regions = regionsInDb();
-  const items = [...regions.map(([r, n]) => ({ act: `data-region="${r}"`, label: REGION_LABEL[r] || r, n, bg: r === 'domestic' ? 'var(--primary)' : 'var(--primary-2)' })),
+  const items = [...regions.map(([r, n]) => ({ act: `data-region="${r}"`, label: regionLabel(r), n, bg: r === 'domestic' ? 'var(--primary)' : 'var(--primary-2)' })),
     ...['한식', '중식'].map(c => ({ act: `data-cuisine="${c}"`, label: c, n: d.rests.filter(p => cuisineOf(p).includes(c)).length, bg: `var(--cat-${CAT_VAR[c]})` })).filter(x => x.n)];
   const unv = S.db.places.filter(p => !p.visits).length;
   if (pc) return items.slice(0, 4).map(x => `<button ${x.act} style="background:${x.bg}"><b>${esc(x.label)}</b><span class="disp">${x.n}</span></button>`).join('') + `<button data-act="explore-unvisited" style="background:rgba(255,188,0,.9);color:#000"><b>미방문</b><span class="disp">${unv}</span></button>`;
@@ -2012,7 +2019,7 @@ function openPlaceForm(p) {
       ${isNew ? '<div class="pf-picked" id="pf-picked" hidden></div><label class="pf-name">이름 <small style="color:var(--text-3)">(검색 결과를 고르면 자동 · 비워 두면 첫 번째 결과로)</small><input name="name" value="" placeholder="검색 결과를 누르면 채워져요"></label>' : ''}
       <div class="two">
         <label>유형<select name="type"><option value="restaurant"${p.type === 'restaurant' ? ' selected' : ''}>식당</option><option value="spot"${p.type === 'spot' ? ' selected' : ''}>휴양지</option><option value="mine"${isMine(p) ? ' selected' : ''}>우리 장소 (본가 등)</option></select></label>
-        <label>지역 그룹<input name="region" list="regions" value="${esc(p.region)}"><datalist id="regions">${regionsInDb().map(([r]) => `<option value="${r}">${REGION_LABEL[r] || niceName(r)}</option>`).join('')}</datalist></label>
+        <label>지역 그룹<input name="region" list="regions" value="${esc(p.region)}"><datalist id="regions">${regionsInDb().map(([r]) => `<option value="${r}">${regionLabel(r)}</option>`).join('')}</datalist></label>
       </div>
       <div class="three">
         <label>국가<select name="country">${countryOptions(p.country || 'KR')}</select></label>
@@ -2024,7 +2031,7 @@ function openPlaceForm(p) {
         <label>도<input name="do" value="${esc(p.do || '')}"></label>
         <label>시·군·구역<input name="si" value="${esc(p.si || p.zone || '')}"></label>
       </div>
-      <label>별점 (0~5)<input name="rating" type="number" min="0" max="5" value="${p.rating || 0}"></label>
+      <label>별점 (0~5 · 0.5 단위)<input name="rating" type="number" min="0" max="5" step="0.5" value="${p.rating || 0}"></label>
       <label>종류 <div class="chips small" id="cu">${CU.map(c => `<button type="button" data-c="${c}" class="${cuisineOf(p).includes(c) ? 'on' : ''}">${c}</button>`).join('')}</div></label>
       <label>추천 계절 <div class="chips small" id="se">${['봄', '여름', '가을', '겨울'].map(c => `<button type="button" data-c="${c}" class="${(p.seasons || []).includes(c) ? 'on' : ''}">${c}</button>`).join('')}</div></label>
       <label>연계 휴양지<select name="spot_id"><option value="">없음</option>${spots.map(s => `<option value="${s.id}"${p.spot_id === s.id ? ' selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
@@ -2060,7 +2067,7 @@ function openPlaceForm(p) {
     const d = Object.fromEntries(new FormData(f));
     const prevSpot = p.spot_id;
     Object.assign(p, { type: d.type, region: (d.country !== 'KR' && (!d.region.trim() || d.region.trim() === 'domestic')) ? ((d.si || '').trim().toLowerCase().replace(/\s+/g, '') || regionEn(d.country).toLowerCase()) : (d.region.trim() || 'domestic'), name: niceName(d.name), country: d.country, address: d.address.trim() || null,
-      do: d.do.trim() || null, si: d.si.trim() || null, rating: +d.rating || 0, signature: d.signature.trim() || null, desc: d.desc.trim() || null,
+      do: d.do.trim() || null, si: d.si.trim() || null, rating: Math.min(5, Math.max(0, Math.round((+d.rating || 0) * 2) / 2)), signature: d.signature.trim() || null, desc: d.desc.trim() || null,
       pros: d.pros.trim() || null, cons: d.cons.trim() || null, note: d.note.trim() || null, spot_id: d.spot_id || null,
       lat: d.lat ? +d.lat : null, lng: d.lng ? +d.lng : null,
       cuisine: $$('#cu button.on').map(b => b.dataset.c), seasons: $$('#se button.on').map(b => b.dataset.c),
@@ -2212,7 +2219,7 @@ function renderTrips() {
     ${tripPhotosHtml(t)}
     <div class="tl-wrap"${!(t.items || []).length ? ' style="display:none"' : ''}><div class="legend"><span class="chip"><i style="background:var(--cat-spot)"></i>휴양지</span><span class="chip"><i style="background:var(--cat-seafood)"></i>식사</span><span class="chip"><i class="dash"></i>이동</span></div>
       <div class="tl2">${rows || '<div class="help">이 날 일정이 없습니다.</div>'}</div></div>
-    <div class="tp-acts"><button class="rw" data-act="tphoto">📷 사진 추가</button>${t.plan ? '<button class="rw" data-act="replan">플래너로 다시 열기</button>' : ''}<button data-act="region">${REGION_LABEL[region] || niceName(region)} 식당 보기</button><button data-act="txlsx">엑셀</button><button data-act="journal">여행기</button><button data-act="guide">안내서 만들기</button><button class="rw danger" data-act="deltrip">여행 삭제</button></div>
+    <div class="tp-acts"><button class="rw" data-act="tphoto">📷 사진 추가</button>${t.plan ? '<button class="rw" data-act="replan">플래너로 다시 열기</button>' : ''}<button data-act="region">${regionLabel(region)} 식당 보기</button><button data-act="txlsx">엑셀</button><button data-act="journal">여행기</button><button data-act="guide">안내서 만들기</button><button class="rw danger" data-act="deltrip">여행 삭제</button></div>
     <button class="fab-add rw" data-act="additem">+ 일정 추가</button>`;
   el.onclick = e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -2415,15 +2422,27 @@ const CONT = { EU: ['유럽', 'Europe', 'IT FR ES PT DE CH AT NL BE LU GB IE IS 
 const CC_CONT = Object.fromEntries(Object.entries(CONT).flatMap(([k, [, , l]]) => l.split(' ').map(c => [c, k])));
 const contOf = cc => CC_CONT[cc] || null;
 const sameTripArea = (a, b) => a === b || (a !== 'KR' && b !== 'KR' && !!contOf(a) && contOf(a) === contOf(b));   /* 같은 나라 또는 같은 대륙(해외) */
-function tripFor(country, a, z, slack = 2) {   /* 11/05 1~2일 오타까지 묶음 */                        // 같은 나라 · 날짜가 겹치는(앞뒤 3일 여유) 여행
-  return S.db.trips.find(t => { if (!sameTripArea(t.country, country)) return false; const r = tripRange(t); return r && !(dAdd(r[1], slack) < a || dAdd(r[0], -slack) > z); });
+function tripFor(country, a, z, slack = 2, ex = null) {   /* 11/05 1~2일 오타까지 묶음 · ex = 빼고 찾을 여행 id */      // 같은 나라(대륙) · 날짜가 겹치는 여행
+  return S.db.trips.find(t => { if (t.id === ex || !sameTripArea(t.country, country)) return false; const r = tripRange(t); return r && !(dAdd(r[1], slack) < a || dAdd(r[0], -slack) > z); });
 }
-function tieVisitTrip(p, v) {                                       // 기록을 여행에 연결 (없으면 간편 여행 생성) → 여행
-  if (!v.date) return null; const a = v.date, z = v.dateEnd && v.dateEnd > a ? v.dateEnd : a;
-  let t = (v.trip && S.db.trips.find(x => x.id === v.trip)) || tripFor(p.country || 'KR', a, z);
-  if (t) { if (!(t.items || []).length) { if (!t.start || a < t.start) t.start = a; if (!t.end || z > t.end) t.end = z; t.year = +t.start.slice(0, 4); } }
-  else { const city = niceName(p.si || p.zone || p.name); t = { id: 'trip' + uid(''), title: `${a.slice(0, 4)} ${city}`, city, country: p.country || 'KR', year: +a.slice(0, 4), start: a, end: z, items: [], auto: true, ...(hasCoord(p) ? { lat: p.lat, lng: p.lng } : {}) }; S.db.trips.push(t); }
-  v.trip = t.id; return t;
+function tripOthers(t, v) { return S.db.places.flatMap(p => (p.visitLog || []).filter(x => x !== v && x.id !== v.id && x.trip === t.id)); }   /* 이 기록 말고 그 여행에 묶인 기록 */
+function tieVisitTrip(p, v) {   /* 기록을 여행에 연결 (없으면 간편 여행 생성) → 여행 · 11/06 날짜를 바꿔 다시 저장하면 맞는 여행으로 옮기고 빈 자동 여행은 지움 */
+  if (!v.date) return null; const a = v.date, z = v.dateEnd && v.dateEnd > a ? v.dateEnd : a, cc = p.country || 'KR';
+  const cur = v.trip && S.db.trips.find(x => x.id === v.trip), simple = t => !(t.items || []).length;
+  const fits = t => { const others = tripOthers(t, v); if (!simple(t)) { const r = tripRange(t); return r && !(dAdd(r[1], 2) < a || dAdd(r[0], -2) > z); }
+    if (!others.length) return false;   /* 이 기록 혼자인 자동 여행 → 다른 여행 먼저 찾기 */
+    const ds = others.flatMap(x => [x.date, x.dateEnd || x.date]).filter(Boolean).sort(), r = [t.start && !t.auto ? t.start : ds[0], t.end && !t.auto ? t.end : ds[ds.length - 1]];
+    return !(dAdd(r[1], 2) < a || dAdd(r[0], -2) > z); };
+  let t = cur && fits(cur) ? cur : tripFor(cc, a, z, 2, cur?.id);
+  if (!t && cur && simple(cur) && !tripOthers(cur, v).length) t = cur;   /* 혼자인 자동 여행은 날짜만 따라가게 */
+  if (t) { if (simple(t)) { const solo = !tripOthers(t, v).length;
+      if (solo) { t.start = a; t.end = z; if (t.auto) { const city = niceName(p.si || p.zone || p.name); t.title = `${a.slice(0, 4)} ${city}`; t.city = city; } }
+      else { if (!t.start || a < t.start) t.start = a; if (!t.end || z > t.end) t.end = z; }
+      t.year = +t.start.slice(0, 4); } }
+  else { const city = niceName(p.si || p.zone || p.name); t = { id: 'trip' + uid(''), title: `${a.slice(0, 4)} ${city}`, city, country: cc, year: +a.slice(0, 4), start: a, end: z, items: [], auto: true, ...(hasCoord(p) ? { lat: p.lat, lng: p.lng } : {}) }; S.db.trips.push(t); }
+  v.trip = t.id;
+  if (cur && cur !== t && cur.auto && simple(cur) && !tripOthers(cur, v).length) { S.db.trips = S.db.trips.filter(x => x !== cur); }   /* 비게 된 자동 여행 정리 */
+  return t;
 }
 function tripVisits(t) {                                            // 여행 기간·나라에 해당하는 기록들
   const r = tripRange(t), sl = t.country === 'KR' ? 0 : 2; return S.db.places.flatMap(p => (p.visitLog || []).filter(v => v.trip === t.id || (r && v.date && !(v.trip && v.trip !== t.id && S.db.trips.some(x => x.id === v.trip)) && sameTripArea(p.country || 'KR', t.country) && (v.dateEnd && v.dateEnd > v.date ? v.dateEnd : v.date) >= dAdd(r[0], -sl) && v.date <= dAdd(r[1], sl) && (t.country !== 'KR' || v.trip === t.id || (t.items || []).some(i => i.place_id === p.id)))).map(v => ({ p, v })));
@@ -2533,7 +2552,7 @@ function openItemForm(t) {
 
 /* ---------------- 설정 ---------------- */
 /* ---------------- 설정 (시안 09) ---------------- */
-const FAM_COLORS = ['var(--primary)', 'var(--primary-2)', '#2a6fb8', '#2e8b57', '#b5651d', '#7d3c98'];
+const FAM_COLORS = ['#2f6fdb', '#e2557f', '#2e9d5b', '#f08a1c', '#8a4fd1', '#0f9ba8', '#c43c3c', '#8c7a2b', '#d45aa8', '#3d5a80', '#5b8c2a', '#b5651d'];   /* 11/06 테마와 상관없는 고정 색 — 지도 항로(혼자 간 여행)와 같은 색으로 바로 구분 */
 function maskKey(k) { k = (k || '').trim(); if (!k) return ''; return k.length > 10 ? k.slice(0, 4) + '••••' + k.slice(-4) : '••••'; }
 function themePref() { return LS.get('theme', 'auto'); }
 /* 11/04 색 테마 (data-tone) — 기기별 저장, PC·폰 공통. [id, 이름, 진한바탕, 보조, 강조] */
@@ -2552,6 +2571,7 @@ function loadMyFont(c) {
   const st = document.createElement('style'); st.dataset.myfont = c.id; st.textContent = `@font-face{font-family:"${c.family}";src:url("${url}");font-display:swap;font-weight:100 900;}`; document.head.appendChild(st);
 }
 function myFontStack(c) { return `"${c.family}","Pretendard Variable","Noto Sans KR",sans-serif`; }
+function mapstPref() { return LS.get('mapst', 'clean') === 'osm' ? 'osm' : 'clean'; }   /* 11/06 찾기 지도: clean = 밝고 차분 + 테마색 / osm = 원래 지도 */
 function fzPref() { const f = LS.get('fz', 'm'); return FZ.some(x => x[0] === f) ? f : 'm'; }
 function loadFontCss(id) { const f = FONTS.find(x => x[0] === id); (f?.[3] || []).forEach(u => { if (document.querySelector(`link[data-fcss="${u}"]`)) return; const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = u; l.dataset.fcss = u; document.head.appendChild(l); }); }
 function openFontAdd() {
@@ -2602,6 +2622,7 @@ function openTonePicker() {
     <div class="gt" style="margin-top:14px">밝기</div><div class="seg tn-th">${[['auto', '시스템'], ['light', '라이트'], ['dark', '다크']].map(([v, n]) => `<button data-th="${v}" class="${th === v ? 'on' : ''}">${n}</button>`).join('')}</div>
     <div class="gt" style="margin-top:18px">글씨체</div><div class="fo-grid">${FONTS.map(([id, nm, sub]) => `<button class="fo${id === fontPref() ? ' on' : ''}" data-fo="${id}"><b data-fo-prev="${id}">${nm} 가나다 Aa</b><span>${sub}</span></button>`).join('')}${myFonts().map(c => `<button class="fo${'c:' + c.id === fontPref() ? ' on' : ''}" data-fo="c:${c.id}"><b style="font-family:${esc(myFontStack(c))}">${esc(c.name)} 가나다 Aa</b><span>내 글꼴 · ${{ both: '본문·제목', head: '제목만', body: '본문만' }[c.use || 'both']}</span><i class="fo-x rw" data-fodel="${c.id}" title="지우기">✕</i></button>`).join('')}<button class="fo fo-add rw" data-foadd="1"><b>＋ 글꼴 추가</b><span>구글 폰트 이름 · 글꼴 파일</span></button></div>
     <div class="gt" style="margin-top:14px">글자 크기</div><div class="seg tn-th">${FZ.map(([v, n]) => `<button data-fz="${v}" class="${fzPref() === v ? 'on' : ''}">${n}</button>`).join('')}</div>
+    <div class="gt" style="margin-top:14px">찾기 지도</div><div class="seg tn-th">${[['clean', '밝고 깔끔하게'], ['osm', '원래 지도']].map(([v, n]) => `<button data-mst="${v}" class="${mapstPref() === v ? 'on' : ''}">${n}</button>`).join('')}</div>
     <p class="cap3" style="margin-top:10px">기기마다 따로 저장 · 지도·지구본 색도 함께 바뀜 · 손글씨·장소 타이틀 글씨는 그대로</p></div></div>`);
   FONTS.forEach(f => loadFontCss(f[0])); myFonts().forEach(loadMyFont);   /* 미리보기용: 창을 열 때만 불러옴 */
   $('#sheet-inner').onclick = e => {
@@ -2609,13 +2630,13 @@ function openTonePicker() {
     if (e.target.closest('[data-close]')) return closeSheet();
     const fadd = e.target.closest('[data-foadd]'); if (fadd) return openFontAdd();
     const fdel = e.target.closest('[data-fodel]'); if (fdel) { e.stopPropagation(); const c = myFonts().find(x => x.id === fdel.dataset.fodel); if (!c || !confirm(`「${c.name}」 글꼴을 목록에서 지울까요?`)) return; S.db.meta.fonts = myFonts().filter(x => x !== c); if (fontPref() === 'c:' + c.id) LS.set('font', 'base'); markDirty(); applyTheme(); return openTonePicker(); }
-    const t = e.target.closest('button.tn[data-tone]'), m = e.target.closest('.tn-th button[data-th]'), fo = e.target.closest('button.fo[data-fo]'), fz = e.target.closest('.tn-th button[data-fz]'); if (!t && !m && !fo && !fz) return;   /* html에도 data-tone·data-font 있음 → 버튼만 */
-    if (t) LS.set('tone', t.dataset.tone); if (m) LS.set('theme', m.dataset.th); if (fo) LS.set('font', fo.dataset.fo); if (fz) LS.set('fz', fz.dataset.fz);
+    const t = e.target.closest('button.tn[data-tone]'), m = e.target.closest('.tn-th button[data-th]'), fo = e.target.closest('button.fo[data-fo]'), fz = e.target.closest('.tn-th button[data-fz]'), ms = e.target.closest('.tn-th button[data-mst]'); if (!t && !m && !fo && !fz && !ms) return;   /* html에도 data-tone·data-font 있음 → 버튼만 */
+    if (t) LS.set('tone', t.dataset.tone); if (m) LS.set('theme', m.dataset.th); if (fo) LS.set('font', fo.dataset.fo); if (fz) LS.set('fz', fz.dataset.fz); if (ms) LS.set('mapst', ms.dataset.mst);
     const sy = $('#sheet-inner .vf-scroll')?.scrollTop || 0; applyTheme(); S.homeStale = true; openTonePicker(); const sc = $('#sheet-inner .vf-scroll'); if (sc) sc.scrollTop = sy; if (!$('#settings')?.hidden) renderSettings();
     try { if (S.view === 'home') renderHome(); } catch {}
   };
 }
-function applyTheme() { const t = themePref(), tn = tonePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (tn === 'sea') delete document.documentElement.dataset.tone; else document.documentElement.dataset.tone = tn; const fo = fontPref(), fz = fzPref(), de = document.documentElement.dataset, rs = document.documentElement.style; rs.removeProperty('--font-body'); rs.removeProperty('--font-head'); if (fo === 'base') delete de.font; else if (fo.startsWith('c:')) { const c = myFonts().find(x => 'c:' + x.id === fo); de.font = 'custom'; loadMyFont(c); if (c.use !== 'head') rs.setProperty('--font-body', myFontStack(c)); if (c.use !== 'body') rs.setProperty('--font-head', myFontStack(c)); } else { de.font = fo; loadFontCss(fo); } if (fz === 'm') delete de.fz; else de.fz = fz; document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
+function applyTheme() { const t = themePref(), tn = tonePref(); if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; if (tn === 'sea') delete document.documentElement.dataset.tone; else document.documentElement.dataset.tone = tn; const fo = fontPref(), fz = fzPref(), de = document.documentElement.dataset, rs = document.documentElement.style; rs.removeProperty('--font-body'); rs.removeProperty('--font-head'); if (fo === 'base') delete de.font; else if (fo.startsWith('c:')) { const c = myFonts().find(x => 'c:' + x.id === fo); de.font = 'custom'; loadMyFont(c); if (c.use !== 'head') rs.setProperty('--font-body', myFontStack(c)); if (c.use !== 'body') rs.setProperty('--font-head', myFontStack(c)); } else { de.font = fo; loadFontCss(fo); } if (fz === 'm') delete de.fz; else de.fz = fz; de.mapst = mapstPref(); document.body.classList.toggle('dark-tiles', isDark()); const m = $('meta[name=theme-color]'); if (m) m.content = (t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches)) ? '#0f1a1e' : '#ffffff'; }
 function seasonPref() { return LS.get('season', 'auto'); }
 function seasonHome() { const s = seasonPref(); return s === 'auto' ? seasonNow() : s; }
 const KEY_DEFS = {                                         // 키 입력 화면(행 탭): 입력칸 + 붙여넣기 + 연결 확인
@@ -2879,7 +2900,7 @@ function socialHtml(t) {
     <form class="soc-f rw"><button type="button" class="soc-me" data-smepick="1" style="background:${famColor(me)}" title="누가 쓰나요">${esc(me.slice(0, 2))}</button><input name="t" placeholder="${esc(me)}(으)로 댓글 달기…" maxlength="300" autocomplete="off"><button type="submit" class="soc-post">게시</button></form>
     ${SOC_OPEN.has('m' + t) ? `<div class="soc-mes">${familyNames().map(n => `<button type="button" class="chip${n === me ? ' on' : ''}" data-smeset="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
 }
-function famColor(n) { const f = familyNames(), i = Math.max(0, f.indexOf(n)); return (typeof FAM_COLORS !== 'undefined' ? FAM_COLORS : ['#0e3a4b', '#288d9d', '#2c6fbb', '#2e8b57', '#b5651d', '#7b3f98'])[i % 6]; }
+function famColor(n) { const f = familyNames(), i = Math.max(0, f.indexOf(n)); return FAM_COLORS[i % FAM_COLORS.length]; }
 function socRedraw(box) { const t = box.dataset.soct; box.outerHTML = socialHtml(t); }
 function socialClick(e) {   /* 처리했으면 true */
   const box = e.target.closest('.soc[data-soct]'); if (!box) return false; const b = e.target.closest('button'); if (!b) return true; const t = box.dataset.soct;
@@ -2945,7 +2966,7 @@ function openJournal(opts = {}) {
     return `${head}<article class="jr-card">
       <div class="jr-body"><button class="jr-place" data-go="${p.id}">${thumbHtml(p, 'tile')}<span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
         <button class="jr-edit rw" data-edit="${i}" title="기록 편집">편집</button>
-        <p class="jr-meta"><span class="num">${esc((v.date || '').replace(/-/g, '.'))}</span>${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}${v.rating ? ` · <span class="st">${'★'.repeat(v.rating)}<span>${'★'.repeat(5 - v.rating)}</span></span>` : ''}</p>
+        <p class="jr-meta"><span class="num">${esc((v.date || '').replace(/-/g, '.'))}</span>${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}${v.rating ? ` · <span class="st">${starHtml(v.rating)}</span> <span class="num">${v.rating}</span>` : ''}</p>
         ${v.memo ? `<p class="jr-memo serif">“${esc(v.memo)}”</p>` : ''}
         ${v.story ? `<div class="jr-story">${storyHtml(v.story)}</div>` : ''}
         ${(v.menu || []).length ? `<p class="jr-menu">${v.menu.map(x => `<span>${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}</p>` : ''}
@@ -2954,7 +2975,7 @@ function openJournal(opts = {}) {
   const SB_ROT = [-3, 2.5, -1.5, 3.5, -2.5, 1.5, -3.5, 2];
   const sbPage = (e, i) => { const { p, v } = e, ph = visitPhotos(v), n = ph.length;
     return `<article class="sb-page"><div class="sb-top"><span class="sb-date num">${esc((v.date || '').replace(/-/g, '.'))}${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}</span><img class="sb-stamp" src="${asset('assets/mark-stamp.png')}" alt=""></div>
-      <h2 class="sb-title hand">${esc(p.name)}</h2><p class="sb-sub">${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}${v.rating ? ` · <span class="st">${'★'.repeat(v.rating)}</span>` : ''}</p>
+      <h2 class="sb-title hand">${esc(p.name)}</h2><p class="sb-sub">${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}${v.rating ? ` · <span class="st">${starHtml(v.rating, 0)}</span>` : ''}</p>
       ${n ? `<div class="sb-photos ${n <= 4 ? 'n' + n : 'many'}">${ph.map((u, k) => `<button class="sb-pol" data-lb="${i}" data-k="${k}" style="--r:${SB_ROT[k % 8]}deg"><span class="tape"></span><img src="${u}" alt="" loading="lazy"><small class="hand">${k === 0 ? esc((v.date || '').slice(5).replace('-', '.')) : ''}</small></button>`).join('')}</div>` : ''}
       ${v.memo ? `<p class="sb-memo hand">“${esc(v.memo)}”</p>` : ''}${v.story ? `<div class="sb-story">${storyHtml(v.story)}</div>` : ''}
       ${(v.menu || []).length || (v.who || []).length ? `<div class="sb-foot">${(v.menu || []).map(x => `<span class="sb-ticket">${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}${(v.who || []).map(nm => `<span class="sb-sticker hand">${esc(nm)}</span>`).join('')}</div>` : ''}
@@ -2983,7 +3004,7 @@ function openJournal(opts = {}) {
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
     if (b.dataset.go) return openDetail(b.dataset.go);
     if (b.dataset.addlog) return openVisitForm(placeById(b.dataset.addlog));
-    if (b.dataset.lb != null) { const en = ents[+b.dataset.lb]; return openLightbox(visitPhotos(en.v), +(b.dataset.k || 0), `${en.p.name} · ${(en.v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(en.v), date: en.v.date }); }
+    if (b.dataset.lb != null) { const en = ents[+b.dataset.lb]; return openLightbox(visitPhotos(en.v), +(b.dataset.k || 0), `${en.p.name} · ${(en.v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(en.v), date: en.v.date, who: en.v.who }); }
     if (b.dataset.edit != null) { const en = ents[+b.dataset.edit]; return openVisitForm(en.p, en.v, () => { if (opts.page) { closeSheet(); openJournal(opts); } else openJournal(opts); }); }
     if (b.dataset.act === 'share') shareLink('j', 'all', '우리 가족 기록');
   };
@@ -3018,6 +3039,13 @@ function geoCenter(cc) {
   const pts = (f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates).sort((a, b) => b[0].length - a[0].length)[0][0];
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]); return { lat: (Math.min(...ys) + Math.max(...ys)) / 2, lng: (Math.min(...xs) + Math.max(...xs)) / 2 };
 }
+/* 11/06 여행 간 사람 → 항로 색: 혼자 간 여행은 그 사람의 가족 카드 색 · 여럿이면 기본 색 */
+/* 11/06 해외 이름 → 영문: 영문 사전 → 이름 안의 영문(바토이 Ba Toi) → 나라 영문 */
+function enName(nm, cc) { if (!nm || !/[가-힣]/.test(nm)) return nm; const k = CITY_EN[nm] || CITY_EN[nm.split(' ')[0]] || CITY_EN[nm.replace(/\s+/g, '')]; if (k) return k; if (cc === 'KR') return nm; const lat = (nm.match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 .'&-]{1,}/) || [])[0]; return lat ? lat.trim() : (regionEn(cc) || nm); }
+function tripWho(t) { const w = new Set(t.who || []); tripVisits(t).forEach(({ v }) => (v.who || []).forEach(n => w.add(n))); return [...w]; }
+function famHex(n) { const c = famColor(n); return /^var\(/.test(c) ? cssv(c.slice(4, -1).split(',')[0].trim(), '#0e3a4b') : c; }
+function arcColorOf(t, plan, C) { if (plan) return C.plan; const w = tripWho(t); return w.length === 1 ? famHex(w[0]) : C.done; }
+function soloLegend() { const set = new Set(); for (const t of S.db.trips) { if (t.country === 'KR') continue; const w = tripWho(t); if (w.length === 1) set.add(w[0]); } return [...set]; }
 function travelStats() {
   const home = S.db.bases.find(b => b.id === 'b_home') || S.db.bases.find(b => b.country === 'KR');
   const visitedP = S.db.places.filter(p => (p.visitLog || []).length || p.visits > 0);
@@ -3062,7 +3090,7 @@ function travelCardHtml(s, mode) {
           <div><b class="num">${pct.toFixed(1)}<small>%</small></b><span>세계 (한국 포함 ${nOv + 1}/195)</span></div>
           <div><b class="num">${s.km >= 10000 ? (s.km / 1000).toFixed(1) + '<small>천km</small>' : s.km.toLocaleString() + '<small>km</small>'}</b><span>누적 이동 (왕복 직선)</span></div>
         </div>
-        <div class="tm-legend"><span><i class="lg-done"></i>가봤음</span><span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span></div>
+        <div class="tm-legend"><span><i class="lg-done"></i>가봤음</span><span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span>${soloLegend().map(n => `<span><i class="lg-solo" style="background:${famHex(n)}"></i>${esc(n)} 혼자</span>`).join('')}</div>
         ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripName(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
         ${notYet.length ? `<div class="tm-notyet"><p class="cap3">아직 안 가본 시·도 ${notYet.length}곳 <span>· 저장한 곳 많은 순</span></p><div>${notYet.slice(0, 8).map(k => `<span class="chip">${k}${s.saved[k] ? ` <small>저장 ${s.saved[k]}</small>` : ''}</span>`).join('')}</div></div>` : '<p class="tm-next">🎉 17개 시·도를 모두 가봤어요!</p>'}
       </div></div>
@@ -3098,8 +3126,8 @@ async function drawGlobe(s, C, st) {
   const gC = mk('g'), countries = S.geoWorld.features.map(f => { const x = stOf(f.properties.cc); const p = mk('path', { fill: x === 'home' ? C.home : x === 'done' ? C.done : x === 'plan' ? C.plan : C.land, 'fill-opacity': x ? .9 : 1, stroke: isDark() ? '#0d1b22' : '#fff', 'stroke-width': .5 }, gC); if (x) { const t = mk('title', {}, p); t.textContent = f.properties.n; } return { f, p }; });
   const gA = mk('g'), arcs = [], planes = [];
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const to = [x.loc.lng, x.loc.lat], plan = x.st === 'plan';
-    arcs.push({ geo: { type: 'LineString', coordinates: [hm, to] }, p: mk('path', { fill: 'none', stroke: plan ? C.plan : C.done, 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
-    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane' }, gA); mk('path', { d: PLANE_D, transform: 'translate(10,-9.6) scale(-.8,.8)' }, g);   /* 그림의 머리가 왼쪽이라 좌우 뒤집어 진행 방향(거점 → 여행지)을 보게 */ planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: g }); } }
+    arcs.push({ geo: { type: 'LineString', coordinates: [hm, to] }, p: mk('path', { fill: 'none', stroke: arcColorOf(x.t, plan, C), 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
+    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane', ...(tripWho(x.t).length === 1 && !plan ? { style: `color:${arcColorOf(x.t, plan, C)};fill:${arcColorOf(x.t, plan, C)}` } : {}) }, gA); mk('path', { d: PLANE_D, transform: 'translate(10,-9.6) scale(-.8,.8)' }, g);   /* 그림의 머리가 왼쪽이라 좌우 뒤집어 진행 방향(거점 → 여행지)을 보게 */ planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: g }); } }
   const lv = livedSorted().filter(hasCoord), lvLine = lv.length > 1 ? mk('path', { fill: 'none', stroke: C.wish, 'stroke-width': 2, 'stroke-dasharray': '1 6', 'stroke-linecap': 'round' }, gA) : null;
   const lvGeo = { type: 'LineString', coordinates: lv.map(h => [h.lng, h.lat]) };
   const gP = mk('g'), pins = [];
@@ -3180,8 +3208,8 @@ async function drawTravelCard(mode) {
     const hm = s.home && hasCoord(s.home) ? [s.home.lat, s.home.lng] : [37.58, 127.21];
     for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const ll = [x.loc.lat, x.loc.lng], plan = x.st === 'plan';
       const arc = tmArc(hm, ll); (S.tmArcs ||= []).push(arc);
-      L.polyline(arc, { color: plan ? C.plan : C.done, weight: 2.5, opacity: .9, dashArray: plan ? '2 8' : null, lineCap: 'round', className: plan ? 'tm-arc plan' : 'tm-arc', interactive: false }).addTo(map);
-      const m = tmPhIcon((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], plan ? '✈' : '●', plan ? C.plan : C.done, 44, plan ? 'plan' : '');
+      L.polyline(arc, { color: arcColorOf(x.t, plan, C), weight: 2.5, opacity: .9, dashArray: plan ? '2 8' : null, lineCap: 'round', className: plan ? 'tm-arc plan' : 'tm-arc', interactive: false }).addTo(map);
+      const m = tmPhIcon((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], plan ? '✈' : '●', arcColorOf(x.t, plan, C), 44, plan ? 'plan' : '');
       L.marker(ll, { icon: m }).addTo(map).bindTooltip(`${esc(tripName(x.t))} · ${x.t.year || ''}${plan ? ' (예정)' : ''}`, { direction: 'top', offset: [0, -20] })
         .bindPopup(card((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], `${tripName(x.t)} ${x.t.year || ''}`, plan ? '예정된 여행' : '다녀온 여행', ''), { className: 'tm-popw', closeButton: false }).on('click', () => tripTitle(x.t));
     }
@@ -3524,15 +3552,26 @@ function growthPlay(who) {                                         // 연도순 
   el.onclick = e => { const b = e.target.closest('[data-gp]'); if (!b) return; const a = b.dataset.gp; if (a === 'x') return close(); if (a === 'm') { muted = !muted; LS.set('grMute', muted); mus?.mute(muted); return draw(); } if (a === '0') { on = !on; draw(); return tick(); } go(+a); tick(); };
   draw(); tick();
 }
-function growthAddFromVisit(path, date, anchor) {                   // 방문 기록 사진 → 성장 앨범 (같은 파일 재사용, 새로 안 올림)
+function growthAddFromVisit(path, date, anchor, who0) {   /* 방문 기록 사진 → 성장 앨범 (같은 파일 재사용) · 11/06 여러 명 고르기 창(화면 안에 뜸) */
   if (isRO()) return goToken(); if (!path || /^local:/.test(path)) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
-  pickMenu(anchor, familyNames().map(n => [n, n, false]), n => { S.db.growth ||= []; if (S.db.growth.some(g => g.photo === path && (g.who || []).includes(n))) return toast('이미 들어 있어요');
-    S.db.growth.push({ id: uid('g'), who: [n], date: date || null, photo: path, memo: null }); markDirty(); toast(`🌱 ${n} 성장 앨범에 추가`); });
+  const host = anchor?.closest('#lb') || document.body; host.querySelector('.ga-pop')?.remove();
+  const by = (S.db.meta.family || {}).birthYear || {}, y = +(date || '').slice(0, 4), fam = familyNames();
+  const already = new Set((S.db.growth || []).filter(g => g.photo === path).flatMap(g => g.who || []));
+  const sel = new Set((who0 && who0.length ? who0 : coreFamily()).filter(n => fam.includes(n) && !already.has(n) && (!by[n] || !y || by[n] <= y)));
+  const pop = document.createElement('div'); pop.className = 'ga-pop';
+  const draw = () => { pop.innerHTML = `<b>누가 나온 사진인가요?</b><p class="cap3">${date ? esc(date.replace(/-/g, '.')) + ' · ' : ''}여러 명 고를 수 있어요</p>
+    <div class="chips">${fam.map(n => { const born = !by[n] || !y || by[n] <= y, has = already.has(n); return `<button type="button" class="chip${sel.has(n) ? ' on' : ''}" data-gan="${esc(n)}" ${has || !born ? 'disabled' : ''}>${esc(n)}${has ? ' ✓' : !born ? ' <small>출생 전</small>' : ''}</button>`; }).join('')}</div>
+    <div class="ga-btns"><button type="button" data-gax="1">취소</button><button type="button" class="pri" data-gaok="1" ${sel.size ? '' : 'disabled'}>🌱 ${sel.size ? sel.size + '명 ' : ''}성장 앨범에 넣기</button></div>`; };
+  draw(); host.appendChild(pop);
+  pop.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b || b.disabled) return;
+    if (b.dataset.gan) { sel.has(b.dataset.gan) ? sel.delete(b.dataset.gan) : sel.add(b.dataset.gan); return draw(); }
+    if (b.dataset.gax) return pop.remove();
+    if (b.dataset.gaok) { S.db.growth ||= []; S.db.growth.push({ id: uid('g'), who: [...sel], date: date || null, photo: path, memo: null }); markDirty(); toast(`🌱 ${[...sel].join('·')} 성장 앨범에 추가`); pop.remove(); } };
 }
 /* ---------------- 애니메이션 · 장소 타이틀 (11/04) — 「동작 줄이기」 설정이면 모두 끔 ---------------- */
 const PLANE_D = 'M2 11 L10 10 L14 3 L16 3 L13.5 10 L20 10 L22 7.5 L23.5 7.5 L22.5 12 L23.5 16.5 L22 16.5 L20 14 L13.5 14 L16 21 L14 21 L10 14 L2 13 Z';   // 비행기 그림 (원본은 머리가 왼쪽 → 쓸 때 좌우 뒤집음) — 윈도우 이모지(파란 네모) 대신 직접 그림
 const REDUCE = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const CITY_EN = { 로마: 'Roma', 피렌체: 'Firenze', 나폴리: 'Napoli', 베네치아: 'Venezia', 베니스: 'Venezia', 밀라노: 'Milano', 파리: 'Paris', 런던: 'London', 바르셀로나: 'Barcelona', 마드리드: 'Madrid', 프라하: 'Praha', 빈: 'Wien', 아크라: 'Accra', 나트랑: 'Nha Trang', 다낭: 'Da Nang', 방콕: 'Bangkok', 괌: 'Guam', 평창: 'Pyeongchang', 시드니: 'Sydney', 도쿄: 'Tokyo', 오사카: 'Osaka', 후쿠오카: 'Fukuoka', 삿포로: 'Sapporo', 오키나와: 'Okinawa', 하노이: 'Hanoi', 호치민: 'Ho Chi Minh', 푸꾸옥: 'Phu Quoc', 치앙마이: 'Chiang Mai', 푸켓: 'Phuket', 싱가포르: 'Singapore', 홍콩: 'Hong Kong', 타이베이: 'Taipei', 세부: 'Cebu', 발리: 'Bali', 사이판: 'Saipan', 하와이: 'Hawaii', 제주: 'Jeju', 부산: 'Busan', 강릉: 'Gangneung', 서울: 'Seoul', 경주: 'Gyeongju', 여수: 'Yeosu', 속초: 'Sokcho', 양평: 'Yangpyeong', 가평: 'Gapyeong', 테마: 'Tema', 아크라: 'Accra' };
+const CITY_EN = { '바티칸 시국': 'Vatican City', 바티칸: 'Vatican', 베네치아: 'Venezia', 시에나: 'Siena', 피사: 'Pisa', 아말피: 'Amalfi', 포지타노: 'Positano', 소렌토: 'Sorrento', 폼페이: 'Pompeii', 카프리: 'Capri', 인터라켄: 'Interlaken', 취리히: 'Zürich', 루체른: 'Luzern', 제네바: 'Genève', 도쿄: 'Tokyo', 오사카: 'Osaka', 후쿠오카: 'Fukuoka', 삿포로: 'Sapporo', 오키나와: 'Okinawa', 타이베이: 'Taipei', 홍콩: 'Hong Kong', 싱가포르: 'Singapore', 세부: 'Cebu', 보라카이: 'Boracay', 발리: 'Bali', 푸켓: 'Phuket', 치앙마이: 'Chiang Mai', 하노이: 'Hanoi', 호치민: 'Ho Chi Minh', 푸꾸옥: 'Phu Quoc', 하와이: 'Hawaii', 뉴욕: 'New York', 로마: 'Roma', 피렌체: 'Firenze', 나폴리: 'Napoli', 베네치아: 'Venezia', 베니스: 'Venezia', 밀라노: 'Milano', 파리: 'Paris', 런던: 'London', 바르셀로나: 'Barcelona', 마드리드: 'Madrid', 프라하: 'Praha', 빈: 'Wien', 아크라: 'Accra', 나트랑: 'Nha Trang', 다낭: 'Da Nang', 방콕: 'Bangkok', 괌: 'Guam', 평창: 'Pyeongchang', 시드니: 'Sydney', 도쿄: 'Tokyo', 오사카: 'Osaka', 후쿠오카: 'Fukuoka', 삿포로: 'Sapporo', 오키나와: 'Okinawa', 하노이: 'Hanoi', 호치민: 'Ho Chi Minh', 푸꾸옥: 'Phu Quoc', 치앙마이: 'Chiang Mai', 푸켓: 'Phuket', 싱가포르: 'Singapore', 홍콩: 'Hong Kong', 타이베이: 'Taipei', 세부: 'Cebu', 발리: 'Bali', 사이판: 'Saipan', 하와이: 'Hawaii', 제주: 'Jeju', 부산: 'Busan', 강릉: 'Gangneung', 서울: 'Seoul', 경주: 'Gyeongju', 여수: 'Yeosu', 속초: 'Sokcho', 양평: 'Yangpyeong', 가평: 'Gapyeong', 테마: 'Tema', 아크라: 'Accra' };
 function regionEn(cc) { try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) || cc; } catch { return cc || ''; } }
 function fmtCoord(ll) { if (!ll || ll.lat == null) return ''; const a = Math.abs(+ll.lat).toFixed(2) + '°' + (ll.lat >= 0 ? 'N' : 'S'), b = Math.abs(+ll.lng).toFixed(2) + '°' + (ll.lng >= 0 ? 'E' : 'W'); return `${a}  ${b}`; }
 function locTitle(big, sub, coord) {                               // 화면 가득 도시 이름 (글자가 차례로 찍힘 → 1.8초 뒤 사라짐)
@@ -3542,7 +3581,7 @@ function locTitle(big, sub, coord) {                               // 화면 가
   el.onclick = () => el.remove(); document.body.appendChild(el); setTimeout(() => el.remove(), 2400);
 }
 function tripTitle(t) {
-  const au = t.cover ? null : tripAuto(t), c = t.cover || tripCity(t), en = au ? au.en : /[가-힣]/.test(c) ? (CITY_EN[c] || CITY_EN[c.split(' ')[0]] || c) : c;
+  const au = t.cover ? null : tripAuto(t), c = t.cover || tripCity(t), en = au ? au.en : enName(c, t.country);
   const { start, end } = tripDates(t); const d = x => x ? `${x.getFullYear()}.${String(x.getMonth() + 1).padStart(2, '0')}.${String(x.getDate()).padStart(2, '0')}` : '';
   const loc = (t.lat != null ? { lat: t.lat, lng: t.lng } : null) || (t.items || []).map(i => i.place_id && placeById(i.place_id)).find(p => p && hasCoord(p)) || S.db.bases.find(b => b.country === t.country && hasCoord(b)) || (S.geoWorld && geoCenter(t.country));
   locTitle(en, [t.country === 'KR' ? (/[가-힣]/.test(c) ? c : 'KOREA') : au?.many ? au.sub : regionEn(t.country), start ? d(start) + (end && +end !== +start ? ' — ' + d(end).slice(5) : '') : t.year].filter(Boolean).join(' · '), fmtCoord(loc));
@@ -3592,7 +3631,7 @@ function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크
   const el = document.createElement('div'); el.id = 'lb'; el.className = 'lb'; document.body.appendChild(el);
   const draw = () => { el.innerHTML = `<img src="${srcs[i]}" alt=""><button class="x" data-lbx="1">✕</button>${srcs.length > 1 ? `<button class="pv" data-lbp="-1">‹</button><button class="nx" data-lbp="1">›</button>` : ''}<p class="cap">${esc(cap)}${srcs.length > 1 ? ` · ${i + 1}/${srcs.length}` : ''}</p>${meta?.raws?.[i] ? `<div class="lb-acts">${meta.cover ? `<button class="lb-gr" data-lbcv="1">${meta.coverNow === meta.raws[i] ? '✓ 지금 표지' : '★ 여행 표지로'}</button>` : ''}<button class="lb-gr" data-lbg="1">🌱 성장 앨범에 넣기</button></div>` : ''}`; };
   draw();
-  el.onclick = e => { const b = e.target.closest('button'); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.lbg) return growthAddFromVisit(meta.raws[i], meta.date, b); if (b.dataset.lbcv) { meta.cover(meta.raws[i]); meta.coverNow = meta.raws[i]; return draw(); } if (b.dataset.lbx) el.remove(); if (b.dataset.lbp) { i = (i + +b.dataset.lbp + srcs.length) % srcs.length; draw(); } };
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.lbg) return growthAddFromVisit(meta.raws[i], meta.date, b, meta.who); if (b.dataset.lbcv) { meta.cover(meta.raws[i]); meta.coverNow = meta.raws[i]; return draw(); } if (b.dataset.lbx) el.remove(); if (b.dataset.lbp) { i = (i + +b.dataset.lbp + srcs.length) % srcs.length; draw(); } };
   let x0 = null; el.ontouchstart = e => { x0 = e.touches[0].clientX; }; el.ontouchend = e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50 && srcs.length > 1) { i = (i + (dx < 0 ? 1 : -1) + srcs.length) % srcs.length; draw(); } x0 = null; };
   document.addEventListener('keydown', function k(ev) { if (!document.getElementById('lb')) return document.removeEventListener('keydown', k); if (ev.key === 'Escape') el.remove(); if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { i = (i + (ev.key === 'ArrowRight' ? 1 : -1) + srcs.length) % srcs.length; draw(); } });
 }
@@ -3656,7 +3695,7 @@ function bindOnce() {
   $('#base-btn').onclick = e => { e.stopPropagation(); baseMenu(e.currentTarget); };
   $('#base-chip').onclick = e => { e.stopPropagation(); baseMenu(e.currentTarget); };
   $('#q-pc').oninput = $('#q-hdr').oninput = e => { S.q = e.target.value; $('#q').value = S.q; renderList(); if (S.view !== 'explore' && S.q) showView('explore'); };
-  $('#region-dd').onclick = e => { e.stopPropagation(); pickMenu(e.currentTarget, [...regionsInDb().map(([r, n]) => [r, `${REGION_LABEL[r] || niceName(r)} <small>${n}</small>`, S.region === r]), ['all', '전체 지역', S.region === 'all']], v => { S.region = v; LS.set('region', v); renderRegionChips(); renderTagChips(); const base = S.db.bases.find(x => x.default_for === v); if (base) setBase(base.id, true); renderList(); fitToVisible(); }); };
+  $('#region-dd').onclick = e => { e.stopPropagation(); pickMenu(e.currentTarget, [...regionsInDb().map(([r, n]) => [r, `${regionLabel(r)} <small>${n}</small>`, S.region === r]), ['all', '전체 지역', S.region === 'all']], v => { S.region = v; LS.set('region', v); renderRegionChips(); renderTagChips(); const base = S.db.bases.find(x => x.default_for === v); if (base) setBase(base.id, true); renderList(); fitToVisible(); }); };
   $('#season-dd').onclick = e => { e.stopPropagation(); pickMenu(e.currentTarget, [...['봄', '여름', '가을', '겨울'].map(x => [x, x, S.flags.has(x)]), ['', '계절 무관', !['봄', '여름', '가을', '겨울'].some(x => S.flags.has(x))]], v => { ['봄', '여름', '가을', '겨울'].forEach(x => S.flags.delete(x)); if (v) S.flags.add(v); renderRegionChips(); renderList(); }); };
   const setKm = km => { S.radius = S.radius === km ? null : km; LS.set('radius', S.radius); $$('#km-pills button').forEach(b => b.classList.toggle('on', S.radius != null && +b.dataset.km <= S.radius)); $('#fab-km').textContent = S.radius ? S.radius + 'km' : 'km'; $('#fab-km').classList.toggle('on', !!S.radius); renderList(); };
   $('#km-pills').onclick = e => { const b = e.target.closest('button'); if (b) setKm(+b.dataset.km); };
@@ -3709,7 +3748,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();

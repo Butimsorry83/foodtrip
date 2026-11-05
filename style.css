@@ -1130,3 +1130,20 @@ body.tm-full-on { overflow: hidden; }
 .gsb-photos .sb-pol { position: relative; }
 .gsb-soc { position: absolute; right: 8px; bottom: 30px; font-style: normal; font-size: 11px; font-weight: 800; background: rgba(255,255,255,.92); color: #ed4956; padding: 2px 7px; border-radius: 999px; }
 .lb .lb-gr.lb-soc { bottom: 116px; background: rgba(0,0,0,.55); color: #fff; }
+/* 11/06 사진 → 성장 앨범: 여러 명 고르기 창 (화면 가운데 아래, 잘리지 않게) */
+.ga-pop { position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 5; width: min(420px, calc(100vw - 24px)); max-height: 70vh; overflow: auto; background: var(--panel); color: var(--text-1); border-radius: 18px; padding: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.45); text-align: left; }
+.ga-pop > b { font-size: 16px; } .ga-pop .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
+.ga-pop .chip { position: static; width: auto; height: auto; border-radius: 999px; font-size: 14px; background: var(--bg-subtle); color: var(--text-1); border: 1px solid var(--line); padding: 7px 12px; }
+.ga-pop .chip.on { background: var(--primary); color: var(--on-primary); border-color: var(--primary); } .ga-pop .chip:disabled { opacity: .45; } .ga-pop .chip small { font-size: 10px; }
+.ga-btns { display: flex; gap: 8px; } .ga-btns button { position: static; flex: 1; width: auto; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-subtle); color: var(--text-1); font-size: 14px; font-weight: 700; }
+.ga-btns button.pri { flex: 2; background: var(--primary); color: var(--on-primary); border-color: var(--primary); } .ga-btns button:disabled { opacity: .5; }
+/* 11/06 별점 반 개 */
+.hst { display: inline-block; opacity: 1 !important; background: linear-gradient(90deg, var(--star, var(--accent)) 50%, var(--star-off, rgba(140,140,140,.3)) 50%); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
+.jr-meta .st .hst, .sb-sub .st .hst { opacity: 1; }
+.vstars [data-r].half { background: linear-gradient(90deg, var(--accent) 50%, var(--line-strong) 50%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* 11/06 찾기 지도 「밝고 깔끔하게」: 원래 지도(한글 지명 그대로) 채도·대비 낮추고 밝게 + 색 테마 색을 아주 옅게 */
+:root[data-mapst="clean"] body:not(.dark-tiles) .leaflet-container:not(.tm-map) .leaflet-tile-pane { filter: saturate(.42) brightness(1.08) contrast(.88); }
+:root[data-mapst="clean"] body.dark-tiles .leaflet-container:not(.tm-map) .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.8) contrast(.85) saturate(.35); }
+:root[data-mapst="clean"] #map::after { content: ''; position: absolute; inset: 0; z-index: 250; pointer-events: none; background: color-mix(in srgb, var(--primary-2) 12%, transparent); mix-blend-mode: multiply; }
+:root[data-mapst="clean"] body.dark-tiles #map::after { background: color-mix(in srgb, var(--primary-2) 18%, transparent); mix-blend-mode: soft-light; }
+.lg-solo { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
