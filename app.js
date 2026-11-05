@@ -1792,7 +1792,9 @@ function tripCities(t) {   /* 기록 장소를 30km 묶음으로 → [{name, en,
     const nm = niceName(p.si || p.name); out.push({ name: nm, en: /[가-힣]/.test(nm) ? (CITY_EN[nm] || CITY_EN[nm.split(' ')[0]] || nm) : nm, p }); }
   return out;
 }
-function tripAuto(t) { if ((t.items || []).length || t.country === 'KR') return null; const cs = tripCities(t); if (!cs.length) return null; return cs.length > 1 ? { name: ccKo(t.country), en: regionEn(t.country), sub: cs.map(c => c.en).join(' · '), many: true } : { name: cs[0].name, en: cs[0].en, sub: '' }; }
+function tripAuto(t) { if ((t.items || []).length || t.country === 'KR') return null; const cs = tripCities(t); if (!cs.length) return null;
+  const ccs = [...new Set(cs.map(c => c.p.country || t.country))]; if (ccs.length > 1) { const ks = [...new Set(ccs.map(contOf))]; const one = ks.length === 1 && ks[0] ? CONT[ks[0]] : null; return { name: one ? one[0] : '세계 여행', en: one ? one[1] : 'World Tour', sub: ccs.map(c => regionEn(c)).join(' · '), many: true, multi: true }; }
+  return cs.length > 1 ? { name: ccKo(t.country), en: regionEn(t.country), sub: cs.map(c => c.en).join(' · '), many: true } : { name: cs[0].name, en: cs[0].en, sub: '' }; }
 const tripName = t => t.cover || tripAuto(t)?.name || (!(t.items || []).length && t.title ? (t.title.replace(/^\s*\d{4}\s*/, '').trim() || tripCity(t)) : tripCity(t));
 function collectionsHtml(d, pc) {
   const regions = regionsInDb();
@@ -2213,7 +2215,7 @@ function openItemEdit(t, idx) {                                  // 타임라인
 function openTripEdit(t) {
   openSheet(`<div class="sheet-head"><h2>여행 편집</h2><button class="close" data-act="close">✕</button></div>
     <form class="form" id="tef"><label>제목<input name="title" value="${esc(t.title)}" required></label>
-    ${t.items.length ? '' : `<label>표지 이름 <small style="color:var(--text-3)">(비우면 자동: ${esc(tripAuto({ ...t, cover: null })?.name || '제목')} — 도시 1곳이면 도시, 여러 도시면 나라)</small><input name="cover" value="${esc(t.cover || '')}" placeholder="자동"></label><div class="two"><label>시작일<input name="start" type="date" value="${esc(t.start || '')}"></label><label>마지막 날<input name="end" type="date" value="${esc(t.end || '')}"></label></div>`}<div class="three"><label>도시${t.items.length ? ' <small style="color:var(--text-3)">(표지 큰 글씨)</small>' : ''}<input name="city" value="${esc(t.city)}" required></label><label>국가<input name="country" value="${esc(t.country)}"></label><label>연도<input name="year" type="number" value="${t.year}"></label></div>
+    ${t.items.length ? '' : `<label>표지 이름 <small style="color:var(--text-3)">(비우면 자동: ${esc(tripAuto({ ...t, cover: null })?.name || '제목')} — 도시 1곳 → 도시 · 여러 도시 → 나라 · 여러 나라 → 대륙)</small><input name="cover" value="${esc(t.cover || '')}" placeholder="자동"></label><div class="two"><label>시작일<input name="start" type="date" value="${esc(t.start || '')}"></label><label>마지막 날<input name="end" type="date" value="${esc(t.end || '')}"></label></div>`}<div class="three"><label>도시${t.items.length ? ' <small style="color:var(--text-3)">(표지 큰 글씨)</small>' : ''}<input name="city" value="${esc(t.city)}" required></label><label>국가<input name="country" value="${esc(t.country)}"></label><label>연도<input name="year" type="number" value="${t.year}"></label></div>
     <div class="sec">일정 ${t.items.length}개 <span class="sec-note">✕로 삭제</span></div>
     <div class="sublist">${t.items.map((it, i) => `<button type="button" data-del="${i}"><span class="mono" style="color:var(--text-2)">${esc(it.day || '')} ${esc(it.time || '')}</span><span style="flex:1;text-align:left;margin-left:8px">${esc(it.activity || '')}${it.place ? ' · ' + esc(it.place) : ''}</span><span>✕</span></button>`).join('')}</div>
     <div class="btns"><button class="primary">저장</button><button type="button" class="danger" data-act="deltrip">여행 삭제</button></div></form>`);
@@ -2376,8 +2378,13 @@ function focusTrip() {
 const isoD = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null;
 function tripRange(t) { const { start, end } = tripDates(t); return start ? [isoD(start), isoD(end || start)] : null; }
 const dAdd = (iso, n) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n); return isoD(d); };
+/* 11/05 대륙: 같은 기간 여러 나라 → 표지에 대륙 (이탈리아+스위스 → 유럽) */
+const CONT = { EU: ['유럽', 'Europe', 'IT FR ES PT DE CH AT NL BE LU GB IE IS NO SE FI DK PL CZ SK HU SI HR BA RS ME MK AL GR BG RO MT MC SM VA LI EE LV LT UA BY MD CY AD XK'], SEA: ['동남아시아', 'Southeast Asia', 'VN TH LA KH MM MY SG ID PH BN TL'], EA: ['동아시아', 'East Asia', 'JP CN TW HK MO MN KR KP'], SA: ['남아시아', 'South Asia', 'IN NP LK BD BT MV PK'], CAS: ['중앙아시아', 'Central Asia', 'KZ UZ KG TJ TM AF'], ME: ['중동', 'Middle East', 'AE QA SA OM KW BH IL PS JO LB SY TR IR IQ YE GE AM AZ'], NA: ['북미', 'North America', 'US CA'], LA: ['중남미', 'Latin America', 'MX GT BZ HN SV NI CR PA CU JM DO HT PR BS BB TT BR AR CL PE BO CO EC VE UY PY GY SR'], OC: ['오세아니아', 'Oceania', 'AU NZ FJ PG GU MP PW PF NC WS TO VU SB FM MH KI NR TV'], AF: ['아프리카', 'Africa', 'GH NG KE TZ ZA EG MA TN DZ LY ET UG RW SN CI CM ZM ZW MZ MG NA BW AO CD CG GA ML NE BF TD SD SS SO DJ ER MW LS SZ MU SC CV GM GN GW SL LR TG BJ MR CF GQ ST KM'] };
+const CC_CONT = Object.fromEntries(Object.entries(CONT).flatMap(([k, [, , l]]) => l.split(' ').map(c => [c, k])));
+const contOf = cc => CC_CONT[cc] || null;
+const sameTripArea = (a, b) => a === b || (a !== 'KR' && b !== 'KR' && !!contOf(a) && contOf(a) === contOf(b));   /* 같은 나라 또는 같은 대륙(해외) */
 function tripFor(country, a, z, slack = 2) {   /* 11/05 1~2일 오타까지 묶음 */                        // 같은 나라 · 날짜가 겹치는(앞뒤 3일 여유) 여행
-  return S.db.trips.find(t => { if (t.country !== country) return false; const r = tripRange(t); return r && !(dAdd(r[1], slack) < a || dAdd(r[0], -slack) > z); });
+  return S.db.trips.find(t => { if (!sameTripArea(t.country, country)) return false; const r = tripRange(t); return r && !(dAdd(r[1], slack) < a || dAdd(r[0], -slack) > z); });
 }
 function tieVisitTrip(p, v) {                                       // 기록을 여행에 연결 (없으면 간편 여행 생성) → 여행
   if (!v.date) return null; const a = v.date, z = v.dateEnd && v.dateEnd > a ? v.dateEnd : a;
@@ -2387,7 +2394,7 @@ function tieVisitTrip(p, v) {                                       // 기록을
   v.trip = t.id; return t;
 }
 function tripVisits(t) {                                            // 여행 기간·나라에 해당하는 기록들
-  const r = tripRange(t), sl = t.country === 'KR' ? 0 : 2; return S.db.places.flatMap(p => (p.visitLog || []).filter(v => v.trip === t.id || (r && v.date && !(v.trip && v.trip !== t.id && S.db.trips.some(x => x.id === v.trip)) && (p.country || 'KR') === t.country && (v.dateEnd && v.dateEnd > v.date ? v.dateEnd : v.date) >= dAdd(r[0], -sl) && v.date <= dAdd(r[1], sl) && (t.country !== 'KR' || v.trip === t.id || (t.items || []).some(i => i.place_id === p.id)))).map(v => ({ p, v })));
+  const r = tripRange(t), sl = t.country === 'KR' ? 0 : 2; return S.db.places.flatMap(p => (p.visitLog || []).filter(v => v.trip === t.id || (r && v.date && !(v.trip && v.trip !== t.id && S.db.trips.some(x => x.id === v.trip)) && sameTripArea(p.country || 'KR', t.country) && (v.dateEnd && v.dateEnd > v.date ? v.dateEnd : v.date) >= dAdd(r[0], -sl) && v.date <= dAdd(r[1], sl) && (t.country !== 'KR' || v.trip === t.id || (t.items || []).some(i => i.place_id === p.id)))).map(v => ({ p, v })));
 }
 function tripAllPhotos(t) {                                         // 여행 사진 + 그 여행 기록 사진 (복사 없이 모아 보기)
   const seen = new Set(), out = [];
@@ -3423,6 +3430,37 @@ function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크
 }
 
 /* ---------------- 뷰 전환 ---------------- */
+/* 11/05 폰 뒤로 가기: 한 번에 하나씩 닫기(사진 → 지도 크게 → 창 → 여행 상세 → 홈) · 홈에서 누르면 「나갈까요?」 */
+function backStep() {
+  const lb = $('#lb'); if (lb) { lb.remove(); return true; }
+  const gp = $('#grplay'); if (gp) { gp.querySelector('[data-gp=x]')?.click(); if ($('#grplay')) gp.remove(); return true; }
+  const lt = document.querySelector('.loctitle'); if (lt) { lt.remove(); return true; }
+  if (S.tmFull) { S.tmFull = false; document.body.classList.remove('tm-full-on'); drawTravelCard(); return true; }
+  if ($('#menu')) { closeMenu(); return true; }
+  if (!$('#sheet').hidden) {
+    if (S.sheetDirty && !confirm('작성 중인 내용이 있습니다. 창을 닫을까요?')) return true;
+    const bk = $('#sheet-inner').querySelector('[data-act=back], .hd .back');   /* 창 안의 「‹ / 취소」 = 그 창이 정한 위 단계(상위 창 또는 닫기) */
+    if (bk) { const before = $('#sheet-inner').innerHTML.length; S.sheetDirty = false; bk.click(); if ($('#sheet').hidden || $('#sheet-inner').innerHTML.length !== before) return true; }
+    closeSheet(); return true; }
+  if (S.view === 'trips' && S.trip) { S.trip = null; renderTrips(); return true; }
+  if (S.view && S.view !== 'home') { showView('home'); return true; }
+  return false;
+}
+function askExit() {
+  if ($('#exitask')) return; const el = document.createElement('div'); el.id = 'exitask'; el.className = 'exitask';
+  el.innerHTML = `<div class="ex-box"><img src="${asset('assets/mark-faces.png')}" alt=""><b>준준 TRIP을 나갈까요?</b><div class="ex-btns"><button data-ex="stay">계속 보기</button><button data-ex="go" class="pri">나가기</button></div></div>`;
+  document.body.appendChild(el);
+  el.onclick = e => { const b = e.target.closest('[data-ex]'); if (!b && e.target !== el) return; el.remove(); if (b?.dataset.ex === 'go') { S.exiting = true; history.back(); } else history.pushState({ jj: 'guard' }, ''); };
+}
+function initBackNav() {
+  try { history.replaceState({ jj: 'root' }, ''); history.pushState({ jj: 'guard' }, ''); } catch { return; }
+  window.addEventListener('popstate', () => {
+    if (S.exiting) return;
+    const ex = $('#exitask'); if (ex) { ex.remove(); history.pushState({ jj: 'guard' }, ''); return; }
+    if (backStep()) { history.pushState({ jj: 'guard' }, ''); return; }
+    askExit();   /* 지금은 root 상태 — 「나가기」면 한 번 더 뒤로 → 앱 종료 */
+  });
+}
 function showView(v) {
   const sheetState = v === 'map' ? 'peek' : v === 'list' ? '' : null;
   if (v === 'map' || v === 'list') v = 'explore';
@@ -3493,8 +3531,8 @@ function boot(re) {
   if (!re) handleHash();
 }
 (async function main() {
-  applyTheme(); initMap(); bindOnce(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
+  window.JJ = { S, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
