@@ -231,7 +231,7 @@ function mergeList(baseL, mineL, theirsL) {
 }
 function mergeDb(base, mine, theirs) {
   const out = { ...theirs };
-  for (const k of ['places', 'trips', 'bases', 'lived', 'growth']) out[k] = mergeList(base?.[k] || [], mine[k] || [], theirs[k] || []);   // lived: 살았던 곳 · growth: 성장 앨범
+  for (const k of ['places', 'trips', 'bases', 'lived', 'growth', 'social']) out[k] = mergeList(base?.[k] || [], mine[k] || [], theirs[k] || []);   // lived: 살았던 곳 · growth: 성장 앨범
   out.trash = mergeList(base?.trash, mine.trash, theirs.trash);
   const trashed = new Set(out.trash.map(x => x.id));
   for (const k of ['places', 'trips', 'bases']) out[k] = out[k].filter(x => !trashed.has(x.id) || (!(base?.trash || []).some(z => z.id === x.id) && !(mine.trash || []).some(z => z.id === x.id) && (mine[k] || []).some(z => z.id === x.id && !same(z, (base?.[k] || []).find(y => y.id === x.id)))));
@@ -2842,6 +2842,7 @@ function openGrowth(opts) {
     if (b.dataset.act === 'back') return closeSheet();
     if (b.dataset.grwho != null) return openGrowth({ ...opts, gwho: b.dataset.grwho });
     if (b.dataset.act === 'grup') return isRO() ? goToken() : openGrowthUpload(who);
+    if (b.dataset.grv != null) { LS.set('grSb', b.dataset.grv === '1'); return openGrowth({ ...opts, gwho: who }); }
     if (b.dataset.act === 'grplay') return growthPlay(who);
     if (b.dataset.act === 'grmusic') return openGrowthMusic(() => openGrowth({ page: true, gwho: who }));
     if (b.dataset.act === 'grbirth') return isRO() ? goToken() : openGrowthBirth();
@@ -2849,11 +2850,60 @@ function openGrowth(opts) {
       openLightbox(list.map(g => photoUrl(g.photo)), k, who || '성장 앨범');
       const lb = $('#lb'); if (lb && !isRO()) {
         const curG = () => { const src = lb.querySelector('img')?.getAttribute('src'); return list.find(g => photoUrl(g.photo) === src) || list[k]; };   /* 넘겨 본 사진 기준 */
+        const so = document.createElement('button'); so.className = 'lb-gr lb-soc'; const sc = g0 => { const a = socOf('g:' + g0.id); return `♡ ${a.filter(x => x.k === 'l').length} · 💬 ${a.filter(x => x.k === 'c').length}`; }; so.textContent = sc(curG());
+        so.onclick = ev => { ev.stopPropagation(); const g = curG(); lb.remove(); openGrowthPost(g, () => openGrowth({ page: true, gwho: who })); }; lb.appendChild(so);
         const ed = document.createElement('button'); ed.className = 'lb-gr lb-edit'; ed.textContent = '✎ 편집';   /* 11/06 날짜·사람·메모·빼기 한 곳에서 */
         ed.onclick = ev => { ev.stopPropagation(); const g = curG(); lb.remove(); openGrowthEdit(g, () => openGrowth({ page: true, gwho: who })); };
         lb.appendChild(ed); }
       return; }
   };
+}
+/* ---------------- 11/06 댓글 · 좋아요 (인스타 보기·성장 앨범) ----------------
+ * S.db.social = [{id, t: 'v:<방문id>' | 'g:<성장id>', k: 'c'(댓글) | 'l'(좋아요), who, text, at}] — 따로 저장해서 두 사람이 동시에 써도 안 지워짐
+ * 좋아요 id = l_<대상>_<사람> (같은 사람이 두 번 눌러도 하나) · 「누가」는 가족 이름 중 선택(기기마다 기억)
+ */
+function socMe() { const f = familyNames(), m = LS.get('me', ''); return f.includes(m) ? m : (f[0] || '나'); }
+function socOf(t) { return (S.db.social || []).filter(x => x.t === t); }
+function relTime(at) { const d = (Date.now() - at) / 1000; if (d < 60) return '방금'; if (d < 3600) return `${Math.floor(d / 60)}분 전`; if (d < 86400) return `${Math.floor(d / 3600)}시간 전`; if (d < 86400 * 7) return `${Math.floor(d / 86400)}일 전`; const x = new Date(at); return `${x.getFullYear()}.${String(x.getMonth() + 1).padStart(2, '0')}.${String(x.getDate()).padStart(2, '0')}`; }
+const SOC_OPEN = new Set();   /* 댓글 모두 보기 · 좋아요 목록 펼침 (이번 접속만) */
+function socialHtml(t) {
+  if (!t || /:(undefined|null)?$/.test(t)) return '';
+  const all = socOf(t), likes = all.filter(x => x.k === 'l').sort((a, b) => a.at - b.at), cs = all.filter(x => x.k === 'c').sort((a, b) => a.at - b.at), me = socMe(), liked = likes.some(x => x.who === me);
+  const showAll = SOC_OPEN.has('c' + t), lv = SOC_OPEN.has('l' + t), shown = showAll ? cs : cs.slice(-2);
+  const likeTxt = !likes.length ? '' : likes.length === 1 ? `<b>${esc(likes[0].who)}</b>님이 좋아합니다` : `<b>${esc(likes[0].who)}</b>님 <b>외 ${likes.length - 1}명</b>이 좋아합니다`;
+  return `<div class="soc" data-soct="${esc(t)}"><div class="soc-bar"><button class="soc-like rw${liked ? ' on' : ''}" data-slike="1" title="좋아요">${liked ? '♥' : '♡'}</button><button class="soc-cbtn" data-sfocus="1" title="댓글">💬</button>${cs.length ? `<span class="soc-n">${cs.length}</span>` : ''}</div>
+    ${likeTxt ? `<button class="soc-likes" data-slist="1">${likeTxt}</button>` : ''}
+    ${lv && likes.length ? `<div class="soc-likers">${likes.map(x => `<span class="soc-av" style="background:${famColor(x.who)}">${esc(x.who.slice(0, 2))}</span><b>${esc(x.who)}</b>`).join('')}</div>` : ''}
+    ${cs.length > 2 && !showAll ? `<button class="soc-more" data-smore="1">댓글 ${cs.length}개 모두 보기</button>` : ''}
+    ${shown.map(c => `<p class="soc-c"><b>${esc(c.who)}</b> ${esc(c.text)} <small>${relTime(c.at)}</small><button class="soc-del rw" data-sdel="${esc(c.id)}" title="지우기">✕</button></p>`).join('')}
+    <form class="soc-f rw"><button type="button" class="soc-me" data-smepick="1" style="background:${famColor(me)}" title="누가 쓰나요">${esc(me.slice(0, 2))}</button><input name="t" placeholder="${esc(me)}(으)로 댓글 달기…" maxlength="300" autocomplete="off"><button type="submit" class="soc-post">게시</button></form>
+    ${SOC_OPEN.has('m' + t) ? `<div class="soc-mes">${familyNames().map(n => `<button type="button" class="chip${n === me ? ' on' : ''}" data-smeset="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
+}
+function famColor(n) { const f = familyNames(), i = Math.max(0, f.indexOf(n)); return (typeof FAM_COLORS !== 'undefined' ? FAM_COLORS : ['#0e3a4b', '#288d9d', '#2c6fbb', '#2e8b57', '#b5651d', '#7b3f98'])[i % 6]; }
+function socRedraw(box) { const t = box.dataset.soct; box.outerHTML = socialHtml(t); }
+function socialClick(e) {   /* 처리했으면 true */
+  const box = e.target.closest('.soc[data-soct]'); if (!box) return false; const b = e.target.closest('button'); if (!b) return true; const t = box.dataset.soct;
+  if (b.type === 'submit' && b.closest('form')) return false;   /* 게시 버튼만 폼 제출로 */
+  if (b.closest('.rw') && isRO()) return false;   /* 토큰 없음 → 기존 안내로 */
+  if (b.dataset.slike) { const me = socMe(), id = `l_${t}_${me}`; S.db.social ||= []; const i = S.db.social.findIndex(x => x.id === id); if (i >= 0) S.db.social.splice(i, 1); else S.db.social.push({ id, t, k: 'l', who: me, at: Date.now() }); markDirty(); socRedraw(box); return true; }
+  if (b.dataset.slist) { SOC_OPEN.has('l' + t) ? SOC_OPEN.delete('l' + t) : SOC_OPEN.add('l' + t); socRedraw(box); return true; }
+  if (b.dataset.smore) { SOC_OPEN.add('c' + t); socRedraw(box); return true; }
+  if (b.dataset.sfocus) { box.querySelector('.soc-f input')?.focus(); return true; }
+  if (b.dataset.smepick) { SOC_OPEN.has('m' + t) ? SOC_OPEN.delete('m' + t) : SOC_OPEN.add('m' + t); const v = box.querySelector('.soc-f input')?.value; socRedraw(box); const nb = document.querySelector(`.soc[data-soct="${CSS.escape(t)}"] .soc-f input`); if (nb && v) nb.value = v; return true; }
+  if (b.dataset.smeset) { LS.set('me', b.dataset.smeset); SOC_OPEN.delete('m' + t); const v = box.querySelector('.soc-f input')?.value; document.querySelectorAll('.soc[data-soct]').forEach(socRedraw); const nb = document.querySelector(`.soc[data-soct="${CSS.escape(t)}"] .soc-f input`); if (nb) { nb.value = v || ''; nb.focus(); } return true; }
+  if (b.dataset.sdel) { const c = (S.db.social || []).find(x => x.id === b.dataset.sdel); if (!c || !confirm(`${c.who}님의 댓글을 지울까요?`)) return true; S.db.social = S.db.social.filter(x => x !== c); markDirty(); socRedraw(box); return true; }
+  return true;
+}
+document.addEventListener('submit', e => { const f = e.target.closest?.('.soc-f'); if (!f) return; e.preventDefault(); if (isRO()) return goToken();
+  const box = f.closest('.soc[data-soct]'), txt = f.t.value.trim(); if (!txt) return; S.db.social ||= []; S.db.social.push({ id: uid('c'), t: box.dataset.soct, k: 'c', who: socMe(), text: txt, at: Date.now() }); markDirty(); SOC_OPEN.add('c' + box.dataset.soct); const t = box.dataset.soct; socRedraw(box); document.querySelector(`.soc[data-soct="${CSS.escape(t)}"] .soc-f input`)?.focus(); });
+document.addEventListener('click', e => { if (e.target.closest('.soc[data-soct]') && socialClick(e)) { e.stopPropagation(); e.preventDefault(); } }, true);   /* 다른 화면 클릭 처리보다 먼저 */
+function openGrowthPost(g, done) {   /* 성장 앨범 사진 한 장 — 인스타식 글 보기 + 좋아요·댓글 */
+  const by = (S.db.meta.family || {}).birthYear || {}, ages = (g.who || []).map(n => growthAge(n, g.date) ? `${n} ${growthAge(n, g.date)}` : n).join(' · ');
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">‹ 앨범</button><b>성장 앨범</b><button class="lnk rw" data-act="gpedit">편집</button></div><div class="vf-scroll gpost">
+    <img class="gpost-ph" src="${photoUrl(g.photo)}" alt="">
+    <div style="padding:12px 16px 20px"><p class="jr-meta"><span class="num">${esc((g.date || '날짜 없음').replace(/-/g, '.'))}</span>${g.memo ? ' · ' + esc(g.memo) : ''}</p>${ages ? `<p class="jr-who">${(g.who || []).map(n => `<span>${esc(growthAge(n, g.date) ? n + ' ' + growthAge(n, g.date) : n)}</span>`).join('')}</p>` : ''}
+    ${socialHtml('g:' + g.id)}</div></div></div>`);
+  $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') { closeSheet(); return done?.(); } if (b.dataset.act === 'gpedit') return openGrowthEdit(g, done); };
 }
 function openGrowthEdit(g, done) {   /* 11/06 성장 앨범 사진 편집: 날짜 · 사진 속 사람 · 메모 · 앨범에서 빼기 */
   const who = new Set(g.who || []), by = (S.db.meta.family || {}).birthYear || {};
@@ -2899,7 +2949,7 @@ function openJournal(opts = {}) {
         ${v.memo ? `<p class="jr-memo serif">“${esc(v.memo)}”</p>` : ''}
         ${v.story ? `<div class="jr-story">${storyHtml(v.story)}</div>` : ''}
         ${(v.menu || []).length ? `<p class="jr-menu">${v.menu.map(x => `<span>${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}</p>` : ''}
-        ${(v.who || []).length ? `<p class="jr-who">${v.who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}</div>${ph.length ? `<div class="jr-phs">${opts.post && ph.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${ph.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article>`; }).join('');   // 어디·언제 먼저, 사진은 아래
+        ${(v.who || []).length ? `<p class="jr-who">${v.who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}${v.id ? socialHtml('v:' + v.id) : ''}</div>${ph.length ? `<div class="jr-phs">${opts.post && ph.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${ph.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article>`; }).join('');   // 어디·언제 먼저, 사진은 아래
   const sb = !album && ents.length > 0 && !!(opts.sb ?? LS.get('jrSb', false)), pg = Math.max(0, Math.min(opts.pg || 0, ents.length - 1));   // 스크랩북 보기 (쪽 넘김)
   const SB_ROT = [-3, 2.5, -1.5, 3.5, -2.5, 1.5, -3.5, 2];
   const sbPage = (e, i) => { const { p, v } = e, ph = visitPhotos(v), n = ph.length;
@@ -3350,12 +3400,22 @@ function exifDate(buf) {                                          // JPEG EXIF �
 }
 function growthAge(name, date) { const by = ((S.db.meta.family || {}).birthYear || {})[name]; if (!by || !date) return ''; const a = +date.slice(0, 4) - by; return a >= 0 ? `${a + 1}살` : ''; }   // 한국식 나이(연 기준) — 생년만 저장
 function growthEnts(who) { return (S.db.growth || []).filter(g => !who || (g.who || []).includes(who)).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')); }
+function grSb() { return !!LS.get('grSb', false); }
+function growthScrap(list, years, who, by, fam) {   /* 11/06 성장 앨범 스크랩북: 연도마다 한 장 · 폴라로이드 · 손글씨 날짜 · 나이 스탬프 */
+  const ROT = [-3, 2.5, -1.5, 3.5, -2.5, 1.5, -3.5, 2];
+  return `<div class="gsb">${years.map(y => { const ys = list.filter(g => ((g.date || '').slice(0, 4) || '날짜 없음') === y);
+    const ages = y === '날짜 없음' ? [] : (who ? [who] : fam).filter(n => by[n] && +y >= by[n]).map(n => `${n} ${+y - by[n] + 1}살`);
+    return `<article class="sb-page gsb-page"><div class="sb-top"><span class="sb-date num">${ys.length}장</span><img class="sb-stamp" src="${asset('assets/mark-stamp.png')}" alt=""></div>
+      <h2 class="sb-title hand">${esc(y)}${y !== '날짜 없음' ? '년' : ''}</h2>${ages.length ? `<div class="gsb-ages">${ages.map(a => `<span class="sb-sticker hand">${esc(a)}</span>`).join('')}</div>` : ''}
+      <div class="sb-photos many gsb-photos">${ys.map((g, k) => { const so = socOf('g:' + g.id), nl = so.filter(x => x.k === 'l').length, nc = so.filter(x => x.k === 'c').length;
+        return `<button class="sb-pol" data-gr="${g.id}" style="--r:${ROT[k % 8]}deg"><span class="tape"></span><img src="${photoUrl(g.photo)}" alt="" loading="lazy"><small class="hand">${esc((g.date || '').slice(5).replace('-', '.'))}${g.memo ? ' ' + esc(g.memo) : ''}</small>${nl || nc ? `<i class="gsb-soc">${nl ? '♥' + nl : ''}${nc ? ' 💬' + nc : ''}</i>` : ''}</button>`; }).join('')}</div></article>`; }).join('')}</div>`;
+}
 function growthHtml(who) {
   const fam = familyNames(), list = growthEnts(who), years = [...new Set(list.map(g => (g.date || '').slice(0, 4) || '날짜 없음'))];
   const by = (S.db.meta.family || {}).birthYear || {};
   return `<div class="gr-hd"><div class="gr-people">${['', ...fam].map(n => `<button class="chip${(who || '') === n ? ' on' : ''}" data-grwho="${esc(n)}">${n ? esc(n) + (by[n] ? ` <small>${by[n]}</small>` : '') : '전체'}</button>`).join('')}</div>
-      <div class="gr-acts"><button class="btn-pri rw" data-act="grup">＋ 사진 올리기</button><button class="btn-line" data-act="grplay" ${list.length ? '' : 'disabled'}>▶ 연도순 재생</button><button class="btn-line" data-act="grmusic" title="재생 음악">♪ ${esc(musicLabel())}</button><button class="btn-line rw" data-act="grbirth" title="나이 표시용 · 생년만 저장">생년 설정</button></div></div>
-    ${list.length ? years.map(y => { const ys = list.filter(g => ((g.date || '').slice(0, 4) || '날짜 없음') === y);
+      <div class="gr-acts"><div class="seg gr-view"><button data-grv="0" class="${grSb() ? '' : 'on'}">▦ 모아보기</button><button data-grv="1" class="${grSb() ? 'on' : ''}">📒 스크랩북</button></div><button class="btn-pri rw" data-act="grup">＋ 사진 올리기</button><button class="btn-line" data-act="grplay" ${list.length ? '' : 'disabled'}>▶ 연도순 재생</button><button class="btn-line" data-act="grmusic" title="재생 음악">♪ ${esc(musicLabel())}</button><button class="btn-line rw" data-act="grbirth" title="나이 표시용 · 생년만 저장">생년 설정</button></div></div>
+    ${list.length && grSb() ? growthScrap(list, years, who, by, fam) : list.length ? years.map(y => { const ys = list.filter(g => ((g.date || '').slice(0, 4) || '날짜 없음') === y);
       return `<section class="gr-year"><div class="gr-band"><b class="serif">${y}</b><span>${who && growthAge(who, ys[0].date) ? esc(who + ' · ' + growthAge(who, ys[0].date)) : !who ? fam.filter(n => by[n] && y !== '날짜 없음' && +y >= by[n]).map(n => `${n} ${+y - by[n] + 1}살`).join(' · ') : ''}</span><small>${ys.length}장</small></div>
         <div class="gr-grid">${ys.map(g => `<button class="gr-ph" data-gr="${g.id}" style="background-image:url('${photoUrl(g.photo)}')">${g.date && (g.who || []).some(n => by[n] && +g.date.slice(0, 4) < by[n]) ? '<i class="gr-warn" title="태그한 사람이 태어나기 전 날짜예요">날짜 확인</i>' : ''}<span>${esc((g.date || '').slice(5).replace('-', '.'))}${!who && (g.who || []).length ? ' · ' + esc(g.who.join('·')) : ''}</span></button>`).join('')}</div></section>`; }).join('')
       : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>성장 앨범이 비어 있어요</b><p class="cap">「＋ 사진 올리기」로 아이·가족 사진을 넣으면 연도별로 쌓입니다. 방문 기록 사진은 크게 보기에서 「🌱 성장 앨범」으로 바로 넣을 수 있어요</p></div>`}`;
@@ -3633,8 +3693,13 @@ function boot(re) {
   S.sort = LS.get('sort', 'dist'); $('#sort').value = S.sort;
   S.radius = LS.get('radius', null); $$('#km-pills button').forEach(b => b.classList.toggle('on', S.radius != null && +b.dataset.km <= S.radius)); $('#fab-km').textContent = S.radius ? S.radius + 'km' : 'km';
   S.region = LS.get('region', 'domestic'); if (S.region !== 'all' && !S.db.places.some(p => p.region === S.region)) S.region = 'all';
+  let baseId = LS.get('base') || S.db.bases.find(b => b.default_for === S.region)?.id;
+  if (!re) {   /* 11/06 앱 열 때 항상: 해외 거점·해외 지역 필터 → 집(국내)으로 (해외는 필요할 때 직접 바꾸기 · ZED 결정) */
+    const bs = S.db.bases.find(b => b.id === baseId), ovBase = bs && (bs.country || 'KR') !== 'KR', ovReg = !['all', 'domestic'].includes(S.region) && S.db.places.some(p => p.region === S.region && (p.country || 'KR') !== 'KR');
+    if (ovBase || ovReg) { if (ovReg) { S.region = 'domestic'; LS.set('region', 'domestic'); } if (ovBase) baseId = S.db.bases.find(b => b.default_for === 'domestic')?.id || S.db.bases.find(b => (b.country || 'KR') === 'KR')?.id; }
+  }
   renderRegionChips(); renderTagChips();
-  setBase(LS.get('base') || S.db.bases.find(b => b.default_for === S.region)?.id, true);
+  setBase(baseId, true);
   renderList();
   if (!re) { fitToVisible(); showView(location.hash ? 'explore' : 'home'); }
   else { renderHome(); renderTrips(); renderSettings(); }
