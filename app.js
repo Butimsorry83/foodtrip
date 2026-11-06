@@ -3086,6 +3086,10 @@ function geoCenter(cc) {
 function enName(nm, cc) { if (!nm || !/[가-힣]/.test(nm)) return nm; const k = CITY_EN[nm] || CITY_EN[nm.split(' ')[0]] || CITY_EN[nm.replace(/\s+/g, '')]; if (k) return k; if (cc === 'KR') return nm; const lat = (nm.match(/[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 .'&-]{1,}/) || [])[0]; return lat ? lat.trim() : (regionEn(cc) || nm); }
 function tripWho(t) { const w = new Set(t.who || []); tripVisits(t).forEach(({ v }) => (v.who || []).forEach(n => w.add(n))); return [...w]; }
 function famHex(n) { const c = famColor(n); return /^var\(/.test(c) ? cssv(c.slice(4, -1).split(',')[0].trim(), '#0e3a4b') : c; }
+/* 11/06 다녀온 나라 = 대륙별 색 (세계·지구본·범례) */
+const CONT_COLOR = { EU: '#e05a7a', SEA: '#f2833a', EA: '#3b7dd8', SA: '#b8732e', CAS: '#8c6b4a', ME: '#c9a227', NA: '#4f5bd5', LA: '#d64fa8', OC: '#22b5d9', AF: '#5d9b3a' };   /* 국내·항로(청록)·계획(노랑)·가고싶다(보라)와 겹치지 않게 */
+const doneFill = (cc, C) => CONT_COLOR[contOf(cc)] || C.done;
+function contLegend(s) { const ks = [...new Set(s.done.map(o => contOf(o.cc)).filter(Boolean))]; return ks.map(k => `<span><i style="background:${CONT_COLOR[k]}"></i>${CONT[k][0]}</span>`).join(''); }
 function arcColorOf(t, plan, C) { if (plan) return C.plan; const w = tripWho(t); return w.length === 1 ? famHex(w[0]) : C.done; }
 function soloLegend() { const set = new Set(); for (const t of S.db.trips) { if (t.country === 'KR') continue; const w = tripWho(t); if (w.length === 1) set.add(w[0]); } return [...set]; }
 function travelStats() {
@@ -3134,7 +3138,7 @@ function travelCardHtml(s, mode) {
           <div><b class="num">${pct.toFixed(1)}<small>%</small></b><span>세계 (한국 포함 ${nOv + 1}/195)</span></div>
           <div><b class="num">${s.km >= 10000 ? (s.km / 1000).toFixed(1) + '<small>천km</small>' : s.km.toLocaleString() + '<small>km</small>'}</b><span>누적 이동 (왕복 직선)</span></div>
         </div>
-        <div class="tm-legend"><span><i class="lg-done"></i>가봤음</span><span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span>${soloLegend().map(n => `<span><i class="lg-solo" style="background:${famHex(n)}"></i>${esc(n)} 혼자</span>`).join('')}</div>
+        <div class="tm-legend"><span><i class="lg-done"></i>가봤음(국내)</span>${contLegend(s)}<span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span>${soloLegend().map(n => `<span><i class="lg-solo" style="background:${famHex(n)}"></i>${esc(n)} 혼자</span>`).join('')}</div>
         ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripName(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
         ${notYet.length ? `<div class="tm-notyet"><p class="cap3">아직 안 가본 시·도 ${notYet.length}곳 <span>· 저장한 곳 많은 순</span></p><div>${notYet.slice(0, 8).map(k => `<span class="chip">${k}${s.saved[k] ? ` <small>저장 ${s.saved[k]}</small>` : ''}</span>`).join('')}</div></div>` : '<p class="tm-next">🎉 17개 시·도를 모두 가봤어요!</p>'}
       </div></div>
@@ -3167,7 +3171,7 @@ async function drawGlobe(s, C, st) {
   const glow = mk('circle', { fill: 'url(#gl-glow)' }), sphere = mk('path', { fill: 'url(#gl-sea)', stroke: isDark() ? '#2a4a55' : '#9cc7d3', 'stroke-width': 1 });
   const grat = mk('path', { fill: 'none', stroke: isDark() ? 'rgba(255,255,255,.06)' : 'rgba(14,58,75,.08)', 'stroke-width': .6 }), gratD = d3.geoGraticule10();
   const stOf = cc => cc === 'KR' ? 'home' : s.done.some(o => o.cc === cc) ? 'done' : s.plan.some(o => o.cc === cc) ? 'plan' : '';
-  const gC = mk('g'), countries = S.geoWorld.features.map(f => { const x = stOf(f.properties.cc); const p = mk('path', { fill: x === 'home' ? C.home : x === 'done' ? C.done : x === 'plan' ? C.plan : C.land, 'fill-opacity': x ? .9 : 1, stroke: isDark() ? '#0d1b22' : '#fff', 'stroke-width': .5 }, gC); if (x) { const t = mk('title', {}, p); t.textContent = f.properties.n; } return { f, p }; });
+  const gC = mk('g'), countries = S.geoWorld.features.map(f => { const x = stOf(f.properties.cc); const p = mk('path', { fill: x === 'home' ? C.home : x === 'done' ? doneFill(f.properties.cc, C) : x === 'plan' ? C.plan : C.land, 'fill-opacity': x ? .9 : 1, stroke: isDark() ? '#0d1b22' : '#fff', 'stroke-width': .5 }, gC); if (x) { const t = mk('title', {}, p); t.textContent = f.properties.n; } return { f, p }; });
   const gA = mk('g'), arcs = [], planes = [];
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const to = [x.loc.lng, x.loc.lat], plan = x.st === 'plan';
     arcs.push({ geo: { type: 'LineString', coordinates: [hm, to] }, p: mk('path', { fill: 'none', stroke: arcColorOf(x.t, plan, C), 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
@@ -3235,7 +3239,7 @@ async function drawTravelCard(mode) {
   const card = (src, title, sub, btns) => `<div class="tm-pop">${src ? `<div class="im" style="background-image:url('${src}')"></div>` : ''}<b>${esc(title)}</b>${sub ? `<p>${esc(sub)}</p>` : ''}<div class="bt">${btns}</div></div>`;
   if (mode === 'world') {
     const st = cc => cc === 'KR' ? 'home' : s.done.some(o => o.cc === cc) ? 'done' : s.plan.some(o => o.cc === cc) ? 'plan' : '';
-    L.geoJSON(S.geoWorld, { style: f => { const x = st(f.properties.cc); return { color: isDark() ? '#0d1b22' : '#ffffff', weight: .7, fillColor: x === 'home' ? C.home : x === 'done' ? C.done : x === 'plan' ? C.plan : C.land, fillOpacity: x ? .85 : 1 }; },
+    L.geoJSON(S.geoWorld, { style: f => { const x = st(f.properties.cc); return { color: isDark() ? '#0d1b22' : '#ffffff', weight: .7, fillColor: x === 'home' ? C.home : x === 'done' ? doneFill(f.properties.cc, C) : x === 'plan' ? C.plan : C.land, fillOpacity: x ? .85 : 1 }; },
       onEachFeature: (f, l) => { const x = st(f.properties.cc); if (x) tip(l, `${esc(f.properties.n)} · ${x === 'home' ? '우리 집' : x === 'done' ? '가봤음' : '계획'}`); } }).addTo(map);
     const EN = (() => { try { return new Intl.DisplayNames(['en'], { type: 'region' }); } catch { return null; } })();
     const enName = cc => { try { return (EN && cc && cc.length === 2 && EN.of(cc)) || ''; } catch { return ''; } };

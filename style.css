@@ -1175,3 +1175,5 @@ body.tm-full-on { overflow: hidden; }
 }
 .gr-todo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--text-1); font-size: 14px; }
 .gr-todo .btn-pri { white-space: nowrap; }
+.tm-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; } .tm-legend span { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.tm-legend span i:not(.lg-lv):not(.lg-solo) { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
