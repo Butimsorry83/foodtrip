@@ -3785,15 +3785,15 @@ async function lvJourney(all, krOnly) {                             // 11/07 이
   const cars = legs.filter(l => l.car), roads = await lvRoads(cars.map(l => [l.a, l.b])); cars.forEach((l, i) => { l.pts = roads[i]; });
   const lines = [], segs = [];
   for (const l of legs) {
-    if (l.car) { lines.push(l.pts); segs.push({ pts: l.pts, kind: 'car', D: 2600 }); continue; }
-    if (!krOnly) { lines.push(l.pts); segs.push({ pts: l.pts, kind: 'plane', D: 3200 }); continue; }
-    if (lvKR(l.a)) { const o = clipKm(l.pts, 1600); lines.push(o); segs.push({ pts: o, kind: 'plane', D: 1400 }, { kind: 'gap', D: 700 }); }   // 국내 지도: 지도 밖으로 날아가 사라짐
-    if (lvKR(l.b)) { const o = clipKm(l.pts, 1600, true); lines.push(o); segs.push({ pts: o, kind: 'plane', D: 1400 }); }                          // … 다시 들어와 착륙
+    if (l.car) { lines.push(l.pts); segs.push({ pts: l.pts, kind: 'car', D: krOnly ? 8000 : 5000 }); continue; }   // 11/07 속도 ↓ (국내 지도는 더 천천히)
+    if (!krOnly) { lines.push(l.pts); segs.push({ pts: l.pts, kind: 'plane', D: 6500 }); continue; }
+    if (lvKR(l.a)) { const o = clipKm(l.pts, 1600); lines.push(o); segs.push({ pts: o, kind: 'plane', D: 3000 }, { kind: 'gap', D: 1200 }); }   // 국내 지도: 지도 밖으로 날아가 사라짐
+    if (lvKR(l.b)) { const o = clipKm(l.pts, 1600, true); lines.push(o); segs.push({ pts: o, kind: 'plane', D: 3000 }); }                          // … 다시 들어와 착륙
   }
   return { lines, segs };
 }
 function jPos(segs, ms) {                                           // 여정 시간(ms) → 위치·다음점·종류
-  const tot = segs.reduce((a, s) => a + s.D, 0) + 1500; let t = ms % tot;
+  const tot = segs.reduce((a, s) => a + s.D, 0) + 3000; let t = ms % tot;
   for (const s of segs) { if (t > s.D) { t -= s.D; continue; } if (s.kind === 'gap') return { hide: true };
     const f = (t / s.D) * (s.pts.length - 1), i = Math.min(Math.floor(f), s.pts.length - 2), r = f - i, a = s.pts[i], b = s.pts[i + 1] || a;
     return { ll: [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r], a, b, kind: s.kind }; }
