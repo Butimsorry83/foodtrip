@@ -3096,8 +3096,10 @@ function travelStats() {
   const tripLoc = t => { if (t.lat != null) return { lat: t.lat, lng: t.lng }; for (const it of t.items || []) { const p = it.place_id && placeById(it.place_id); if (p && hasCoord(p)) return p; } const b = S.db.bases.find(b => b.country === t.country && hasCoord(b)); return b || geoCenter(t.country); };
   for (const t of S.db.trips) { if (!t.country || t.country === 'KR') continue; const dd = dday(t); const st = dd != null && dd >= 0 ? 'plan' : 'done'; const o = ov.get(t.country) || { cc: t.country, state: st, trips: [] }; if (st === 'done') o.state = 'done'; o.trips.push({ t, st, loc: tripLoc(t) }); ov.set(t.country, o); }
   for (const p of visitedP) if (p.country && p.country !== 'KR' && !ov.has(p.country)) ov.set(p.country, { cc: p.country, state: 'done', trips: [] });
+  for (const l of S.db.lived || []) if (l.country && l.country !== 'KR') { const o = ov.get(l.country); if (!o) ov.set(l.country, { cc: l.country, state: 'done', trips: [], lived: true }); else { o.state = 'done'; o.lived = true; } }   /* 11/06 살았던 나라도 가봤음으로 색칠 (가나 등) */
   const done = [...ov.values()].filter(o => o.state === 'done'), plan = [...ov.values()].filter(o => o.state === 'plan');
   const doCnt = {}; for (const p of visitedP) if ((p.country || 'KR') === 'KR') { const k = doKey(p); if (k) doCnt[k] = (doCnt[k] || 0) + 1; }
+  for (const l of S.db.lived || []) if ((l.country || 'KR') === 'KR') { const k = doKey(l); if (k && !doCnt[k]) doCnt[k] = 1; }   /* 살았던 시·도도 색칠 */
   for (const t of S.db.trips) if (t.country === 'KR' && (dday(t) ?? -1) < 0) for (const it of t.items || []) { const p = it.place_id && placeById(it.place_id); const k = p && doKey(p); if (k && !doCnt[k]) doCnt[k] = 1; }
   const saved = {}; for (const p of S.db.places) if ((p.country || 'KR') === 'KR' && p.type !== 'mine') { const k = doKey(p); if (k) saved[k] = (saved[k] || 0) + 1; }
   let km = 0; if (home && hasCoord(home)) { for (const { p } of logs) if (hasCoord(p)) km += haversine(home, p) * 2; for (const o of done) for (const x of o.trips) if (x.st === 'done' && x.loc) km += haversine(home, x.loc) * 2; }
@@ -3798,7 +3800,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
