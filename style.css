@@ -1173,3 +1173,5 @@ body.tm-full-on { overflow: hidden; }
   .tsb > .sb-page:last-child:nth-child(even) .sb-photos.n3 .sb-pol:first-child img, .tsb > .sb-page:last-child:nth-child(even) .sb-photos.n1 .sb-pol img { max-height: 420px; }
   .tsb-cover { padding-bottom: 22px; }
 }
+.gr-todo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--text-1); font-size: 14px; }
+.gr-todo .btn-pri { white-space: nowrap; }

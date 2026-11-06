@@ -2904,6 +2904,7 @@ function openGrowth(opts) {
     if (b.dataset.act === 'back') return closeSheet();
     if (b.dataset.grwho != null) return openGrowth({ ...opts, gwho: b.dataset.grwho });
     if (b.dataset.act === 'grup') return isRO() ? goToken() : openGrowthUpload(who);
+    if (b.dataset.grlv) { const l = (S.db.lived || []).find(x => x.id === b.dataset.grlv); if (l) return openLivedForm(l); }
     if (b.dataset.grv != null) { LS.set('grSb', b.dataset.grv === '1'); return openGrowth({ ...opts, gwho: who }); }
     if (b.dataset.act === 'grplay') return growthPlay(who);
     if (b.dataset.act === 'grmusic') return openGrowthMusic(() => openGrowth({ page: true, gwho: who }));
@@ -3395,7 +3396,7 @@ function openLivedList() {
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') { closeSheet(); return drawTravelCard(); } if (b.dataset.act === 'lvadd') return isRO() ? goToken() : openLivedForm(); if (b.dataset.lv) return isRO() ? goToken() : openLivedForm((S.db.lived || []).find(x => x.id === b.dataset.lv)); };
 }
 function lvUntag(h) { return (h?.photos || []).filter(x => !(x.who || []).length); }
-function lvPre(h) { if (!lvUntag(h).length) return []; const by = (S.db.meta.family || {}).birthYear || {}, end = h.to || new Date().getFullYear(); return coreFamily().filter(n => !by[n] || by[n] <= end); }   /* 사람 안 고른 사진이 있으면 그때 함께 산 우리 가족 미리 선택 */
+function lvPre(h) {   /* 11/06 항상: 그때 함께 산 우리 가족 미리 선택 (새로 올리는 사진도 성장 앨범에) */ const by = (S.db.meta.family || {}).birthYear || {}, end = h.to || new Date().getFullYear(); return coreFamily().filter(n => !by[n] || by[n] <= end); }   /* 사람 안 고른 사진이 있으면 그때 함께 산 우리 가족 미리 선택 */
 async function openLivedForm(h) {
   await loadGeo(); const st = { ...(h || { country: 'KR' }) };
   const all = (S.geoWorld?.features || []).map(f => [f.properties.cc, f.properties.n]).filter(([c]) => c && c.length === 2).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
@@ -3484,6 +3485,7 @@ function growthHtml(who) {
   const by = (S.db.meta.family || {}).birthYear || {};
   return `<div class="gr-hd"><div class="gr-people">${['', ...fam].map(n => `<button class="chip${(who || '') === n ? ' on' : ''}" data-grwho="${esc(n)}">${n ? esc(n) + (by[n] ? ` <small>${by[n]}</small>` : '') : '전체'}</button>`).join('')}</div>
       <div class="gr-acts"><div class="seg gr-view"><button data-grv="0" class="${grSb() ? '' : 'on'}">▦ 모아보기</button><button data-grv="1" class="${grSb() ? 'on' : ''}">📒 스크랩북</button></div><button class="btn-pri rw" data-act="grup">＋ 사진 올리기</button><button class="btn-line" data-act="grplay" ${list.length ? '' : 'disabled'}>▶ 연도순 재생</button><button class="btn-line" data-act="grmusic" title="재생 음악">♪ ${esc(musicLabel())}</button><button class="btn-line rw" data-act="grbirth" title="나이 표시용 · 생년만 저장">생년 설정</button></div></div>
+    ${(S.db.lived || []).filter(l => lvUntag(l).length).map(l => `<div class="gr-todo"><span>📷 <b>${esc(l.name)}</b> 사진 ${lvUntag(l).length}장이 아직 사람이 안 정해져서 성장 앨범에 없어요</span><button class="btn-pri rw" data-grlv="${esc(l.id)}">사람 정하고 넣기 ›</button></div>`).join('')}
     ${list.length && grSb() ? growthScrap(list, years, who, by, fam) : list.length ? years.map(y => { const ys = list.filter(g => ((g.date || '').slice(0, 4) || '날짜 없음') === y);
       return `<section class="gr-year"><div class="gr-band"><b class="serif">${y}</b><span>${who && growthAge(who, ys[0].date) ? esc(who + ' · ' + growthAge(who, ys[0].date)) : !who ? fam.filter(n => by[n] && y !== '날짜 없음' && +y >= by[n]).map(n => `${n} ${+y - by[n] + 1}살`).join(' · ') : ''}</span><small>${ys.length}장</small></div>
         <div class="gr-grid">${ys.map(g => `<button class="gr-ph" data-gr="${g.id}" style="background-image:url('${photoUrl(g.photo)}')">${g.date && (g.who || []).some(n => by[n] && +g.date.slice(0, 4) < by[n]) ? '<i class="gr-warn" title="태그한 사람이 태어나기 전 날짜예요">날짜 확인</i>' : ''}<span>${esc((g.date || '').slice(5).replace('-', '.'))}${!who && (g.who || []).length ? ' · ' + esc(g.who.join('·')) : ''}</span></button>`).join('')}</div></section>`; }).join('')
