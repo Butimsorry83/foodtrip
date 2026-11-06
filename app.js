@@ -3285,7 +3285,7 @@ async function drawTravelCard(mode) {
   badgeCheck(badgeList(s)).forEach(n => [...el.querySelectorAll('.bdg')].find(x => x.querySelector('b')?.textContent === n)?.classList.add('new'));
   el.onclick = e => { if (e.target.closest('[data-tmfs]')) { S.tmFull = !S.tmFull; document.body.classList.toggle('tm-full-on', S.tmFull); return drawTravelCard(mode); } const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList(); };
   if (!ok || !window.L) { $('#tm-map').innerHTML = '<div class="help">지도 경계를 불러오지 못했어요</div>'; return; }
-  try { S.tmMap?.remove(); } catch {} S.tmMap = null;
+  try { const m0 = S.tmMap; if (m0) { m0._onZoomTransitionEnd = () => {}; m0.stop(); m0.remove(); } } catch {} S.tmMap = null;   /* 11/07 줌 애니메이션 중 지도 바꿀 때 Leaflet 오류 방지 */
   const cs = getComputedStyle(document.body), v = n => cs.getPropertyValue(n).trim();
   const C = { done: v('--primary-2') || '#288d9d', plan: v('--accent') || '#ffbc00', wish: v('--cat-mine') || '#d6336c', land: isDark() ? '#1c2c33' : '#f4f7f8', line: v('--line-strong') || '#c9d3d8', home: v('--primary') || '#0e3a4b' };
   if (mode === 'globe') return drawGlobe(s, C);
@@ -3326,8 +3326,8 @@ async function drawTravelCard(mode) {
     const kr = L.geoJSON(S.geoKr, { style: f => { const n = s.doCnt[f.properties.k] || 0; return { color: isDark() ? '#0d1b22' : '#ffffff', weight: 1.4, fillColor: n ? C.done : C.land, fillOpacity: n ? .3 + .55 * Math.min(1, n / Math.max(5, max * .6)) : 1 }; },
       onEachFeature: (f, l) => { const k = f.properties.k, n = s.doCnt[k] || 0; tip(l, `<b>${k}</b> · ${n ? `다녀온 곳 ${n}` : '아직 안 가봄'}${s.saved[k] ? ` · 저장 ${s.saved[k]}` : ''}`); } }).addTo(map);
     S.tmKrB = kr.getBounds();
-    if (!REDUCE()) { let i = 0; kr.eachLayer(l => { const k = l.feature.properties.k; if (!s.doCnt[k]) return; const to = l.options.fillOpacity, d0 = 250 + i++ * 140; l.setStyle({ fillOpacity: 0 });   // 가본 도가 하나씩 색칠됨
-      setTimeout(() => { const t0 = performance.now(); const st = now => { const q = Math.min(1, (now - t0) / 500); l.setStyle({ fillOpacity: to * q }); if (q < 1) requestAnimationFrame(st); }; requestAnimationFrame(st); }, d0); }); }
+    if (!REDUCE()) { let i = 0; kr.eachLayer(l => { const k = l.feature.properties.k; if (!s.doCnt[k]) return; const to = l.options.fillOpacity, d0 = 250 + i++ * 140; l.setStyle({ fillColor: C.land, fillOpacity: 1 });   /* 11/07 바다색 X → 안 간 곳 색에서 시작 */   // 가본 도가 하나씩 색칠됨
+      setTimeout(() => { const t0 = performance.now(); const st = now => { const q = Math.min(1, (now - t0) / 500); l.setStyle({ fillColor: mixHex(C.land, C.done, q), fillOpacity: 1 - (1 - to) * q }); if (q < 1) requestAnimationFrame(st); }; requestAnimationFrame(st); }, d0); }); }
     const labels = L.layerGroup().addTo(map);
     for (const [k, ll] of Object.entries(DO_LABEL)) { const n = s.doCnt[k] || 0; if (['서울', '인천', '대전', '광주', '세종', '울산', '대구'].includes(k) && !n) continue;
       L.marker(ll, { interactive: false, icon: L.divIcon({ className: 'tm-lbl' + (n ? ' on' : ''), html: `${k}${n ? `<b>${n}</b>` : ''}`, iconSize: [70, 20], iconAnchor: [35, 10] }) }).addTo(labels); }
@@ -3347,7 +3347,9 @@ async function drawTravelCard(mode) {
   { const lv = livedSorted().filter(h => hasCoord(h) && (mode === 'world' || (h.country || 'KR') === 'KR'));     // 살았던 곳 ⌂ + 이사 경로
     if (lv.length > 1) { const pts = mode === 'world' ? lv.slice(1).reduce((acc, h, i) => acc.concat(gcLine([[lv[i].lat, lv[i].lng], ...livedLeg(lv[i], h), [h.lat, h.lng]]).slice(acc.length ? 1 : 0)), []) : lv.map(h => [h.lat, h.lng]),   /* 11/07 해외 이사는 경유 공항 거쳐 */
         line = L.polyline(REDUCE() ? pts : [pts[0]], { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map);
-      if (!REDUCE()) { const t0 = performance.now(), D = 600 * (lv.length - 1) * (pts.length > lv.length ? 2 : 1); const st = now => { const f = Math.min(1, (now - t0) / D) * (pts.length - 1), i = Math.floor(f), r = f - i, a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]; line.setLatLngs([...pts.slice(0, i + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); if (f < pts.length - 1) requestAnimationFrame(st); }; setTimeout(() => requestAnimationFrame(st), 500); } }   // 이사 경로가 1→2→3 순서로 그려짐
+      if (!REDUCE()) { const t0 = performance.now(), D = 600 * (lv.length - 1) * (pts.length > lv.length ? 2 : 1); const st = now => { const f = Math.min(1, (now - t0) / D) * (pts.length - 1), i = Math.floor(f), r = f - i, a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]; line.setLatLngs([...pts.slice(0, i + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); if (f < pts.length - 1) requestAnimationFrame(st); }; setTimeout(() => requestAnimationFrame(st), 500); }
+      if (mode !== 'world' && kakaoRestKey()) lvRoads(lv).then(legs => { if (S.tmMap !== map || !map._container || !document.body.contains(map._container)) return; const road = legs.flat(); if (road.length <= lv.length) return;   /* 11/07 국내 이사 = 실제 도로 + 🚗 */
+        setTimeout(() => { if (S.tmMap !== map) return; line.remove(); L.polyline(road, { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map); carFx(map, legs); }, REDUCE() ? 0 : Math.max(0, 500 + 600 * (lv.length - 1) - 300)); }); }   // 이사 경로가 1→2→3 순서로 그려짐
     lv.forEach((h, i) => { const mk = L.marker([h.lat, h.lng], { zIndexOffset: 400, icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: `<span style="animation-delay:${(.5 + i * .6).toFixed(1)}s">⌂</span><i>${i + 1}</i>` }) }).addTo(map)
       .bindTooltip(`<b>⌂ ${esc(h.name)}</b>${livedYears(h) ? ' · ' + esc(livedYears(h)) : ''}`, { direction: 'top', offset: [0, -14] });
       const phs = (h.photos || []).map(x => photoUrl(x.path)).filter(Boolean);
@@ -3713,10 +3715,34 @@ function badgeCheck(bs) {                                          // 새로 딴
   const fresh = ok.filter(n => !seen.includes(n)); if (fresh.length) { LS.set('badgesSeen', [...new Set([...seen, ...ok])]); setTimeout(() => { confettiFx(); toast(`🏅 새 배지! ${fresh.join(' · ')}`, 3500); }, 600); }
   return fresh;
 }
+function mixHex(a, b, q) {                                         // 색 a → b 사이 (hex만, 아니면 b)
+  const h = c => { c = String(c).trim(); if (/^#[0-9a-f]{3}$/i.test(c)) c = '#' + [...c.slice(1)].map(x => x + x).join(''); return /^#[0-9a-f]{6}$/i.test(c) ? [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)) : null; };
+  const A = h(a), B = h(b); if (!A || !B) return q < .5 ? a : b; return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * q).toString(16).padStart(2, '0')).join('');
+}
+async function lvRoads(lv) {                                        // 11/07 국내 이사 경로 → 카카오 길찾기 도로 선 (한 번 받으면 저장)
+  const cache = LS.get('lvRoad', {}); let changed = false;
+  const legs = await Promise.all(lv.slice(1).map(async (b, i) => { const a = lv[i], k = [a.lat, a.lng, b.lat, b.lng].map(x => (+x).toFixed(4)).join(',');
+    if (cache[k]) return cache[k];
+    const r = await kakaoRoute(a, b, true); if (!r?.path?.length) return [[a.lat, a.lng], [b.lat, b.lng]];
+    const step = Math.max(1, Math.ceil(r.path.length / 160)), pts = r.path.filter((_, j) => j % step === 0).map(p => [+p[0].toFixed(5), +p[1].toFixed(5)]); pts.push(r.path[r.path.length - 1]);
+    cache[k] = pts; changed = true; return pts; }));
+  if (changed) LS.set('lvRoad', cache); return legs;
+}
+function carFx(map, legs) {                                          // 🚗 이사 길을 따라 집 → 집
+  if (REDUCE() || !legs.length) return; const pts = legs.flat(), cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const tot = cum[cum.length - 1] || 1, D = 3200 * legs.length, PAUSE = 1200;
+  const m = L.marker(pts[0], { interactive: false, zIndexOffset: 900, icon: L.divIcon({ className: 'tm-car', html: '<span>🚗</span>', iconSize: [26, 26], iconAnchor: [13, 15] }) }).addTo(map);
+  const t0 = performance.now(); let j = 0;
+  const step = now => { if (S.tmMap !== map || !map._container || !document.body.contains(map._container)) return; const e = ((now - t0) % (D + PAUSE)), k = Math.min(1, Math.max(0, e / D)), x = k * tot;
+    if (x < cum[j]) j = 0; while (j < cum.length - 2 && cum[j + 1] < x) j++; const a = pts[j], b = pts[j + 1] || a, r = cum[j + 1] > cum[j] ? (x - cum[j]) / (cum[j + 1] - cum[j]) : 0;
+    m.setLatLng([a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]); const sp = m.getElement()?.firstChild; if (sp) sp.style.transform = b[1] > a[1] ? 'scaleX(-1)' : '';   // 오른쪽(동쪽)으로 갈 땐 좌우 반전
+    requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
 function planeFx(map, arcs) {                                      // 항로를 따라 ✈ 날기
   if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)"/></svg></span>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
   const t0 = performance.now(), D = 4200;
-  const step = now => { if (!map._container || !document.body.contains(map._container)) return;
+  const step = now => { if (S.tmMap !== map || !map._container || !document.body.contains(map._container)) return;
     for (const p of planes) { const k = ((((now - t0) / D) + p.off) % 1 + 1) % 1, f = k * (p.pts.length - 1), i = Math.floor(f), r = f - i, a = p.pts[i], b = p.pts[Math.min(i + 1, p.pts.length - 1)];
       const ll = [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]; p.m.setLatLng(ll);
       const pa = map.latLngToLayerPoint(a), pb = map.latLngToLayerPoint(b), ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI; const sp = p.m.getElement()?.firstChild; if (sp) sp.style.transform = `rotate(${ang}deg)`; }
@@ -3871,8 +3897,14 @@ function boot(re) {
   applyReadOnly();
   if (!re) handleHash();
 }
+async function checkNewVersion() {                                 // 11/07 새 버전 올라오면 자동으로 새로 열기 (폰 앱은 강력 새로고침이 없어서)
+  try { if (OFFLINE) return; const cur = (document.querySelector('script[src*="app.js"]')?.src.match(/[?&]v=(\w+)/) || [])[1]; if (!cur) return;
+    const h = await (await fetch('index.html?nc=' + Date.now(), { cache: 'no-store' })).text(), nv = (h.match(/app\.js\?v=(\w+)/) || [])[1];
+    if (!nv || nv === cur || dirty || sessionStorage.getItem('ft.reloadTo') === nv) return; sessionStorage.setItem('ft.reloadTo', nv);
+    location.replace(location.pathname + '?r=' + nv + location.hash); } catch {}
+}
 (async function main() {
-  applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
+  checkNewVersion(); applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
   window.JJ = { S, viaParse, tripRoute, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
