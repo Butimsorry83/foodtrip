@@ -1177,3 +1177,11 @@ body.tm-full-on { overflow: hidden; }
 .gr-todo .btn-pri { white-space: nowrap; }
 .tm-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; } .tm-legend span { white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .tm-legend span i:not(.lg-lv):not(.lg-solo) { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: none; }
+
+/* 11/07 경유 공항 */
+.via-f { display: grid; gap: 10px; margin: 6px 0 10px; }
+.via-f label { display: grid; gap: 4px; font-size: calc(13px * var(--fz, 1)); }
+.via-f small { color: var(--text-3); font-weight: 400; }
+.tm-via { pointer-events: auto; }
+.tm-via i { position: absolute; left: 16px; top: 0; width: 9px; height: 9px; border-radius: 50%; background: #fff; border: 2px solid var(--accent, #288d9d); box-sizing: border-box; }
+.tm-via b { position: absolute; left: 0; right: 0; top: 10px; text-align: center; font: 700 calc(10px * var(--fz, 1))/1 var(--font-mono, monospace); color: var(--text-2); letter-spacing: .04em; text-shadow: 0 0 3px var(--surface, #fff), 0 0 3px var(--surface, #fff); }

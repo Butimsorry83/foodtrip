@@ -160,6 +160,7 @@ async function load() {
   if ((trashPurge() > 0 || S.migratedCities) && S.token) { S.migratedCities = false; markDirty(); }
   S.baseDb = clone(S.db);                                       // 3-way 병합 기준 (마지막으로 서버와 일치한 상태)
   if (String(LS.get('font', '')).startsWith('c:')) try { applyTheme(); } catch {}   /* 내 글꼴은 데이터 읽은 뒤 적용 */
+  if (S.token && !OFFLINE && !S.db.meta.viaFix1) { const n = fixVia1(); markDirty(); if (n) setTimeout(() => toast(`경유 항로 ${n}건 넣었어요 (이탈리아·방콕 2024·가나)`, 3500), 1600); }   /* 11/07 1회 경유 */
   if (S.token && !OFFLINE && !S.db.meta.nameFix1) { const n = fixNames1(); markDirty(); if (n) setTimeout(() => toast(`영문 이름 ${n}개 첫 글자를 대문자로 정리했어요`, 3500), 800); }   /* 1회 이름 정리 */
   if (S.token && !OFFLINE && !S.db.meta.autoTrip1) { const n = autoTripsFromVisits(); markDirty(); if (n) setTimeout(() => toast(`해외 기록 ${n}건을 여행으로 묶었어요 — 여행 탭`, 4000), 1500); }   // 1회 자동 정리
 }
@@ -2283,11 +2284,13 @@ function openTripEdit(t) {
   openSheet(`<div class="sheet-head"><h2>여행 편집</h2><button class="close" data-act="close">✕</button></div>
     <form class="form" id="tef"><label>제목<input name="title" value="${esc(t.title)}" required></label>
     ${t.items.length ? '' : `<label>표지 이름 <small style="color:var(--text-3)">(비우면 자동: ${esc(tripAuto({ ...t, cover: null })?.name || '제목')} — 도시 1곳 → 도시 · 여러 도시 → 나라 · 여러 나라 → 대륙)</small><input name="cover" value="${esc(t.cover || '')}" placeholder="자동"></label><div class="two"><label>시작일<input name="start" type="date" value="${esc(t.start || '')}"></label><label>마지막 날<input name="end" type="date" value="${esc(t.end || '')}"></label></div>`}<div class="three"><label>도시${t.items.length ? ' <small style="color:var(--text-3)">(표지 큰 글씨)</small>' : ''}<input name="city" value="${esc(t.city)}" required></label><label>국가<input name="country" value="${esc(t.country)}"></label><label>연도<input name="year" type="number" value="${t.year}"></label></div>
+    ${t.country && t.country !== 'KR' ? `<div class="via-f"><label>✈ 갈 때 경유 <small>(비우면 직항 · 예: 암스테르담 · IST)</small><input name="via" list="ap-list" autocomplete="off" value="${esc(viaTxt(t.via))}" placeholder="직항"></label>
+    <label>✈ 올 때 경유 <small>(비우면 갈 때와 같음 · 직항이면 '직항')</small><input name="viaBack" list="ap-list" autocomplete="off" value="${esc(t.viaBack ? (t.viaBack.length ? viaTxt(t.viaBack) : '직항') : '')}" placeholder="갈 때와 같음"></label>${apDatalist()}</div>` : ''}
     <div class="sec">일정 ${t.items.length}개 <span class="sec-note">✕로 삭제</span></div>
     <div class="sublist">${t.items.map((it, i) => `<button type="button" data-del="${i}"><span class="mono" style="color:var(--text-2)">${esc(it.day || '')} ${esc(it.time || '')}</span><span style="flex:1;text-align:left;margin-left:8px">${esc(it.activity || '')}${it.place ? ' · ' + esc(it.place) : ''}</span><span>✕</span></button>`).join('')}</div>
     <div class="btns"><button class="primary">저장</button><button type="button" class="danger" data-act="deltrip">여행 삭제</button></div></form>`);
   const f = $('#tef');
-  f.addEventListener('submit', e => { e.preventDefault(); const d = Object.fromEntries(new FormData(f)); t.title = niceName(d.title); t.city = niceName(d.city); t.country = d.country.trim().toUpperCase(); t.year = +d.year; if (!t.items.length) { t.cover = niceName(d.cover || '') || null; if (d.start) { t.start = d.start; t.end = d.end && d.end >= d.start ? d.end : d.start; t.year = +d.start.slice(0, 4); } } markDirty(); closeSheet(); renderTrips(); });
+  f.addEventListener('submit', e => { e.preventDefault(); const d = Object.fromEntries(new FormData(f)); t.title = niceName(d.title); t.city = niceName(d.city); t.country = d.country.trim().toUpperCase(); t.year = +d.year; if ('via' in d) { const a = viaParse(d.via), b = viaParse(d.viaBack); if (a.ok.length) t.via = a.ok; else delete t.via; if (d.viaBack.trim()) t.viaBack = b.ok; else delete t.viaBack; const bad = [...a.bad, ...b.bad]; if (bad.length) setTimeout(() => toast(`모르는 공항: ${bad.join(', ')} — 공항 코드(예: IST)로 넣어주세요`, 4000), 300); }   /* 11/07 경유 */ if (!t.items.length) { t.cover = niceName(d.cover || '') || null; if (d.start) { t.start = d.start; t.end = d.end && d.end >= d.start ? d.end : d.start; t.year = +d.start.slice(0, 4); } } markDirty(); closeSheet(); renderTrips(); });
   f.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'close') closeSheet(); if (b.dataset.del != null) { t.items.splice(+b.dataset.del, 1); markDirty(); openTripEdit(t); } if (b.dataset.act === 'deltrip') { if (b.dataset.c) { trashPut('trip', t); S.db.trips = S.db.trips.filter(x => x !== t); markDirty(); closeSheet(); S.trip = null; renderTrips(); } else { b.dataset.c = 1; b.textContent = '정말 삭제? (다시 클릭)'; } } });
 }
 // 안내서 스킬(trip-guide-html)용 JSON 내보내기
@@ -3112,7 +3115,7 @@ function travelStats() {
   for (const l of S.db.lived || []) if ((l.country || 'KR') === 'KR') { const k = doKey(l); if (k && !doCnt[k]) doCnt[k] = 1; }   /* 살았던 시·도도 색칠 */
   for (const t of S.db.trips) if (t.country === 'KR' && (dday(t) ?? -1) < 0) for (const it of t.items || []) { const p = it.place_id && placeById(it.place_id); const k = p && doKey(p); if (k && !doCnt[k]) doCnt[k] = 1; }
   const saved = {}; for (const p of S.db.places) if ((p.country || 'KR') === 'KR' && p.type !== 'mine') { const k = doKey(p); if (k) saved[k] = (saved[k] || 0) + 1; }
-  let km = 0; if (home && hasCoord(home)) { for (const { p } of logs) if (hasCoord(p)) km += haversine(home, p) * 2; for (const o of done) for (const x of o.trips) if (x.st === 'done' && x.loc) km += haversine(home, x.loc) * 2; }
+  let km = 0; if (home && hasCoord(home)) { for (const { p } of logs) if (hasCoord(p)) km += haversine(home, p) * 2; for (const o of done) for (const x of o.trips) if (x.st === 'done' && x.loc) { const R = tripRoute(x.t), h0 = [home.lat, home.lng], d0 = [x.loc.lat, x.loc.lng]; km += kmOf([h0, ...R.out, d0]) + kmOf([d0, ...R.back, h0]); } }   /* 11/07 경유 포함 */
   const fam = familyNames(), seasons = new Set(logs.map(({ v }) => v.date && seasonNow(new Date(v.date + 'T00:00:00'))).filter(Boolean));
   const txt = p => [p.name, p.desc, p.pros, ...(p.tags || [])].join(' ');
   return { home, visitedP, logs, done, plan, doCnt, saved, km: Math.round(km), seasons, photos: photoCount(),
@@ -3142,7 +3145,7 @@ function travelCardHtml(s, mode) {
           <div><b class="num">${nDo}<small>/17</small></b><span>국내 시·도</span></div>
           <div><b class="num">${nOv}<small>곳</small></b><span>해외 나라·지역</span></div>
           <div><b class="num">${pct.toFixed(1)}<small>%</small></b><span>세계 (한국 포함 ${nOv + 1}/195)</span></div>
-          <div><b class="num">${s.km >= 10000 ? (s.km / 1000).toFixed(1) + '<small>천km</small>' : s.km.toLocaleString() + '<small>km</small>'}</b><span>누적 이동 (왕복 직선)</span></div>
+          <div><b class="num">${s.km >= 10000 ? (s.km / 1000).toFixed(1) + '<small>천km</small>' : s.km.toLocaleString() + '<small>km</small>'}</b><span>누적 이동 (왕복 · 경유 포함)</span></div>
         </div>
         <div class="tm-legend"><span><i class="lg-done"></i>가봤음(국내)</span>${contLegend(s)}<span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span>${soloLegend().map(n => `<span><i class="lg-solo" style="background:${famHex(n)}"></i>${esc(n)} 혼자</span>`).join('')}</div>
         ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripName(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
@@ -3151,6 +3154,46 @@ function travelCardHtml(s, mode) {
     <div class="tm-badges"><p class="cap3">배지 ${got}/${bs.length}</p><div>${bs.map(b => `<span class="bdg${b.ok ? ' ok' : ''}" title="${esc(b.hint)}"><i>${b.ico}</i><b>${esc(b.name)}</b><small>${b.ok ? '획득' : `${b.cur}/${b.goal}`}</small></span>`).join('')}</div></div>`;
 }
 const DO_LABEL = { 서울: [37.56, 126.99], 부산: [35.18, 129.07], 대구: [35.87, 128.6], 인천: [37.45, 126.62], 광주: [35.16, 126.85], 대전: [36.35, 127.38], 울산: [35.55, 129.25], 세종: [36.56, 127.26], 경기: [37.25, 127.45], 강원: [37.7, 128.35], 충북: [36.8, 127.75], 충남: [36.5, 126.85], 전북: [35.72, 127.15], 전남: [34.85, 126.85], 경북: [36.35, 128.75], 경남: [35.3, 128.25], 제주: [33.38, 126.55] };
+/* ---------------- 경유 공항 · 항로 (11/07) ---------------- */
+const AP = Object.fromEntries('ICN 인천 37.46 126.44|GMP 김포 37.56 126.80|PUS 김해 35.18 128.94|CJU 제주 33.51 126.49|NRT 도쿄 나리타 35.77 140.39|HND 도쿄 하네다 35.55 139.78|KIX 오사카 간사이 34.43 135.24|FUK 후쿠오카 33.59 130.45|CTS 삿포로 42.78 141.69|OKA 오키나와 26.20 127.65|PEK 베이징 40.08 116.58|PVG 상하이 31.14 121.81|CAN 광저우 23.39 113.30|HKG 홍콩 22.31 113.91|MFM 마카오 22.15 113.59|TPE 타이베이 25.08 121.23|MNL 마닐라 14.51 121.02|CEB 세부 10.31 123.98|BKK 방콕 13.69 100.75|DMK 방콕 돈므앙 13.91 100.61|HKT 푸껫 8.11 98.32|CNX 치앙마이 18.77 98.96|SGN 호찌민 10.82 106.66|HAN 하노이 21.22 105.81|DAD 다낭 16.04 108.20|CXR 나트랑 깜란 12.00 109.22|PQC 푸꾸옥 10.17 103.99|SIN 싱가포르 1.36 103.99|KUL 쿠알라룸푸르 2.75 101.71|BKI 코타키나발루 5.94 116.05|CGK 자카르타 -6.13 106.66|DPS 발리 -8.75 115.17|DEL 델리 28.56 77.10|BOM 뭄바이 19.09 72.87|CMB 콜롬보 7.18 79.88|KTM 카트만두 27.70 85.36|DXB 두바이 25.25 55.36|AUH 아부다비 24.43 54.65|DOH 도하 25.27 51.61|IST 이스탄불 41.26 28.74|CAI 카이로 30.12 31.41|ADD 아디스아바바 8.98 38.80|NBO 나이로비 -1.32 36.93|JNB 요하네스버그 -26.14 28.24|ACC 아크라 5.61 -0.17|LOS 라고스 6.58 3.32|CMN 카사블랑카 33.37 -7.59|AMS 암스테르담 52.31 4.76|CDG 파리 49.01 2.55|FRA 프랑크푸르트 50.04 8.56|MUC 뮌헨 48.35 11.79|LHR 런던 51.47 -0.45|FCO 로마 41.80 12.25|MXP 밀라노 45.63 8.72|VCE 베네치아 45.51 12.35|FLR 피렌체 43.81 11.20|NAP 나폴리 40.88 14.29|ZRH 취리히 47.46 8.55|VIE 빈 48.11 16.57|MAD 마드리드 40.49 -3.57|BCN 바르셀로나 41.30 2.08|LIS 리스본 38.77 -9.13|HEL 헬싱키 60.32 24.96|CPH 코펜하겐 55.62 12.65|ARN 스톡홀름 59.65 17.92|ATH 아테네 37.94 23.94|PRG 프라하 50.10 14.26|BUD 부다페스트 47.44 19.26|WAW 바르샤바 52.17 20.97|BRU 브뤼셀 50.90 4.48|SVO 모스크바 55.97 37.41|TAS 타슈켄트 41.26 69.28|ALA 알마티 43.35 77.04|ULN 울란바토르 47.65 106.82|VVO 블라디보스토크 43.40 132.15|LAX 로스앤젤레스 33.94 -118.41|SFO 샌프란시스코 37.62 -122.38|SEA 시애틀 47.45 -122.31|JFK 뉴욕 40.64 -73.78|ORD 시카고 41.97 -87.91|ATL 애틀랜타 33.64 -84.43|DFW 댈러스 32.90 -97.04|LAS 라스베이거스 36.08 -115.15|YVR 밴쿠버 49.19 -123.18|YYZ 토론토 43.68 -79.63|HNL 호놀룰루 21.32 -157.92|ANC 앵커리지 61.17 -150.00|GUM 괌 13.48 144.80|SPN 사이판 15.12 145.73|SYD 시드니 -33.94 151.18|MEL 멜버른 -37.67 144.84|BNE 브리즈번 -27.38 153.12|AKL 오클랜드 -37.01 174.79|NAN 피지 난디 -17.76 177.44'.split('|').map(r => { const a = r.split(' '); const lng = +a.pop(), lat = +a.pop(), c = a.shift(); return [c, [a.join(' '), lat, lng]]; }));
+const apLL = c => AP[c] ? [AP[c][1], AP[c][2]] : null;
+const viaTxt = v => (v || []).filter(c => AP[c]).map(c => `${AP[c][0]} ${c}`).join(', ');
+function viaParse(str) {                                           // "암스테르담, IST" → ['AMS','IST'] (모르는 이름은 bad)
+  const ok = [], bad = []; const s0 = (str || '').trim(); if (!s0 || /^직항$/.test(s0)) return { ok, bad };
+  for (const part of s0.split(/[,→>\/·]+/).map(x => x.trim()).filter(Boolean)) {
+    const m = part.match(/\b([A-Za-z]{3})\b/); if (m && AP[m[1].toUpperCase()]) { ok.push(m[1].toUpperCase()); continue; }
+    const k = part.replace(/\s/g, ''); const hit = Object.entries(AP).find(([, v]) => v[0].replace(/\s/g, '') === k) || Object.entries(AP).find(([, v]) => v[0].replace(/\s/g, '').includes(k) || k.includes(v[0].split(' ')[0]));
+    hit ? ok.push(hit[0]) : bad.push(part); }
+  return { ok, bad };
+}
+const apDatalist = () => `<datalist id="ap-list">${Object.entries(AP).map(([c, v]) => `<option value="${esc(v[0])} ${c}">`).join('')}</datalist>`;
+function gcPts(a, b, n) {                                           // 두 점 [lat,lng] 사이 최단 경로(대권) 점들
+  const r = Math.PI / 180, [p1, l1] = [a[0] * r, a[1] * r], [p2, l2] = [b[0] * r, b[1] * r];
+  const d = 2 * Math.asin(Math.sqrt(Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin((l2 - l1) / 2) ** 2)); if (!d) return [a, b];
+  n = n || Math.max(8, Math.ceil(d / r / 2)); const out = [];
+  for (let i = 0; i <= n; i++) { const f = i / n, A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+    const x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2), y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2), z = A * Math.sin(p1) + B * Math.sin(p2);
+    out.push([Math.atan2(z, Math.hypot(x, y)) / r, Math.atan2(y, x) / r]); }
+  return out;
+}
+function gcLine(wps) {                                              // 경유지 포함 여러 점 → 이어진 대권 항로 (날짜변경선 넘으면 경도 이어 붙임)
+  const out = []; for (let i = 1; i < wps.length; i++) { const seg = gcPts(wps[i - 1], wps[i]); out.push(...(i > 1 ? seg.slice(1) : seg)); }
+  for (let i = 1; i < out.length; i++) { while (out[i][1] - out[i - 1][1] > 180) out[i][1] -= 360; while (out[i][1] - out[i - 1][1] < -180) out[i][1] += 360; }
+  return out;
+}
+function tripRoute(t) {                                             // 여행 경유: via(갈 때) · viaBack(올 때, 없으면 같음)
+  const out = (t.via || []).map(apLL).filter(Boolean), bk = t.viaBack ? t.viaBack.map(apLL).filter(Boolean) : out.slice().reverse();
+  const same = !t.viaBack || t.viaBack.join() === (t.via || []).slice().reverse().join();
+  return { out, back: bk, same, codes: [...new Set([...(t.via || []), ...(t.viaBack || [])])].filter(c => AP[c]) };
+}
+function livedLeg(a, b) { return [...(a.viaOut || []), ...(b.viaIn || [])].map(apLL).filter(Boolean); }   // 살았던 곳 a → b 이사 경유
+const kmOf = wps => { let k = 0; for (let i = 1; i < wps.length; i++) k += haversine({ lat: wps[i - 1][0], lng: wps[i - 1][1] }, { lat: wps[i][0], lng: wps[i][1] }); return k; };
+function fixVia1() {   /* 1회: ZED가 알려준 경유 (이탈리아 2013 암스테르담 왕복 · 방콕 2024 하노이 · 가나 갈 때 이스탄불/올 때 두바이) */
+  if (S.db.meta.viaFix1) return 0; let n = 0;
+  for (const t of S.db.trips) { if (t.via) continue; if (t.country === 'IT' && +t.year === 2013) { t.via = ['AMS']; n++; } else if (t.country === 'TH' && +t.year === 2024) { t.via = ['HAN']; n++; } }
+  for (const l of S.db.lived || []) if (l.country === 'GH' && !l.viaIn && !l.viaOut) { l.viaIn = ['IST']; l.viaOut = ['DXB']; n++; }
+  S.db.meta.viaFix1 = today(); return n;
+}
 function tmArc(a, b, bend = .22) {                                // 두 점 사이 비행 항로처럼 휜 곡선
   const [y1, x1] = a, [y2, x2] = b, mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1;
   const cx = mx - dy * bend, cy = my + dx * bend, pts = [];
@@ -3178,12 +3221,17 @@ async function drawGlobe(s, C, st) {
   const grat = mk('path', { fill: 'none', stroke: isDark() ? 'rgba(255,255,255,.06)' : 'rgba(14,58,75,.08)', 'stroke-width': .6 }), gratD = d3.geoGraticule10();
   const stOf = cc => cc === 'KR' ? 'home' : s.done.some(o => o.cc === cc) ? 'done' : s.plan.some(o => o.cc === cc) ? 'plan' : '';
   const gC = mk('g'), countries = S.geoWorld.features.map(f => { const x = stOf(f.properties.cc); const p = mk('path', { fill: x === 'home' ? C.home : x === 'done' ? doneFill(f.properties.cc, C) : x === 'plan' ? C.plan : C.land, 'fill-opacity': x ? .9 : 1, stroke: isDark() ? '#0d1b22' : '#fff', 'stroke-width': .5 }, gC); if (x) { const t = mk('title', {}, p); t.textContent = f.properties.n; } return { f, p }; });
-  const gA = mk('g'), arcs = [], planes = [];
+  const gA = mk('g'), arcs = [], planes = [], viaSeen = new Set();
+  const ipPath = cs => { const legs = cs.slice(1).map((c, i) => ({ ip: d3.geoInterpolate(cs[i], c), d: d3.geoDistance(cs[i], c) })), tot = legs.reduce((a, l) => a + l.d, 0) || 1;   // 여러 구간을 이어 나는 비행기
+    return k => { let x = k * tot; for (const l of legs) { if (x <= l.d || l === legs[legs.length - 1]) return l.ip(l.d ? Math.min(1, x / l.d) : 0); x -= l.d; } }; };
   for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const to = [x.loc.lng, x.loc.lat], plan = x.st === 'plan';
-    arcs.push({ geo: { type: 'LineString', coordinates: [hm, to] }, p: mk('path', { fill: 'none', stroke: arcColorOf(x.t, plan, C), 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
-    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane', ...(tripWho(x.t).length === 1 && !plan ? { style: `color:${arcColorOf(x.t, plan, C)};fill:${arcColorOf(x.t, plan, C)}` } : {}) }, gA); mk('path', { d: PLANE_D, transform: 'translate(10,-9.6) scale(-.8,.8)' }, g);   /* 그림의 머리가 왼쪽이라 좌우 뒤집어 진행 방향(거점 → 여행지)을 보게 */ planes.push({ ip: d3.geoInterpolate(hm, to), off: Math.random(), e: g }); } }
+    const R = tripRoute(x.t), xy = ll => [ll[1], ll[0]], cOut = [hm, ...R.out.map(xy), to]; R.codes.forEach(c => viaSeen.add(c));   /* 11/07 경유 공항 거쳐 */
+    arcs.push({ geo: { type: 'LineString', coordinates: cOut }, p: mk('path', { fill: 'none', stroke: arcColorOf(x.t, plan, C), 'stroke-width': 2.2, 'stroke-linecap': 'round', 'stroke-dasharray': plan ? '2 6' : '', class: plan ? 'tm-arc plan' : '' }, gA) });
+    if (!R.same) arcs.push({ geo: { type: 'LineString', coordinates: [to, ...R.back.map(xy), hm] }, p: mk('path', { fill: 'none', stroke: arcColorOf(x.t, plan, C), 'stroke-width': 1.8, 'stroke-opacity': .55, 'stroke-linecap': 'round', 'stroke-dasharray': '5 5' }, gA) });
+    if (!REDUCE()) { const g = mk('g', { class: 'gl-plane', ...(tripWho(x.t).length === 1 && !plan ? { style: `color:${arcColorOf(x.t, plan, C)};fill:${arcColorOf(x.t, plan, C)}` } : {}) }, gA); mk('path', { d: PLANE_D, transform: 'translate(10,-9.6) scale(-.8,.8)' }, g);   /* 그림의 머리가 왼쪽이라 좌우 뒤집어 진행 방향(거점 → 여행지)을 보게 */ planes.push({ ip: ipPath(cOut), off: Math.random(), e: g }); } }
   const lv = livedSorted().filter(hasCoord), lvLine = lv.length > 1 ? mk('path', { fill: 'none', stroke: C.wish, 'stroke-width': 2, 'stroke-dasharray': '1 6', 'stroke-linecap': 'round' }, gA) : null;
-  const lvGeo = { type: 'LineString', coordinates: lv.map(h => [h.lng, h.lat]) };
+  const lvGeo = { type: 'LineString', coordinates: lv.flatMap((h, i) => [...(i ? livedLeg(lv[i - 1], h).map(ll => [ll[1], ll[0]]) : []), [h.lng, h.lat]]) };   // 11/07 해외 이사 경유
+  for (const l of S.db.lived || []) [...(l.viaIn || []), ...(l.viaOut || [])].forEach(c => viaSeen.add(c));
   const gP = mk('g'), pins = [];
   let ci = 0; const pinImg = (ll, src, r, ring, onClick, label) => { const g = mk('g', { class: 'gl-pin' }, gP), id = 'glc' + (ci++);
     const cp = mk('clipPath', { id }, defs); mk('circle', { r, cx: 0, cy: 0 }, cp);
@@ -3200,6 +3248,7 @@ async function drawGlobe(s, C, st) {
     const tt = mk('title', {}, g); tt.textContent = `⌂ ${h.name}${livedYears(h) ? ' · ' + livedYears(h) : ''}`;
     g.addEventListener('click', () => { const parts = String(h.address || h.name || '').split(',').map(x => x.trim()).filter(Boolean); let big = (h.country || 'KR') === 'KR' ? parts[0]?.split(' ')[0] : (parts.find(x => !/\d/.test(x)) || parts[0]); locTitle(CITY_EN[big] || big, [(h.country || 'KR') === 'KR' ? h.name : regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); });
     pins.push({ ll: [h.lng, h.lat], g }); });
+  for (const c of viaSeen) if (AP[c]) { const g = mk('g', { class: 'gl-via' }, gP); mk('circle', { r: 3.5, fill: '#fff', stroke: C.done, 'stroke-width': 2 }, g); const t = mk('text', { y: -7, 'text-anchor': 'middle', class: 'gl-lbl' }, g); t.textContent = c; const tt = mk('title', {}, g); tt.textContent = `경유 · ${AP[c][0]} (${c})`; pins.push({ ll: [AP[c][2], AP[c][1]], g }); }   // 11/07 경유 공항 점
   const gL = mk('g'), labels = [...s.done, ...s.plan, { cc: 'KR', state: 'home' }].map(o => { const GLP = { KR: [123.2, 34.2], VN: [106.2, 21.6], TH: [98.6, 16.4], JP: [140.5, 38], AU: [134, -25], US: [-98.5, 39.5] };   // 겹치지 않게 손본 이름 위치 (경도, 위도)
     const f = S.geoWorld.features.find(f => f.properties.cc === o.cc), c = GLP[o.cc] || (f ? d3.geoCentroid(f) : (OV_PIN[o.cc] ? [OV_PIN[o.cc][1], OV_PIN[o.cc][0] - 4] : null)); if (!c) return null;
     const g = mk('g', { class: 'gl-cl ' + (o.state || '') }, gL); const a = mk('text', { 'text-anchor': 'middle', class: 'ko' }, g); a.textContent = f ? f.properties.n : (G_COUNTRY_KO[o.cc] || o.cc); const b = mk('text', { 'text-anchor': 'middle', y: 13, class: 'en' }, g); b.textContent = regionEn(o.cc).toUpperCase(); return { c, g }; }).filter(Boolean);
@@ -3259,15 +3308,18 @@ async function drawTravelCard(mode) {
       if (x) lblStrong(cc, f.properties.n, x);
       else L.marker(ll, { interactive: false, zIndexOffset: -900, icon: L.divIcon({ className: 'tm-cl faint', iconSize: [120, 16], iconAnchor: [60, 8], html: `<b>${esc(f.properties.n)}</b>` }) }).addTo(faint); }
     const showFaint = () => { map.getZoom() >= 3.5 ? map.addLayer(faint) : map.removeLayer(faint); }; map.on('zoomend', showFaint);
-    const hm = s.home && hasCoord(s.home) ? [s.home.lat, s.home.lng] : [37.58, 127.21];
+    const viaSeen = new Set(); const hm = s.home && hasCoord(s.home) ? [s.home.lat, s.home.lng] : [37.58, 127.21];
     for (const o of [...s.done, ...s.plan]) for (const x of o.trips) { if (!x.loc) continue; const ll = [x.loc.lat, x.loc.lng], plan = x.st === 'plan';
-      const arc = tmArc(hm, ll); (S.tmArcs ||= []).push(arc);
+      const R = tripRoute(x.t), arc = gcLine([hm, ...R.out, ll]); (S.tmArcs ||= []).push(arc); R.codes.forEach(c => viaSeen.add(c));   /* 11/07 실제 경유 공항을 거치는 최단 경로 */
       L.polyline(arc, { color: arcColorOf(x.t, plan, C), weight: 2.5, opacity: .9, dashArray: plan ? '2 8' : null, lineCap: 'round', className: plan ? 'tm-arc plan' : 'tm-arc', interactive: false }).addTo(map);
+      if (!R.same) { const bk = gcLine([ll, ...R.back, hm]); S.tmArcs.push(bk); L.polyline(bk, { color: arcColorOf(x.t, plan, C), weight: 2, opacity: .55, dashArray: '6 6', lineCap: 'round', interactive: false }).addTo(map); }   // 올 때 다른 경유 = 옅은 점선
       const m = tmPhIcon((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], plan ? '✈' : '●', arcColorOf(x.t, plan, C), 44, plan ? 'plan' : '');
       L.marker(ll, { icon: m }).addTo(map).bindTooltip(`${esc(tripName(x.t))} · ${x.t.year || ''}${plan ? ' (예정)' : ''}`, { direction: 'top', offset: [0, -20] })
         .bindPopup(card((tripCoverStyle(x.t).match(/url\('([^']+)'\)/) || [])[1], `${tripName(x.t)} ${x.t.year || ''}`, plan ? '예정된 여행' : '다녀온 여행', ''), { className: 'tm-popw', closeButton: false }).on('click', () => tripTitle(x.t));
     }
     L.marker(hm, { icon: L.divIcon({ className: 'tm-home', html: '⌂', iconSize: [26, 26] }) }).addTo(map).bindTooltip('우리 집');
+    for (const l of S.db.lived || []) [...(l.viaIn || []), ...(l.viaOut || [])].forEach(c => viaSeen.add(c));
+    for (const c of viaSeen) if (AP[c]) L.marker(apLL(c), { zIndexOffset: 300, icon: L.divIcon({ className: 'tm-via', iconSize: [40, 22], iconAnchor: [20, 5], html: `<i></i><b>${c}</b>` }) }).addTo(map).bindTooltip(`경유 · ${esc(AP[c][0])} (${c})`, { direction: 'top', offset: [0, -4] });
     planeFx(map, S.tmArcs || []); S.tmArcs = [];
   } else {
     const max = Math.max(1, ...Object.values(s.doCnt));
@@ -3293,8 +3345,9 @@ async function drawTravelCard(mode) {
     map.fitBounds(S.tmKrB, { padding: [10, 10] });
   }
   { const lv = livedSorted().filter(h => hasCoord(h) && (mode === 'world' || (h.country || 'KR') === 'KR'));     // 살았던 곳 ⌂ + 이사 경로
-    if (lv.length > 1) { const pts = lv.map(h => [h.lat, h.lng]), line = L.polyline(REDUCE() ? pts : [pts[0]], { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map);
-      if (!REDUCE()) { const t0 = performance.now(), D = 600 * (pts.length - 1); const st = now => { const f = Math.min(1, (now - t0) / D) * (pts.length - 1), i = Math.floor(f), r = f - i, a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]; line.setLatLngs([...pts.slice(0, i + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); if (f < pts.length - 1) requestAnimationFrame(st); }; setTimeout(() => requestAnimationFrame(st), 500); } }   // 이사 경로가 1→2→3 순서로 그려짐
+    if (lv.length > 1) { const pts = mode === 'world' ? lv.slice(1).reduce((acc, h, i) => acc.concat(gcLine([[lv[i].lat, lv[i].lng], ...livedLeg(lv[i], h), [h.lat, h.lng]]).slice(acc.length ? 1 : 0)), []) : lv.map(h => [h.lat, h.lng]),   /* 11/07 해외 이사는 경유 공항 거쳐 */
+        line = L.polyline(REDUCE() ? pts : [pts[0]], { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map);
+      if (!REDUCE()) { const t0 = performance.now(), D = 600 * (lv.length - 1) * (pts.length > lv.length ? 2 : 1); const st = now => { const f = Math.min(1, (now - t0) / D) * (pts.length - 1), i = Math.floor(f), r = f - i, a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]; line.setLatLngs([...pts.slice(0, i + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); if (f < pts.length - 1) requestAnimationFrame(st); }; setTimeout(() => requestAnimationFrame(st), 500); } }   // 이사 경로가 1→2→3 순서로 그려짐
     lv.forEach((h, i) => { const mk = L.marker([h.lat, h.lng], { zIndexOffset: 400, icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: `<span style="animation-delay:${(.5 + i * .6).toFixed(1)}s">⌂</span><i>${i + 1}</i>` }) }).addTo(map)
       .bindTooltip(`<b>⌂ ${esc(h.name)}</b>${livedYears(h) ? ' · ' + esc(livedYears(h)) : ''}`, { direction: 'top', offset: [0, -14] });
       const phs = (h.photos || []).map(x => photoUrl(x.path)).filter(Boolean);
@@ -3424,6 +3477,8 @@ async function openLivedForm(h) {
     <div id="lv-hits" class="lv-hits"></div>
     <div id="lv-map" class="lv-map"></div>
     <p class="cap3" id="lv-pos" style="margin-top:8px">${st.lat != null ? `위치 지정됨 · ${(+st.lat).toFixed(4)}, ${(+st.lng).toFixed(4)}` : '검색 결과를 고르거나, 지도를 직접 눌러 위치를 정하세요'}</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px"><div class="ti-f"><label>✈ 올 때 경유 <small class="cap3">(해외 집 · 비우면 직항)</small></label><input id="lv-via-in" list="ap-list" autocomplete="off" value="${esc(viaTxt(st.viaIn))}" placeholder="예: 이스탄불 IST"></div>
+      <div class="ti-f"><label>✈ 떠날 때 경유</label><input id="lv-via-out" list="ap-list" autocomplete="off" value="${esc(viaTxt(st.viaOut))}" placeholder="예: 두바이 DXB"></div>${apDatalist()}</div>
     <div class="vsec" style="margin-top:14px"><h4>그 집에서의 사진 <span class="cap3">촬영일 자동 · 장수 제한 없음</span></h4>
       <div class="lv-phs" id="lv-phs"></div><button type="button" class="btn-line" data-act="lvpick" style="width:100%;margin-top:8px">＋ 사진 올리기</button><input type="file" id="lv-file" accept="image/*" multiple hidden>
       <div class="lv-gr"><span class="cap3">누구 사진인가요 (선택)${lvUntag(h).length ? ` · <b style="color:var(--warning)">사람 안 고른 사진 ${lvUntag(h).length}장 있음 → 고르고 저장하면 함께 지정</b>` : ''}</span><div class="chips" id="lv-who">${familyNames().map(n => `<button type="button" class="chip${lvPre(h).includes(n) ? ' on' : ''}" data-lw="${esc(n)}">${esc(n)}</button>`).join('')}</div>
@@ -3457,6 +3512,7 @@ async function openLivedForm(h) {
     if (act === 'lvsave') {
       if (st.lat == null) return toast('주소를 검색하거나 지도를 눌러 위치를 정해주세요');
       const it = { id: st.id || uid('h'), name: niceName($('#lv-name').value) || '우리 집', country: $('#lv-cc').value, from: +$('#lv-from').value || null, to: +$('#lv-to').value || null, address: st.address || null, lat: st.lat, lng: st.lng, photos: st.photos };
+      { const a = viaParse($('#lv-via-in')?.value), c = viaParse($('#lv-via-out')?.value); if (a.ok.length) it.viaIn = a.ok; if (c.ok.length) it.viaOut = c.ok; if (a.bad.length || c.bad.length) toast(`모르는 공항: ${[...a.bad, ...c.bad].join(', ')} — 공항 코드(예: IST)로`, 4000); }   /* 11/07 경유 */
       if (newPh.length) { b.disabled = true; const toGr = $('#lv-togr')?.checked && lwho.size;
         const up = await uploadPhotos(newPh, `lived/${it.id}`, { who: [...lwho], toGrowth: !!toGr, memo: it.name, onStep: (i, n) => { b.textContent = `사진 ${i}/${n}`; } });   // 커밋 1번
         it.photos.push(...up);
@@ -3661,7 +3717,7 @@ function planeFx(map, arcs) {                                      // 항로를 
   if (REDUCE() || !arcs.length) return; const planes = arcs.map(pts => ({ pts, m: L.marker(pts[0], { interactive: false, zIndexOffset: 800, icon: L.divIcon({ className: 'tm-plane', html: `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)"/></svg></span>`, iconSize: [22, 22], iconAnchor: [11, 11] }) }).addTo(map), off: Math.random() }));
   const t0 = performance.now(), D = 4200;
   const step = now => { if (!map._container || !document.body.contains(map._container)) return;
-    for (const p of planes) { const k = (((now - t0) / D) + p.off) % 1, f = k * (p.pts.length - 1), i = Math.floor(f), r = f - i, a = p.pts[i], b = p.pts[Math.min(i + 1, p.pts.length - 1)];
+    for (const p of planes) { const k = ((((now - t0) / D) + p.off) % 1 + 1) % 1, f = k * (p.pts.length - 1), i = Math.floor(f), r = f - i, a = p.pts[i], b = p.pts[Math.min(i + 1, p.pts.length - 1)];
       const ll = [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]; p.m.setLatLng(ll);
       const pa = map.latLngToLayerPoint(a), pb = map.latLngToLayerPoint(b), ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI; const sp = p.m.getElement()?.firstChild; if (sp) sp.style.transform = `rotate(${ang}deg)`; }
     requestAnimationFrame(step); };
@@ -3817,7 +3873,7 @@ function boot(re) {
 }
 (async function main() {
   applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, viaParse, tripRoute, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
