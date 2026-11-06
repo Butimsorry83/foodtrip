@@ -498,7 +498,7 @@ function emptyHtml() {                                         // 시안 11a: �
   const sub = [q ? `「${esc(q)}」` : '', n ? `필터 ${n}개 적용 중` : '', S.radius ? `${S.radius}km 이내` : ''].filter(Boolean).join(' · ') || '등록된 장소 없음';
   const nextKm = S.radius ? ({ 10: 30, 30: 60, 60: null })[S.radius] : null;
   return `<div class="empty11"><img src="${asset('assets/mark-globe.png')}" alt=""><b>${esc(where)}에서는 못 찾았어요</b><p class="cap">${sub}</p>
-    <div class="acts">${n ? '<button class="btn line" data-act="clear">필터 모두 풀기</button>' : ''}${S.radius ? `<button class="btn line" data-act="km">${nextKm ? `반경 ${S.radius}km → ${nextKm}km` : '반경 제한 해제'}</button>` : ''}${S.region !== 'all' ? '<button class="btn line" data-act="allregion">전체 지역에서 찾기</button>' : ''}<button class="btn kakao rw" data-act="newplace">${/[A-Za-z]{3,}/.test(q) ? '🌍 전 세계에서 새로 찾기' : (S.region === 'all' || regionCountry(S.region) === 'KR') ? '카카오에서 새로 찾기' : '구글에서 새로 찾기'}</button></div></div>`;
+    <div class="acts">${n ? '<button class="btn line" data-act="clear">필터 모두 풀기</button>' : ''}${S.radius ? `<button class="btn line" data-act="km">${nextKm ? `반경 ${S.radius}km → ${nextKm}km` : '반경 제한 해제'}</button>` : ''}${S.region !== 'all' ? '<button class="btn line" data-act="allregion">전체 지역에서 찾기</button>' : ''}<button class="btn kakao rw" data-act="newplace">${/[A-Za-z]{3,}/.test(q) ? '🌍 전 세계에서 새로 찾기' : (S.region === 'all' || regionCountry(S.region) === 'KR') ? '🌍 국내·전 세계에서 새로 찾기' : '구글에서 새로 찾기'}</button>${q ? '<small class="cap">검색칸에서 엔터 = 바로 새로 찾기</small>' : ''}</div></div>`;
 }
 function emptyAct(act) {
   if (act === 'clear') { S.flags.clear(); S.tags.clear(); S.scope = 'all'; $$('#f-scope button').forEach(x => x.classList.toggle('on', x.dataset.v === 'all')); renderRegionChips(); renderTagChips(); renderList(); }
@@ -2070,7 +2070,7 @@ function openPlaceForm(p) {
     if (b.dataset.act === 'close') closeSheet();
     if (b.dataset.act === 'psearch') {
       b.textContent = '…';
-      await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value);
+      await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value, isNew);
       b.textContent = '검색';
       f._hits = hits; f._picked = null;
       showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
@@ -2141,12 +2141,18 @@ async function osmSearch(q, cc) {
     return (await r.json()).map(d => ({ name: d.name || d.display_name.split(',')[0], lat: +d.lat, lng: +d.lon, address: d.display_name, src: 'OSM' }));
   } catch { return []; }
 }
-async function geoSearch(q, country, area) {
+async function geoSearch(q, country, area, wide) {
   q = (q || '').trim(); if (!q) return [];
   if (country === 'KR') {
     await loadKakao();
     let hits = await kakaoSearch(area ? `${area} ${q}` : q);
     if (!hits.length && area) hits = await kakaoSearch(q);
+    if (wide) {   /* 11/07 새 장소: 국내(카카오) + 전 세계 같이 — 한글로 친 해외 장소(콜로세움 등)도 한 번에 */
+      const w = await geoSearch(q, 'OTHER');
+      const near = (a, b) => Math.abs(a.lat - b.lat) < .002 && Math.abs(a.lng - b.lng) < .002;
+      const add = w.filter(x => !hits.some(h => near(h, x))).map(x => ({ ...x, src: '🌍 ' + x.src }));
+      return [...hits.slice(0, 6), ...add.slice(0, 6)];
+    }
     if (!hits.length) hits = await osmSearch(q, 'KR');
     if (!hits.length && /[A-Za-z]{3,}/.test(q)) return geoSearch(q, 'OTHER');   // 영문 입력(예: italy firenze)이면 해외로 다시
     return hits;
@@ -3766,6 +3772,13 @@ function bindOnce() {
   }, true);
   $('#add-btn').onclick = () => openPlaceForm(); $('#fab-add').onclick = () => openPlaceForm();
   $('#today-btn').onclick = () => todayPick();
+  $$('#q, #q-pc, #q-hdr').forEach(i => { if (!i) return; i.setAttribute('enterkeyhint', 'search'); i.addEventListener('keydown', e => {   /* 11/07 결과 없을 때 엔터 = 국내·전 세계 새로 찾기 */
+    if (e.key !== 'Enter') return; e.preventDefault();
+    const run = () => { if (Date.now() - (S._qEnter || 0) < 600) return; S._qEnter = Date.now(); S.q = i.value; if (!S.q.trim()) return; $$('#q, #q-pc, #q-hdr').forEach(x => { if (x && x !== i) x.value = S.q; });
+      if (S.view !== 'explore') showView('explore'); renderList(); const b = $('.empty11 [data-act=newplace]'); if (b) { i.blur(); b.click(); } };
+    if (e.isComposing || e.keyCode === 229) { i.addEventListener('compositionend', () => setTimeout(run, 0), { once: true }); setTimeout(run, 120); return; }   // 한글 조합 중 엔터도 한 번에
+    run();
+  }); });
   $('#q').oninput = e => { S.q = e.target.value; renderList(); if (S.view !== 'explore' && S.q) showView('explore'); };
   $('#sort').onchange = e => { S.sort = e.target.value; LS.set('sort', S.sort); renderList(); };
   $('#f-scope').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.scope = b.dataset.v; $$('#f-scope button').forEach(x => x.classList.toggle('on', x === b)); renderTagChips(); renderList(); };
