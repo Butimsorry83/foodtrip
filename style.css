@@ -1158,3 +1158,10 @@ body.tm-full-on { overflow: hidden; }
 .field .kd { width: 150px; flex: 0 0 150px; }
 .vtrip .kd { width: 170px; } .vtrip .kd-t { height: 34px; border: 1px solid var(--line); border-radius: 10px; padding: 0 40px 0 10px; background: var(--panel); color: var(--text-1); font-size: 14px; }
 .kd-t:focus { outline: none; box-shadow: 0 0 0 2px var(--primary-soft); border-radius: 8px; }
+/* 11/06 여행 사진 스크랩북 (장소별) */
+.tp-view { margin: 4px 0 12px; }
+.tsb { display: flex; flex-direction: column; gap: 22px; }
+.tsb-cover .sb-title { font-size: calc(40px * var(--fz, 1)); }
+.sb-go { margin-left: auto; border: 0; background: none; color: var(--primary-2); font-weight: 700; font-size: 13px; cursor: pointer; }
+.sb-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+@media (min-width: 861px) { .tsb { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; } .tsb-cover { grid-column: 1 / -1; } }

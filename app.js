@@ -2251,6 +2251,7 @@ function renderTrips() {
     if (b.dataset.addplace != null) { const it = t.items[b.dataset.addplace]; openPlaceForm({ id: uid(), type: 'restaurant', country: t.country, region, name: it.place, cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, note: it.activity }); }
     if (b.dataset.act === 'additem') openItemForm(t);
     if (b.dataset.act === 'tphoto') return isRO() ? goToken() : openTripPhotos(t);
+    if (b.dataset.tpsb != null) { LS.set('tpSb', b.dataset.tpsb === '1'); return renderTrips(); }
     if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), date: null, cover: S.token || OFFLINE ? path => { t.coverPhoto = path; markDirty(); renderTrips(); toast('여행 표지로 지정했어요'); } : null, coverNow: t.coverPhoto }); }
     if (b.dataset.act === 'edit-trip') openTripEdit(t);
     if (b.dataset.act === 'tshare') shareLink('t', t.id, t.title);
@@ -2554,11 +2555,30 @@ function openTripPhotos(t) {                                         // 여행�
       t.photos = [...(t.photos || []), ...add].sort((a, c) => (a.date || '').localeCompare(c.date || '')); markDirty(); closeSheet(); renderTrips(); toast(`사진 ${add.length}장 추가`); }
   };
 }
+function tpSb() { return LS.get('tpSb', true) !== false; }
+function tripScrap(t, ps, vs) {   /* 11/06 여행 사진 스크랩북 — 표지 한 장(여행에 직접 올린 사진) + 장소(기록)별 한 장 */
+  const idx = new Map(ps.map((x, i) => [x.path, i])), ROT = [-3, 2.5, -1.5, 3.5, -2.5, 1.5, -3.5, 2];
+  const pol = (path, k, cap) => idx.has(path) ? `<button class="sb-pol" data-tplb="${idx.get(path)}" style="--r:${ROT[k % 8]}deg"><span class="tape"></span><img src="${photoUrl(path)}" alt="" loading="lazy"><small class="hand">${esc(cap || '')}</small></button>` : '';
+  const dd = d => (d || '').slice(5).replace('-', '.'), au = tripAuto(t);
+  const { start, end } = tripDates(t), dts = start ? `${start.getFullYear()}.${String(start.getMonth() + 1).padStart(2, '0')}.${String(start.getDate()).padStart(2, '0')}${end && +end !== +start ? ' — ' + String(end.getMonth() + 1).padStart(2, '0') + '.' + String(end.getDate()).padStart(2, '0') : ''}` : (t.year || '');
+  const own = (t.photos || []).filter(x => idx.has(x.path));
+  const cover = `<article class="sb-page tsb-cover"><div class="sb-top"><span class="sb-date num">${esc(dts)}</span><img class="sb-stamp" src="${asset('assets/mark-stamp.png')}" alt=""></div>
+    <h2 class="sb-title hand">${esc(tripName(t))}</h2><p class="sb-sub">${esc(t.country === 'KR' ? (t.title || '') : [au?.many ? au.sub : enName(tripCity(t), t.country), ccKo(t.country)].filter(Boolean).join(' · '))}</p>
+    ${t.memo ? `<p class="sb-memo hand">“${esc(t.memo)}”</p>` : ''}${own.length ? `<div class="sb-photos ${own.length <= 4 ? 'n' + own.length : 'many'}">${own.map((x, k) => pol(x.path, k, dd(x.date))).join('')}</div>` : ''}</article>`;
+  const groups = new Map(); for (const e of [...vs].sort((a, b) => (a.v.date || '').localeCompare(b.v.date || ''))) { if (!groups.has(e.p.id)) groups.set(e.p.id, { p: e.p, list: [] }); groups.get(e.p.id).list.push(e.v); }
+  const pages = [...groups.values()].map(({ p, list }) => { const phs = list.flatMap(v => visitRaw(v).map(path => ({ path, d: v.date }))).filter(x => idx.has(x.path)); const rt = list.map(v => +v.rating || 0).filter(Boolean), r = rt.length ? Math.round(rt.reduce((a, b) => a + b, 0) / rt.length * 2) / 2 : 0;
+    const who = [...new Set(list.flatMap(v => v.who || []))], memos = list.map(v => v.memo).filter(Boolean);
+    return `<article class="sb-page"><div class="sb-top"><span class="sb-date num">${esc(list.map(v => dd(v.date)).filter(Boolean).filter((x, i, a) => a.indexOf(x) === i).join(' · '))}</span></div>
+      <h2 class="sb-title hand">${esc(p.name)}</h2><p class="sb-sub">${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}${r ? ` · <span class="st">${starHtml(r, 0)}</span>` : ''}</p>
+      ${phs.length ? `<div class="sb-photos ${phs.length <= 4 ? 'n' + phs.length : 'many'}">${phs.map((x, k) => pol(x.path, k, k === 0 || x.d !== phs[k - 1].d ? dd(x.d) : '')).join('')}</div>` : ''}
+      ${memos.map(m => `<p class="sb-memo hand">“${esc(m)}”</p>`).join('')}${who.length ? `<div class="sb-foot">${who.map(n => `<span class="sb-sticker hand">${esc(n)}</span>`).join('')}<button class="sb-go" data-go="${p.id}">장소 보기 ›</button></div>` : `<div class="sb-foot"><button class="sb-go" data-go="${p.id}">장소 보기 ›</button></div>`}</article>`; });
+  return `<div class="tsb">${cover}${pages.join('')}</div>`;
+}
 function tripPhotosHtml(t) {
   const ps = tripAllPhotos(t), noItems = !(t.items || []).length, vs = tripVisits(t);
   if (!ps.length && !noItems) return '';
   return `<div class="tp-gal">${noItems ? `<div class="tp-simple"><b>${esc(t.title || tripCity(t))}</b><p class="cap">${esc([t.start ? t.start.replace(/-/g, '.') + (t.end && t.end !== t.start ? ' — ' + t.end.slice(5).replace('-', '.') : '') : t.year, tripCity(t), ccKo(t.country)].filter(Boolean).join(' · '))}</p>${t.memo ? `<p class="serif tp-memo">“${esc(t.memo)}”</p>` : ''}</div>` : ''}
-    ${ps.length ? `<div class="tp-ph">${ps.map((x, i) => `<button data-tplb="${i}" style="background-image:url('${photoUrl(x.path)}')"><small>${esc((x.date || '').slice(5).replace('-', '.'))}</small></button>`).join('')}</div>` : '<div class="help">사진이 아직 없어요 — 아래 「📷 사진 추가」</div>'}
+    ${ps.length ? `<div class="seg tp-view"><button data-tpsb="0" class="${tpSb() ? '' : 'on'}">▦ 모아보기</button><button data-tpsb="1" class="${tpSb() ? 'on' : ''}">📒 스크랩북</button></div>` + (tpSb() ? tripScrap(t, ps, vs) : `<div class="tp-ph">${ps.map((x, i) => `<button data-tplb="${i}" style="background-image:url('${photoUrl(x.path)}')"><small>${esc((x.date || '').slice(5).replace('-', '.'))}</small></button>`).join('')}</div>`) : '<div class="help">사진이 아직 없어요 — 아래 「📷 사진 추가」</div>'}
     ${vs.length ? `<div class="tp-vis"><span class="cap3">이 여행의 기록 ${vs.length}</span>${vs.sort((a, b) => (a.v.date || '').localeCompare(b.v.date || '')).map(({ p, v }) => `<button class="chip" data-go="${p.id}">${esc(p.name)} <small>${esc((v.date || '').slice(5).replace('-', '.'))}</small></button>`).join('')}</div>` : ''}</div>`;
 }
 function openItemForm(t) {
