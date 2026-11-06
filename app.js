@@ -3232,6 +3232,8 @@ async function drawGlobe(s, C, st) {
   const lv = livedSorted().filter(hasCoord), lvLine = lv.length > 1 ? mk('path', { fill: 'none', stroke: C.wish, 'stroke-width': 2, 'stroke-dasharray': '1 6', 'stroke-linecap': 'round' }, gA) : null;
   const lvGeo = { type: 'LineString', coordinates: lv.flatMap((h, i) => [...(i ? livedLeg(lv[i - 1], h).map(ll => [ll[1], ll[0]]) : []), [h.lng, h.lat]]) };   // 11/07 해외 이사 경유
   for (const l of S.db.lived || []) [...(l.viaIn || []), ...(l.viaOut || [])].forEach(c => viaSeen.add(c));
+  const jr = { segs: null, t0: 0, kind: '', g: null };   /* 11/07 이사 여정: ✈/🚗 갈아타며 집 → 집 */
+  if (lv.length > 1 && !REDUCE()) { jr.g = mk('g', { class: 'gl-plane gl-jr', opacity: 0, style: `color:${C.wish};fill:${C.wish}` }, gA); lvJourney(lv, false).then(j => { jr.segs = j.segs; jr.t0 = performance.now() + 1200; }); }
   const gP = mk('g'), pins = [];
   let ci = 0; const pinImg = (ll, src, r, ring, onClick, label) => { const g = mk('g', { class: 'gl-pin' }, gP), id = 'glc' + (ci++);
     const cp = mk('clipPath', { id }, defs); mk('circle', { r, cx: 0, cy: 0 }, cp);
@@ -3261,6 +3263,9 @@ async function drawGlobe(s, C, st) {
     for (const a of arcs) a.p.setAttribute('d', path(a.geo) || '');
     if (lvLine) lvLine.setAttribute('d', path(lvGeo) || '');
     for (const pl of planes) { const k = ((now / 4200) + pl.off) % 1, a = pl.ip(k), b = pl.ip(Math.min(1, k + .01)); if (!vis(a)) { pl.e.setAttribute('opacity', 0); continue; } const pa = proj(a), pb = proj(b), ang = Math.atan2(pb[1] - pa[1], pb[0] - pa[0]) * 180 / Math.PI; pl.e.setAttribute('opacity', 1); pl.e.setAttribute('transform', `translate(${pa[0]},${pa[1]}) rotate(${ang})`); }
+    if (jr.segs && now) { const p = jPos(jr.segs, Math.max(0, now - jr.t0)), A = p.ll && [p.ll[1], p.ll[0]];
+      if (p.hide || !vis(A)) jr.g.setAttribute('opacity', 0); else { if (p.kind !== jr.kind) { jr.kind = p.kind; jr.g.innerHTML = p.kind === 'car' ? '<text class="gl-car" text-anchor="middle" dominant-baseline="central" font-size="16">🚗</text>' : `<path d="${PLANE_D}" transform="translate(10,-9.6) scale(-.8,.8)"/>`; }
+        const pa = proj(A), pb = proj([p.b[1], p.b[0]]); jr.g.setAttribute('opacity', 1); jr.g.setAttribute('transform', `translate(${pa[0]},${pa[1]}) ` + (p.kind === 'car' ? (pb[0] > pa[0] ? 'scale(-1,1)' : '') : `rotate(${Math.atan2(pb[1] - pa[1], pb[0] - pa[0]) * 180 / Math.PI})`)); } }
     for (const p of pins) { const on = vis(p.ll); p.g.style.display = on ? '' : 'none'; if (on) { const [x, y] = proj(p.ll); p.g.setAttribute('transform', `translate(${x},${y})`); } }
     for (const l of labels) { const on = vis(l.c); l.g.style.display = on ? '' : 'none'; if (on) { const [x, y] = proj(l.c); l.g.setAttribute('transform', `translate(${x},${y + 4})`); } }
   };
@@ -3344,16 +3349,17 @@ async function drawTravelCard(mode) {
     for (const p of S.db.places) if (p.wish && (p.country || 'KR') === 'KR' && hasCoord(p)) tip(L.marker([p.lat, p.lng], { icon: L.divIcon({ className: 'tm-wish', html: '★', iconSize: [18, 18] }) }).addTo(map).on('click', () => openDetail(p.id)), `★ ${esc(p.name)} (가고싶다)`);
     map.fitBounds(S.tmKrB, { padding: [10, 10] });
   }
-  { const lv = livedSorted().filter(h => hasCoord(h) && (mode === 'world' || (h.country || 'KR') === 'KR'));     // 살았던 곳 ⌂ + 이사 경로
-    if (lv.length > 1) { const pts = mode === 'world' ? lv.slice(1).reduce((acc, h, i) => acc.concat(gcLine([[lv[i].lat, lv[i].lng], ...livedLeg(lv[i], h), [h.lat, h.lng]]).slice(acc.length ? 1 : 0)), []) : lv.map(h => [h.lat, h.lng]),   /* 11/07 해외 이사는 경유 공항 거쳐 */
-        line = L.polyline(REDUCE() ? pts : [pts[0]], { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map);
-      if (!REDUCE()) { const t0 = performance.now(), D = 600 * (lv.length - 1) * (pts.length > lv.length ? 2 : 1); const st = now => { const f = Math.min(1, (now - t0) / D) * (pts.length - 1), i = Math.floor(f), r = f - i, a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]; line.setLatLngs([...pts.slice(0, i + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); if (f < pts.length - 1) requestAnimationFrame(st); }; setTimeout(() => requestAnimationFrame(st), 500); }
-      if (mode !== 'world' && kakaoRestKey()) lvRoads(lv).then(legs => { if (S.tmMap !== map || !map._container || !document.body.contains(map._container)) return; const road = legs.flat(); if (road.length <= lv.length) return;   /* 11/07 국내 이사 = 실제 도로 + 🚗 */
-        setTimeout(() => { if (S.tmMap !== map) return; line.remove(); L.polyline(road, { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map); carFx(map, legs); }, REDUCE() ? 0 : Math.max(0, 500 + 600 * (lv.length - 1) - 300)); }); }   // 이사 경로가 1→2→3 순서로 그려짐
-    lv.forEach((h, i) => { const mk = L.marker([h.lat, h.lng], { zIndexOffset: 400, icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: `<span style="animation-delay:${(.5 + i * .6).toFixed(1)}s">⌂</span><i>${i + 1}</i>` }) }).addTo(map)
+  { const all = livedSorted().filter(hasCoord), lv = all.filter(h => mode === 'world' || lvKR(h));     // 살았던 곳 ⌂ + 이사 경로 (11/07: ✈/🚗 여정)
+    if (all.length > 1) lvJourney(all, mode !== 'world').then(({ lines, segs }) => { if (S.tmMap !== map) return;
+      const ls = lines.map(pts => L.polyline(REDUCE() ? pts : [pts[0]], { color: C.wish, weight: 2.5, opacity: .9, dashArray: '1 7', lineCap: 'round', interactive: false }).addTo(map));
+      if (REDUCE()) return; const t0 = performance.now() + 300, per = 700;   // 이사 경로가 1→2→3 순서로 그려진 뒤 여정 시작
+      const st = now => { if (S.tmMap !== map) return; const f = Math.max(0, (now - t0) / per); ls.forEach((l, i) => { const pts = lines[i], q = Math.min(1, Math.max(0, f - i)); if (q <= 0) return; const n = q * (pts.length - 1), j = Math.floor(n), r = n - j, a = pts[j], b = pts[Math.min(j + 1, pts.length - 1)]; l.setLatLngs([...pts.slice(0, j + 1), [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]]); });
+        if (f < lines.length) requestAnimationFrame(st); else journeyFx(map, segs); };
+      requestAnimationFrame(st); });
+    lv.forEach((h, i) => { const no = all.indexOf(h) + 1; const mk = L.marker([h.lat, h.lng], { zIndexOffset: 400, icon: L.divIcon({ className: 'tm-lvm', iconSize: [30, 30], iconAnchor: [15, 15], html: `<span style="animation-delay:${(.5 + i * .6).toFixed(1)}s">⌂</span><i>${no}</i>` }) }).addTo(map)
       .bindTooltip(`<b>⌂ ${esc(h.name)}</b>${livedYears(h) ? ' · ' + esc(livedYears(h)) : ''}`, { direction: 'top', offset: [0, -14] });
       const phs = (h.photos || []).map(x => photoUrl(x.path)).filter(Boolean);
-      if (phs.length) mk.setIcon(L.divIcon({ className: 'tm-lvm ph', iconSize: [40, 40], iconAnchor: [20, 20], html: `<span style="background-image:url('${phs[0]}');animation-delay:${(.5 + i * .6).toFixed(1)}s"></span><b>⌂</b><i>${i + 1}</i>` }));
+      if (phs.length) mk.setIcon(L.divIcon({ className: 'tm-lvm ph', iconSize: [40, 40], iconAnchor: [20, 20], html: `<span style="background-image:url('${phs[0]}');animation-delay:${(.5 + i * .6).toFixed(1)}s"></span><b>⌂</b><i>${no}</i>` }));
       mk.bindPopup(`<div class="tm-pop">${phs.length ? `<div class="lvp-strip">${phs.slice(0, 4).map((u, k) => `<button data-lvlb="${h.id}" data-k="${k}" style="background-image:url('${u}')">${k === 3 && phs.length > 4 ? `<b>+${phs.length - 4}</b>` : ''}</button>`).join('')}</div>` : ''}<b>⌂ ${esc(h.name)}</b><p>${esc([livedYears(h), phs.length ? `사진 ${phs.length}장` : ''].filter(Boolean).join(' · '))}</p><div class="bt">${phs.length ? `<button data-lvlb="${h.id}" data-k="0">사진 보기</button>` : ''}<button data-lvedit="${h.id}">${phs.length ? '사진 추가' : '＋ 사진 올리기'}</button></div></div>`, { className: 'tm-popw', closeButton: false });
       mk.on('click', () => { const parts = String(h.address || h.name || '').split(',').map(x => x.trim()).filter(Boolean); let big = (h.country || 'KR') === 'KR' ? parts[0]?.split(' ')[0] : (parts.find(x => !/\d/.test(x)) || parts[0]); big = CITY_EN[big] || big;
         locTitle(big, [(h.country || 'KR') === 'KR' ? h.name : regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); }); }); }
@@ -3719,23 +3725,49 @@ function mixHex(a, b, q) {                                         // 색 a → 
   const h = c => { c = String(c).trim(); if (/^#[0-9a-f]{3}$/i.test(c)) c = '#' + [...c.slice(1)].map(x => x + x).join(''); return /^#[0-9a-f]{6}$/i.test(c) ? [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16)) : null; };
   const A = h(a), B = h(b); if (!A || !B) return q < .5 ? a : b; return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * q).toString(16).padStart(2, '0')).join('');
 }
-async function lvRoads(lv) {                                        // 11/07 국내 이사 경로 → 카카오 길찾기 도로 선 (한 번 받으면 저장)
+async function lvRoads(pairs) {                                     // 11/07 국내 이사 [a,b] 쌍 → 카카오 길찾기 도로 선 (한 번 받으면 기기에 저장 · 키 없으면 직선)
   const cache = LS.get('lvRoad', {}); let changed = false;
-  const legs = await Promise.all(lv.slice(1).map(async (b, i) => { const a = lv[i], k = [a.lat, a.lng, b.lat, b.lng].map(x => (+x).toFixed(4)).join(',');
-    if (cache[k]) return cache[k];
-    const r = await kakaoRoute(a, b, true); if (!r?.path?.length) return [[a.lat, a.lng], [b.lat, b.lng]];
+  const out = await Promise.all(pairs.map(async ([a, b]) => { const k = [a.lat, a.lng, b.lat, b.lng].map(x => (+x).toFixed(4)).join(',');
+    if (cache[k]) return cache[k]; const st = [[a.lat, a.lng], [b.lat, b.lng]]; if (!kakaoRestKey()) return st;
+    const r = await kakaoRoute(a, b, true); if (!r?.path?.length) return st;
     const step = Math.max(1, Math.ceil(r.path.length / 160)), pts = r.path.filter((_, j) => j % step === 0).map(p => [+p[0].toFixed(5), +p[1].toFixed(5)]); pts.push(r.path[r.path.length - 1]);
     cache[k] = pts; changed = true; return pts; }));
-  if (changed) LS.set('lvRoad', cache); return legs;
+  if (changed) LS.set('lvRoad', cache); return out;
 }
-function carFx(map, legs) {                                          // 🚗 이사 길을 따라 집 → 집
-  if (REDUCE() || !legs.length) return; const pts = legs.flat(), cum = [0]; for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  const tot = cum[cum.length - 1] || 1, D = 3200 * legs.length, PAUSE = 1200;
-  const m = L.marker(pts[0], { interactive: false, zIndexOffset: 900, icon: L.divIcon({ className: 'tm-car', html: '<span>🚗</span>', iconSize: [26, 26], iconAnchor: [13, 15] }) }).addTo(map);
-  const t0 = performance.now(); let j = 0;
-  const step = now => { if (S.tmMap !== map || !map._container || !document.body.contains(map._container)) return; const e = ((now - t0) % (D + PAUSE)), k = Math.min(1, Math.max(0, e / D)), x = k * tot;
-    if (x < cum[j]) j = 0; while (j < cum.length - 2 && cum[j + 1] < x) j++; const a = pts[j], b = pts[j + 1] || a, r = cum[j + 1] > cum[j] ? (x - cum[j]) / (cum[j + 1] - cum[j]) : 0;
-    m.setLatLng([a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r]); const sp = m.getElement()?.firstChild; if (sp) sp.style.transform = b[1] > a[1] ? 'scaleX(-1)' : '';   // 오른쪽(동쪽)으로 갈 땐 좌우 반전
+const lvKR = h => (h.country || 'KR') === 'KR';
+function clipKm(pts, km, fromEnd) {                                 // 경로 앞(또는 뒤)에서 km 만큼만
+  const P = fromEnd ? pts.slice().reverse() : pts, out = [P[0]]; let d = 0;
+  for (let i = 1; i < P.length; i++) { const s = haversine({ lat: P[i - 1][0], lng: P[i - 1][1] }, { lat: P[i][0], lng: P[i][1] }); if (d + s >= km) { const r = (km - d) / s; out.push([P[i - 1][0] + (P[i][0] - P[i - 1][0]) * r, P[i - 1][1] + (P[i][1] - P[i - 1][1]) * r]); break; } d += s; out.push(P[i]); }
+  return fromEnd ? out.reverse() : out;
+}
+async function lvJourney(all, krOnly) {                             // 11/07 이사 여정: 해외 낀 구간 = ✈ (경유 공항 거쳐) · 국내끼리 = 🚗 (실제 도로)
+  const legs = all.slice(1).map((b, i) => { const a = all[i], car = lvKR(a) && lvKR(b); return { a, b, car, pts: car ? null : gcLine([[a.lat, a.lng], ...livedLeg(a, b), [b.lat, b.lng]]) }; });
+  const cars = legs.filter(l => l.car), roads = await lvRoads(cars.map(l => [l.a, l.b])); cars.forEach((l, i) => { l.pts = roads[i]; });
+  const lines = [], segs = [];
+  for (const l of legs) {
+    if (l.car) { lines.push(l.pts); segs.push({ pts: l.pts, kind: 'car', D: 2600 }); continue; }
+    if (!krOnly) { lines.push(l.pts); segs.push({ pts: l.pts, kind: 'plane', D: 3200 }); continue; }
+    if (lvKR(l.a)) { const o = clipKm(l.pts, 1600); lines.push(o); segs.push({ pts: o, kind: 'plane', D: 1400 }, { kind: 'gap', D: 700 }); }   // 국내 지도: 지도 밖으로 날아가 사라짐
+    if (lvKR(l.b)) { const o = clipKm(l.pts, 1600, true); lines.push(o); segs.push({ pts: o, kind: 'plane', D: 1400 }); }                          // … 다시 들어와 착륙
+  }
+  return { lines, segs };
+}
+function jPos(segs, ms) {                                           // 여정 시간(ms) → 위치·다음점·종류
+  const tot = segs.reduce((a, s) => a + s.D, 0) + 1500; let t = ms % tot;
+  for (const s of segs) { if (t > s.D) { t -= s.D; continue; } if (s.kind === 'gap') return { hide: true };
+    const f = (t / s.D) * (s.pts.length - 1), i = Math.min(Math.floor(f), s.pts.length - 2), r = f - i, a = s.pts[i], b = s.pts[i + 1] || a;
+    return { ll: [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r], a, b, kind: s.kind }; }
+  return { hide: true };                                              // 끝나고 잠깐 쉼
+}
+const PLANE_HTML = () => `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)"/></svg></span>`;
+function journeyFx(map, segs) {                                      // Leaflet: 한 명이 ✈/🚗 갈아타며 집 → 집
+  if (REDUCE() || !segs.length) return; let kind = '';
+  const m = L.marker(segs[0].pts?.[0] || [0, 0], { interactive: false, zIndexOffset: 900, icon: L.divIcon({ className: 'tm-plane tm-jr', html: '', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(map);
+  const t0 = performance.now();
+  const step = now => { if (S.tmMap !== map || !map._container || !document.body.contains(map._container)) return; const p = jPos(segs, Math.max(0, now - t0)), el = m.getElement();
+    if (el) { el.style.opacity = p.hide ? 0 : 1; if (!p.hide) { if (p.kind !== kind) { kind = p.kind; el.innerHTML = kind === 'car' ? '<span class="car">🚗</span>' : PLANE_HTML(); }
+      m.setLatLng(p.ll); const pa = map.latLngToLayerPoint(p.a), pb = map.latLngToLayerPoint(p.b), sp = el.firstChild;
+      if (sp) sp.style.transform = kind === 'car' ? (pb.x > pa.x ? 'scaleX(-1)' : '') : `rotate(${Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI}deg)`; } }
     requestAnimationFrame(step); };
   requestAnimationFrame(step);
 }
