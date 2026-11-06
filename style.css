@@ -1165,3 +1165,11 @@ body.tm-full-on { overflow: hidden; }
 .sb-go { margin-left: auto; border: 0; background: none; color: var(--primary-2); font-weight: 700; font-size: 13px; cursor: pointer; }
 .sb-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 @media (min-width: 861px) { .tsb { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; } .tsb-cover { grid-column: 1 / -1; } }
+/* 11/06 여행 스크랩북 PC 정렬: 칸을 꽉 채우고, 홀수로 남는 마지막 장은 가로 전체 */
+.tsb > .sb-page { margin: 0; max-width: none; width: 100%; box-sizing: border-box; }
+@media (min-width: 861px) {
+  .tsb > .sb-page:last-child:nth-child(even) { grid-column: 1 / -1; }
+  .tsb > .sb-page:last-child:nth-child(even) .sb-photos, .tsb-cover .sb-photos { max-width: 760px; margin-left: auto; margin-right: auto; }
+  .tsb > .sb-page:last-child:nth-child(even) .sb-photos.n3 .sb-pol:first-child img, .tsb > .sb-page:last-child:nth-child(even) .sb-photos.n1 .sb-pol img { max-height: 420px; }
+  .tsb-cover { padding-bottom: 22px; }
+}
