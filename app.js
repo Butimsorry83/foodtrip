@@ -1182,6 +1182,13 @@ function buildPlan(cfg) {
       used.add(spot.id);
     }
     if (!lunchDone && t <= 15 * 60 && items.some(x => x.kind === 'spot' && x.place_id)) t = lunch(Math.max(t, 11 * 60 + 30), cur);
+    { const li = items.map(x => x.slot).lastIndexOf(di + ':lunch'), gap = Math.min(18 * 60, dayEndMin - 60) - t;   /* 11/08 점심 뒤 갈 곳 없이 저녁까지 2시간+ 비면: 근처 저장 휴양지로 채우고, 없으면 「추천 받기」 칸 */
+      if (li >= 0 && !items.slice(li + 1).some(x => x.kind === 'spot') && gap >= 120 && !(cfg.noFill || {})[di]) {
+        const ok = p => hasCoord(p) && !used.has(p.id) && !todays.includes(p) && !(cfg.dropped || []).includes(p.id);
+        const pickFrom = list => list.filter(ok).map(p => ({ p, L: leg(cur, p) })).filter(x => x.L.min <= 50 && x.L.min + 60 <= gap).sort((a, b) => a.L.min - b.L.min)[0];
+        const f = pickFrom(extra) || (lastDay ? pickFrom(pool) : null);
+        if (f) { const st = Math.min(stayOf(f.p), gap - f.L.min - 10); move(f.p); push(t, f.p.name, f.p, { kind: 'spot', note: hrs(st) + ' · 오후 빈 시간 채움' }); t += st; used.add(f.p.id); autoIds.add(f.p.id); if (extra.includes(f.p)) extra.splice(extra.indexOf(f.p), 1); if (pool.includes(f.p)) pool = pool.filter(x => x !== f.p); }
+        else push(t, '오후 자유 시간', null, { kind: 'spot', free: true, near: cur, note: `${Math.floor(gap / 60)}시간 비어요 · 「추천」으로 근처 장소 넣기` }); } }
     // ③ 저녁 · 숙소/귀가
     const goingHome = !stayMode && E0 === home && home.country === 'KR';               // 집으로 돌아가는 날: 집 앞에서 저녁 X
     const dt0 = Math.max(t, 18 * 60);
@@ -1402,6 +1409,28 @@ function openPlanner(prefill = {}) {
       const box = row.nextElementSibling; const list = near ? await nearCands(near) : []; S.swapCands = list.filter(c => c.name !== it.place && mealOK(c, it.slot)).slice(0, 5);
       const nb = box.querySelector('.pl-cnew'); if (nb) nb.outerHTML = S.swapCands.length ? S.swapCands.map((c, k) => `<div class="pl-ci"><button class="rc-row" data-pick-cand="${k}" data-slot="${esc(it.slot || '')}"><span class="tile" style="--cat:var(--cat-${CAT_VAR[c.cuisine] || 'etc'})">${esc(CAT_GLYPH[c.cuisine] || '·')}</span><div class="m"><b>${esc(c.name)} <span class="bd" style="background:var(--${c.src === '구글' ? 'google' : 'kakao'});color:${c.src === '구글' ? '#fff' : 'var(--on-kakao)'}">${esc(c.src)}</span></b><p class="cap">${c.google?.rating ? `<span class="g-rt">★${c.google.rating}</span> <span class="g-n">(${(c.google.reviews || 0).toLocaleString()})</span> · ` : ''}${esc([catShort(c.category) || c.cuisine, c.km != null ? fmtKm(c.km) + 'km' : ''].filter(Boolean).join(' · '))}</p></div></button>${c.url ? `<a class="c-map" href="${esc(c.url)}" target="_blank" rel="noopener" title="카카오맵에서 별점·리뷰 보기">카카오맵 ↗</a>` : ''}</div>`).join('') : `<div class="help">${cfg.base.country === 'KR' ? (window.kakao?.maps?.services ? '근처 새 후보 없음' : '카카오 키 연결 시 근처 식당 추천') : '구글 키 연결 시 근처 식당 추천'}</div>`;
       return; }
+    if (b.dataset.spswap != null) {                               // 11/08 휴양지 바꾸기 · 빈 오후 추천: 저장한 휴양지(가까운 순) + 근처 새 관광지
+      const idx = +b.dataset.spswap, day = plan.days[curDi], it = day.items[idx], row = b.closest('.pl-row'); if (!it || !row) return;
+      if (row.nextElementSibling?.classList.contains('pl-cands')) { row.nextElementSibling.remove(); return; }
+      const near = it.near || day.items.slice(0, idx).reverse().map(x => x.to || (x.place_id && placeById(x.place_id))).find(x => x && hasCoord(withCoord(x))) || cfg.base, o = withCoord(near);
+      const inPlan = new Set(plan.days.flatMap(d => d.items).map(x => x.place_id).filter(Boolean));
+      const saved = S.db.places.filter(p => p.type === 'spot' && (p.country || 'KR') === (cfg.base.country || 'KR') && !inPlan.has(p.id) && !(cfg.dropped || []).includes(p.id)).map(withCoord).filter(hasCoord).map(p => ({ p, km: haversine(o, p) })).filter(x => x.km <= Math.max(25, cfg.radiusKm || 0)).sort((a, b) => a.km - b.km).slice(0, 4);
+      S.spSaved = saved.map(x => x.p);
+      row.insertAdjacentHTML('afterend', `<div class="pl-cands"><p class="cap3" style="margin:4px 0">저장한 휴양지 · 가까운 순</p>${saved.map((x, k) => `<button class="rc-row" data-pick-spot="${k}" data-idx="${idx}">${thumbHtml(x.p, 'tile')}<div class="m"><b>${esc(x.p.name)}</b><p class="cap">${esc([kindLabel(x.p), fmtKm(x.km) + 'km', x.p.tags?.[0] ? '#' + x.p.tags[0] : ''].filter(Boolean).join(' · '))}</p></div></button>`).join('') || '<div class="help">근처 저장 휴양지 없음</div>'}<p class="cap3" style="margin:8px 0 4px">근처 새 관광지</p><div class="pl-snew"><div class="help">찾는 중…</div></div></div>`);
+      const box = row.nextElementSibling; let hits = []; try { hits = await findAttractions(o, 20000, cfg.base.country || 'KR'); } catch {}
+      hits = hits.filter(h => !inPlan.has('tmp_' + h.name.replace(/\s/g, '').slice(0, 20))).slice(0, 5); S.spNew = hits;
+      const nb = box.querySelector('.pl-snew'); if (nb) nb.outerHTML = hits.length ? hits.map((h, k) => `<button class="rc-row" data-pick-nspot="${k}" data-idx="${idx}"><span class="tile" style="--cat:var(--cat-spot)">◎</span><div class="m"><b>${esc(h.name)} <span class="bd" style="background:var(--${h.src === '구글' ? 'google' : 'kakao'});color:${h.src === '구글' ? '#fff' : 'var(--on-kakao)'}">${esc(h.src || '')}</span></b><p class="cap">${esc([h.cat, h.km != null ? fmtKm(h.km) + 'km' : '', h.rating ? 'G' + h.rating : ''].filter(Boolean).join(' · '))}</p></div></button>`).join('') : `<div class="help">${(cfg.base.country || 'KR') === 'KR' ? (window.kakao?.maps?.services ? '근처 새 관광지 없음' : '카카오 지도 키 연결 시 근처 관광지 추천') : '구글 키 연결 시 근처 관광지 추천'}</div>`;
+      return; }
+    if (b.dataset.pickSpot != null || b.dataset.pickNspot != null) {
+      let np; if (b.dataset.pickSpot != null) np = (S.spSaved || [])[+b.dataset.pickSpot];
+      else { const h = (S.spNew || [])[+b.dataset.pickNspot]; if (!h) return; S.tmpPlaces ||= new Map(); const id = 'tmp_' + h.name.replace(/\s/g, '').slice(0, 20);
+        if (!S.tmpPlaces.has(id)) S.tmpPlaces.set(id, { id, type: 'spot', country: cfg.base.country || 'KR', region: cfg.base.country === 'KR' ? 'domestic' : (cfg.area || 'c:'), name: h.name, lat: h.lat, lng: h.lng, address: h.address || null, si: cfg.area && cfg.area !== 'all' ? cfg.area : null, do: null, seasons: [], tags: [], rating: 0, visits: 0, visitLog: [], wish: false, naver: {}, kakao: h.url ? { url: h.url } : {}, src: h.src, tmp: true });
+        np = S.tmpPlaces.get(id); }
+      if (!np) return; const idx = +b.dataset.idx, day = plan.days[curDi], it = day.items[idx]; const ids = day.items.filter(x => x.kind === 'spot' && x.place_id).map(x => x.place_id);
+      const old = it.place_id; if (old) { const k = ids.indexOf(old); if (k >= 0) ids[k] = np.id; cfg.dropped = [...new Set([...(cfg.dropped || []), old])]; cfg.spots = cfg.spots.filter(x => x.id !== old); cfg.extra = (cfg.extra || []).filter(x => x.id !== old); }   // 마음에 안 든 곳은 다른 날로도 안 넘어가게
+      else ids.push(np.id);
+      if (!cfg.spots.some(x => x.id === np.id)) cfg.spots = [...cfg.spots, np];
+      cfg.dayOrders[curDi] = [...new Set(ids)]; plan = buildPlan(cfg); showDay(curDi); toast((old ? '휴양지 변경 · ' : '추가 · ') + np.name); return; }
     if (b.dataset.pickMeal) { cfg.forceMeals[b.dataset.slot] = b.dataset.pickMeal; if (cfg.candPick) delete cfg.candPick[b.dataset.slot]; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경'); return; }
     if (b.dataset.pickCand != null) { const c = (S.swapCands || [])[+b.dataset.pickCand]; if (!c) return; cfg.candPick ||= {}; cfg.candPick[b.dataset.slot] = c; delete cfg.forceMeals[b.dataset.slot]; plan = buildPlan(cfg); showDay(curDi); toast('식당 변경 · ' + c.name); return; }
     if (b.dataset.stay) { const [id, delta] = b.dataset.stay.split(':'); const p = placeById(id); const cur = cfg.stayOverride[id] ?? stayMin(p); cfg.stayOverride[id] = Math.max(30, cur + +delta); plan = buildPlan(cfg); showDay(curDi); return; }
@@ -1438,7 +1467,7 @@ function renderPlan(plan, cfg, di = 0) {                        // 시안 08c: �
     if (it.kind === 'rest') return `<div class="pl-row rest"><span class="num rk" style="background:var(--text-3)">☾</span><div style="flex:1"><b>${esc(it.activity)}</b><p class="cap">${esc(it.time)} · 1시간 30분</p></div></div>`;
     k++; const isMeal = it.kind === 'meal'; const p = it.place_id && placeById(it.place_id); const apx = p && !hasCoord(p) ? '<span class="apx">대략</span>' : '';
     const dur = it.note && /h$/.test(it.note) ? it.note.replace(/(\d+(?:\.\d+)?)h/, (m, h) => `${+h >= 1 ? Math.floor(+h) + '시간' : ''}${Math.round((+h % 1) * 60) ? ' ' + Math.round((+h % 1) * 60) + '분' : ''}`.trim()) : (isMeal ? '1시간 20분' : '');
-    return `<div class="pl-row${isMeal ? ' meal' : ''}" data-idx="${i}" ${!isMeal && it.place_id ? 'draggable="true"' : ''}><span class="num rk" style="background:${colorOfIt(it)}">${k}</span><div style="flex:1;min-width:0"><b>${isMeal ? `${esc(it.activity)} · ${p ? `<button type="button" class="pl-go" data-go="${p.id}">${esc(p.name)}</button>` : it.cand ? (it.cand.url ? `<a class="pl-go" href="${esc(it.cand.url)}" target="_blank" rel="noopener">${esc(it.cand.name)} ↗</a>` : esc(it.cand.name)) : '자동 추천'}` : p ? `<button type="button" class="pl-go" data-go="${p.id}">${esc(it.activity)}</button>` : esc(it.activity)}${apx}</b><p class="cap">${esc(it.time)}${dur ? ' · ' + dur : ''}${isMeal ? (p ? ` · ${esc(cuisineOf(p)[0] || '')}${it.note ? ' · ' + esc((apx && /^0\.\dkm$|^0km$/.test(it.note.split(' · ')[0])) ? '같은 지역' : it.note.split(' · ')[0]) : ''}` : ' · ' + esc(it.note || '')) : esc(tagsOf(it))}</p></div>${isMeal ? `<button class="chip" data-swap="${i}">바꾸기</button>` : (it.place_id ? `<span class="stayctl"><button data-stay="${it.place_id}:-30">−</button><button data-stay="${it.place_id}:30">＋</button></span><span class="cap3 grip">≡</span>` : '')}</div>`;
+    return `<div class="pl-row${isMeal ? ' meal' : ''}" data-idx="${i}" ${!isMeal && it.place_id ? 'draggable="true"' : ''}><span class="num rk" style="background:${colorOfIt(it)}">${k}</span><div style="flex:1;min-width:0"><b>${isMeal ? `${esc(it.activity)} · ${p ? `<button type="button" class="pl-go" data-go="${p.id}">${esc(p.name)}</button>` : it.cand ? (it.cand.url ? `<a class="pl-go" href="${esc(it.cand.url)}" target="_blank" rel="noopener">${esc(it.cand.name)} ↗</a>` : esc(it.cand.name)) : '자동 추천'}` : p ? `<button type="button" class="pl-go" data-go="${p.id}">${esc(it.activity)}</button>` : esc(it.activity)}${apx}</b><p class="cap">${esc(it.time)}${dur ? ' · ' + dur : ''}${isMeal ? (p ? ` · ${esc(cuisineOf(p)[0] || '')}${it.note ? ' · ' + esc((apx && /^0\.\dkm$|^0km$/.test(it.note.split(' · ')[0])) ? '같은 지역' : it.note.split(' · ')[0]) : ''}` : ' · ' + esc(it.note || '')) : esc(tagsOf(it))}</p></div>${isMeal ? `<button class="chip" data-swap="${i}">바꾸기</button>` : (it.place_id ? `<span class="stayctl"><button data-stay="${it.place_id}:-30">−</button><button data-stay="${it.place_id}:30">＋</button></span><button class="chip" data-spswap="${i}">바꾸기</button><span class="cap3 grip">≡</span>` : it.free ? `<button class="chip" data-spswap="${i}">추천</button>` : '')}</div>`;   /* 11/08 휴양지도 바꾸기(재추천) */
   }).join('');
   return `<div class="pl-hd"><button class="back" data-act="plan-back">‹</button><b>자동 동선 · D${di + 1}</b><span class="cap">${di + 1} / ${n}</span></div>
     <div class="pl-prog">${plan.days.map((x, i) => `<span class="${i <= di ? 'on' : ''}"></span>`).join('')}</div>
@@ -2852,7 +2881,7 @@ function renderSettings() {
       <button data-act="bgm"><span style="flex:1;text-align:left">배경 음악<p class="cap3">Sunny Highway · Sunny Morning Adventure 번갈아 · 성장 앨범은 Family Memory · 이 기기만</p></span><span class="tgl${bgmOn() ? ' on' : ''}" aria-hidden="true"><i></i></span></button>
       <div class="st-sl"><span>음악 크기</span><input type="range" min="0" max="100" step="5" value="${bgmVol()}" id="st-bgmv" aria-label="음악 크기"><b id="st-bgmv-n">${bgmVol()}</b></div>
       <div class="st-sl"><span>효과음</span><input type="range" min="0" max="100" step="5" value="${sfxVol()}" id="st-sfxv" aria-label="효과음 크기"><b id="st-sfxv-n">${sfxVol() || '끔'}</b></div>
-      <button data-act="jjchar"><span style="flex:1;text-align:left">▶ 준준트립 · 누가 달릴까?<p class="cap3">국내 지도 버튼 누르면 이 친구가 길 따라 이동</p></span><span class="cap">${esc((JJ_CHARS.find(c => c[0] === jjChar()) || JJ_CHARS[0])[1])} ›</span></button>
+      <button data-act="jjchar"><span style="flex:1;text-align:left">▶ 준준트립 · 누가 달릴까?<p class="cap3">국내 지도 버튼 누르면 이 친구가 길 따라 이동</p></span><span class="cap">${esc((JJ_CHARS.find(c => c[0] === jjChar()) || JJ_CHARS[0])[1])}${/^car/.test(jjChar()) ? ' · ' + esc(jjCarColor()[1]) : ''} ›</span></button>
       <button data-act="jjjeju"><span style="flex:1;text-align:left">제주 가는 길<p class="cap3">배 = 목포·완도·녹동항 · 비행기 = 김포공항 출발</p></span><span class="cap">${jjJeju() === 'plane' ? '✈ 비행기' : '⛴ 배'} ›</span></button>
     </div>
     <div class="gt">저장</div>
@@ -2881,8 +2910,7 @@ function renderSettings() {
     if (act === 'season') pickMenu(b, [['auto', `자동 (지금은 ${seasonNow()})`, seasonPref() === 'auto'], ...['봄', '여름', '가을', '겨울'].map(x => [x, x, seasonPref() === x])], v => { LS.set('season', v); S.homeStale = true; renderSettings(); });
     if (act === 'trash') openTrash();
     if (act === 'bgm') { LS.set('bgmOn', !bgmOn()); bgmOn() ? bgmPlay() : bgmPause(); return renderSettings(); }   /* 11/08 */
-    if (act === 'jjjeju') return pickMenu(b, [['ship', '⛴ 배', jjJeju() === 'ship'], ['plane', '✈ 비행기 (김포 출발)', jjJeju() === 'plane']], v => { LS.set('jjJeju', v); renderSettings(); });
-    if (act === 'jjchar') return pickMenu(b, JJ_CHARS.map(([k, n]) => [k, n, jjChar() === k]), v => { LS.set('jjChar', v); renderSettings(); });
+    if (act === 'jjjeju' || act === 'jjchar') return openJjPicker();   /* 11/08 그림 보며 고르기 */
     if (act === 'theme') pickMenu(b, [['auto', '시스템 따라', themePref() === 'auto'], ['light', '라이트', themePref() === 'light'], ['dark', '다크', themePref() === 'dark']], v => { LS.set('theme', v); applyTheme(); renderSettings(); });
     if (act === 'naver') { const v = prompt('네이버 MY플레이스 리스트 링크', S.db.meta.naverListUrl || ''); if (v == null) return; if (v.trim() && v.trim() === (S.db.meta.naverListUrl || '')) { window.open(v.trim(), '_blank', 'noopener'); return; } S.db.meta.naverListUrl = v.trim(); markDirty(); renderSettings(); }
     if (act === 'reload') { S.sha = null; await load(); boot(true); toast('다시 불러옴'); }
@@ -3047,16 +3075,19 @@ function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스
   const cv = Math.max(0, ps.findIndex(x => x.path === t.coverPhoto)), list = cv ? [ps[cv], ...ps.filter((_, i) => i !== cv)] : ps, urls = list.map(x => photoUrl(x.path));
   const dow = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? '' : ` (${DAYS[x.getDay()]})`; }, ov = t.country && t.country !== 'KR';
   const page = !!opts.page, box = page ? $('#journal') : null;
-  const html = `<div class="jr-sheet post"><div class="hd"><button class="back" data-act="back">‹</button><div style="flex:1;min-width:0"><p class="cap3">여행 · 사진 ${list.length}</p><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b></div><button class="chip" data-act="tpgo">여행 화면</button></div>
-    <div class="jr-feed"><article class="jr-card">
+  const sb = LS.get('tpPostSb', false) === true, aps = tripAllPhotos(t), avs = tripVisits(t);   /* 11/08 여행 글 보기도 인스타 ↔ 스크랩북 */
+  const html = `<div class="jr-sheet${sb ? '' : ' post'}"><div class="hd"><button class="back" data-act="back">‹</button><div style="flex:1;min-width:0"><p class="cap3">여행 · 사진 ${list.length}</p><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b></div><div class="sb-tg"><button class="${sb ? '' : 'on'}" data-tps="0">▦ 인스타</button><button class="${sb ? 'on' : ''}" data-tps="1">✎ 스크랩북</button></div><button class="chip" data-act="tpgo">여행 화면</button></div>
+    <div class="jr-feed">${sb ? `<div class="tp-gal tpo-sb">${aps.length ? tripScrap(t, aps, avs) : '<div class="help">사진이 아직 없어요</div>'}</div>${socialHtml('t:' + t.id)}` : `<article class="jr-card">
       <div class="jr-body"><button class="jr-place" data-act="tpgo">${urls[0] ? `<span class="tile"><img src="${urls[0]}" alt=""></span>` : ''}<span><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b><small>${esc(['여행', [tripCity(t), ov ? ccKo(t.country) : ''].filter(Boolean).join(' · ')].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
         ${bpHtml({ to: tripName(t), toCode: bpCode(tripCity(t) || tripName(t), t.country), toSub: [tripName(t), ov ? ccKo(t.country) : ''].filter(Boolean).join(' · '), date: r ? r[0].slice(2).replace(/-/g, '.') + (r[1] !== r[0] ? '~' + r[1].slice(5).replace('-', '.') : '') : String(t.year || ''), extraK: 'PHOTO', meal: list.length + '장', km: tripKm(t), memo: t.memo, who })}${socialHtml('t:' + t.id)}</div>
-      ${urls.length ? `<div class="jr-phs">${routeStrip(tripName(t), tripKm(t))}${urls.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${urls.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${urls.length > 1 ? `<span class="n">${k + 1}/${urls.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article></div></div>`;
+      ${urls.length ? `<div class="jr-phs">${routeStrip(tripName(t), tripKm(t))}${urls.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${urls.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${urls.length > 1 ? `<span class="n">${k + 1}/${urls.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article>`}</div></div>`;
   page ? (box.innerHTML = html) : openSheet(html);
   const root = page ? box : $('#sheet-inner');
   root.onclick = e => { const b = e.target.closest('button'); if (!b || b.closest('.soc')) return;
     if (b.dataset.act === 'back') { if (page) { openJournal({ page: true }); $('#view-journal')?.scrollTo?.(0, 0); } else { closeSheet(); opts.done?.(); } return; }
     if (b.dataset.act === 'tpgo') { if (!page) closeSheet(); S.trip = t; S.tripDay = 0; return showView('trips'); }
+    if (b.dataset.tps != null) { LS.set('tpPostSb', b.dataset.tps === '1'); return openTripPost(t, opts); }
+    if (b.dataset.tplb != null) return openLightbox(aps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: aps.map(x => x.path), dates: aps.map(x => x.date) });
     if (b.dataset.pn) { const phs = [...b.parentElement.querySelectorAll('.jr-ph')], k = phs.findIndex(x => x.classList.contains('on')); phs[k]?.classList.remove('on'); phs[(k + +b.dataset.pn + phs.length) % phs.length].classList.add('on'); return; }
     if (b.dataset.k != null) return openLightbox(urls, +b.dataset.k, `${tripName(t)} ${t.year || ''}`, { raws: list.map(x => x.path), dates: list.map(x => x.date) }); };
 }
@@ -4142,15 +4173,30 @@ function jjStops() {
   for (const l of S.db.lived || []) if (l.from && (l.country || 'KR') === 'KR' && ok(l.lat, l.lng)) out.push({ d: String(l.from).length === 4 ? l.from + '-01-01' : l.from, ll: [l.lat, l.lng], name: '⌂ ' + l.name, sel: `[data-tll="${l.id}"]`, home: 1 });
   return out.sort((a, b) => a.d.localeCompare(b.d));
 }
-const JJ_CHARS = [['face', '준준이 얼굴'], ['car', '흰 카니발'], ['carroof', '카니발 루프박스'], ['back', '형제 뒷모습']];   /* 11/08 설정에서 고르기 · 카니발 = ZED가 준 그림(배경 제거) */
+const JJ_CHARS = [['face', '준준이 얼굴'], ['car', '카니발'], ['carroof', '카니발 루프박스'], ['back', '형제 (지도 들고)']];   /* 11/08 설정에서 고르기 · 카니발 = ZED가 준 그림(배경 제거) */
 function jjChar() { const c = LS.get('jjChar', 'face'); return JJ_CHARS.some(x => x[0] === c) ? c : 'face'; }
+const JJ_CAR_COLORS = [['white', '흰색', null], ['black', '검정', '#2b2f36'], ['silver', '은색', '#a9b1bb'], ['blue', '파랑', '#2f5fa8'], ['red', '빨강', '#b3202a'], ['green', '그린', '#3f6b52'], ['beige', '베이지', '#c9b48f']];   /* 11/08 카니발 색 */
+function jjCarColor() { const c = LS.get('jjCarColor', 'white'); return JJ_CAR_COLORS.find(x => x[0] === c) || JJ_CAR_COLORS[0]; }
+const JJ_TINT = {};
+function jjCarSrc(kind, color = jjCarColor()) {                       // 흰 차 그림 → 차체(밝은 무채색, 바퀴 제외)만 색 입히기 · 기기 안에서 한 번 만들고 기억
+  const base = asset(kind === 'carroof' ? 'assets/car-carnival-roof.png' : 'assets/car-carnival.png'); if (!color[2]) return base;
+  const key = kind + color[0]; if (JJ_TINT[key]?.url) return JJ_TINT[key].url; if (JJ_TINT[key]) return base;
+  JJ_TINT[key] = {}; const im = new Image(); im.crossOrigin = 'anonymous';
+  im.onload = () => { try { const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight; const x = c.getContext('2d'); x.drawImage(im, 0, 0); const d = x.getImageData(0, 0, c.width, c.height), a = d.data, W = c.width, H = c.height;
+      const cy = kind === 'carroof' ? .849 : .837, wh = [[.236 * W, cy * H], [.819 * W, cy * H]], R2 = (.085 * W) ** 2, rgb = [1, 3, 5].map(i => parseInt(color[2].slice(i, i + 2), 16));
+      for (let p = 0; p < a.length; p += 4) { if (!a[p + 3]) continue; const r = a[p], g = a[p + 1], b = a[p + 2], mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (r + g + b) / 3; if (mx - mn >= 30 || l <= 110) continue;
+        const px = (p / 4) % W, py = Math.floor(p / 4 / W); if (wh.some(([u, v]) => (px - u) ** 2 + (py - v) ** 2 < R2)) continue;
+        const sh = l / 255, hi = sh > .97 ? 40 : 0; for (let k = 0; k < 3; k++) a[p + k] = Math.min(255, rgb[k] * (.35 + .75 * sh) + hi); }
+      x.putImageData(d, 0, 0); JJ_TINT[key].url = c.toDataURL('image/png'); document.querySelectorAll(`img[data-jjcar="${key}"]`).forEach(e => { e.src = JJ_TINT[key].url; }); } catch {} };
+  im.src = base; return base;
+}
 function jjJeju() { return LS.get('jjJeju', 'ship') === 'plane' ? 'plane' : 'ship'; }   /* 제주 가는 길: ⛴ 배 · ✈ 비행기(김포↔제주) */
 const JJ_SVG = {
   car: '<svg viewBox="0 0 80 40" width="64" height="32" aria-hidden="true"><path d="M4 30V20c0-2 1-3 3-4l9-7c2-1.5 4-2 6-2h38c4 0 6 2 8 5l5 7c2 1 3 2 3 4v7z" fill="#fbfbfb" stroke="#3b3f45" stroke-width="1.6" stroke-linejoin="round"/><path d="M17 10h12v8H9zM32 10h13v8H32zM48 10h12c2 0 3 1 4 2l4 6H48z" fill="#2c3440"/><path d="M46 18v10M30 18v10" stroke="#9aa3ad" stroke-width="1"/><path d="M20 7h40" stroke="#6b737c" stroke-width="2" stroke-linecap="round"/><rect x="70" y="21" width="5" height="3" rx="1" fill="#ffd166"/><rect x="4" y="21" width="3" height="3" rx="1" fill="#e03131"/><circle cx="18" cy="30" r="6" fill="#23262b"/><circle cx="18" cy="30" r="2.6" fill="#c9ced4"/><circle cx="62" cy="30" r="6" fill="#23262b"/><circle cx="62" cy="30" r="2.6" fill="#c9ced4"/></svg>',
   back: '<svg viewBox="0 0 64 56" width="58" height="51" aria-hidden="true"><g><path d="M8 54V40c0-6 4-10 10-10h4c6 0 10 4 10 10v14z" fill="#2f6fdb"/><rect x="12" y="34" width="16" height="16" rx="4" fill="#f08a1c"/><path d="M14 36v-4M26 36v-4" stroke="#b25f0c" stroke-width="2"/><circle cx="20" cy="22" r="9" fill="#3a2414"/><path d="M10 20c0-7 4-11 10-11s10 4 10 11z" fill="#1f5fbf"/><path d="M8 20h24" stroke="#174a96" stroke-width="2.4" stroke-linecap="round"/></g><g><path d="M33 54V42c0-5 3.5-9 9-9h3c5.5 0 9 4 9 9v12z" fill="#2e9d5b"/><rect x="36" y="37" width="14" height="13" rx="4" fill="#ffd166"/><path d="M38 39v-3M48 39v-3" stroke="#c9a12a" stroke-width="2"/><circle cx="43.5" cy="26" r="8" fill="#3a2414"/><path d="M35 24.5c0-6 3.5-9.5 8.5-9.5s8.5 3.5 8.5 9.5z" fill="#1f7a45"/><path d="M33.5 24.5h20" stroke="#175c34" stroke-width="2.2" stroke-linecap="round"/></g><path d="M30 46l4-1" stroke="#f2c9a6" stroke-width="3" stroke-linecap="round"/></svg>',
   ship: '<svg viewBox="0 0 64 40" width="58" height="36" aria-hidden="true"><path d="M8 13h30l6 8H12z" fill="#fff" stroke="#3b3f45" stroke-width="1.4"/><rect x="16" y="6" width="14" height="7" rx="1.5" fill="#e8833a"/><path d="M18 9h10" stroke="#fff" stroke-width="1.6"/><path d="M2 21h60l-8 11H10z" fill="#2f6fdb" stroke="#1d4b98" stroke-width="1.4"/><circle cx="20" cy="26" r="1.8" fill="#fff"/><circle cx="30" cy="26" r="1.8" fill="#fff"/><circle cx="40" cy="26" r="1.8" fill="#fff"/><path d="M0 36c5 0 5-3 10-3s5 3 10 3 5-3 10-3 5 3 10 3 5-3 10-3 5 3 10 3" fill="none" stroke="#5cc3d1" stroke-width="2"/></svg>'
 };
-function jjCharHtml(kind) { return kind === 'ship' ? JJ_SVG.ship : kind === 'plane' ? `<svg class="jj-pl" viewBox="0 0 25 24" width="34" height="34" aria-hidden="true"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)" fill="#fff" stroke="#0e3a4b" stroke-width="1.2"/></svg>` : kind === 'car' ? `<img class="jj-carimg" src="${asset('assets/car-carnival.png')}" alt="">` : kind === 'carroof' ? `<img class="jj-carimg" src="${asset('assets/car-carnival-roof.png')}" alt="">` : kind === 'back' ? JJ_SVG.back : `<img src="${asset('assets/mark-faces.png')}" alt="">`; }
+function jjCharHtml(kind) { return kind === 'ship' ? JJ_SVG.ship : kind === 'plane' ? `<svg class="jj-pl" viewBox="0 0 25 24" width="34" height="34" aria-hidden="true"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)" fill="#fff" stroke="#0e3a4b" stroke-width="1.2"/></svg>` : /^car/.test(kind) ? `<img class="jj-carimg" data-jjcar="${kind + jjCarColor()[0]}" src="${jjCarSrc(kind)}" alt="">` : kind === 'back' ? `<img class="jj-broimg" src="${asset('assets/jj-brothers.png')}" alt="">` : `<img src="${asset('assets/mark-faces.png')}" alt="">`; }
 const JJ_AIR = [['김포공항', 37.5583, 126.7906], ['제주공항', 33.5104, 126.4914]];
 const JJ_PORTS = [['목포항', 34.7797, 126.3881], ['완도항', 34.3155, 126.758], ['녹동항', 34.524, 127.087]], JJ_JEJU = [33.5196, 126.5434];
 const jjIsJeju = ll => ll[0] < 33.7 && ll[1] > 125.9 && ll[1] < 127.1;
@@ -4168,6 +4214,20 @@ async function jjLeg(a, b) {                                          // 11/08 �
   else { segs.push({ kind: 'road', pts: await road(a, JJ_JEJU), to: '제주항' }, { kind: 'sea', pts: sea(JJ_JEJU, port), to: pt[0] }, { kind: 'road', pts: await road(port, b) }); }
   return segs;
 }
+function openJjPicker() {                                             // 11/08 ▶ 준준트립 설정: 캐릭터(그림) · 카니발 색 · 제주 가는 길
+  const draw = () => { const ch = jjChar(), car = /^car/.test(ch);
+    openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">닫기</button><b>▶ 준준트립</b><span></span></div><div class="vf-scroll jjp" style="padding:16px">
+      <p class="cap3">누가 달릴까?</p><div class="jjp-grid">${JJ_CHARS.map(([k, n]) => `<button type="button" class="jjp-c${ch === k ? ' on' : ''}" data-jjc="${k}"><span class="jjp-im jj-${k}">${jjCharHtml(k)}</span><b>${esc(n)}</b><small>${/^car/.test(k) ? '타이어 자국' : '발자국'}</small></button>`).join('')}</div>
+      ${car ? `<p class="cap3" style="margin-top:16px">카니발 색</p><div class="jjp-col">${JJ_CAR_COLORS.map(([k, n, h]) => `<button type="button" class="${jjCarColor()[0] === k ? 'on' : ''}" data-jjcol="${k}" aria-label="${n}" title="${n}" style="--c:${h || '#ffffff'}"><i></i><small>${n}</small></button>`).join('')}</div>` : ''}
+      <p class="cap3" style="margin-top:16px">제주 가는 길</p><div class="seg jjp-jeju"><button type="button" data-jjj="ship" class="${jjJeju() === 'ship' ? 'on' : ''}">⛴ 배 (목포·완도·녹동)</button><button type="button" data-jjj="plane" class="${jjJeju() === 'plane' ? 'on' : ''}">✈ 비행기 (김포 출발)</button></div>
+      <p class="cap3" style="margin-top:14px">발자취 › 국내 지도 왼쪽 위 「▶ 준준트립」을 누르면 이 친구가 연도별 여행 순서대로 길을 따라가요</p></div></div>`);
+    $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.act === 'back') { closeSheet(); return renderSettings(); }
+      if (b.dataset.jjc) { LS.set('jjChar', b.dataset.jjc); return draw(); }
+      if (b.dataset.jjcol) { LS.set('jjCarColor', b.dataset.jjcol); return draw(); }
+      if (b.dataset.jjj) { LS.set('jjJeju', b.dataset.jjj); return draw(); } }; };
+  draw();
+}
 function jjTrip(btn) {
   const map = S.tmMap; if (S.jj) { S.jj.stop(); return; } if (!map || S.tmMode !== 'kr') return;
   const stops = jjStops(); if (stops.length < 2) return toast('국내 기록이 2곳 이상 있어야 해요');
@@ -4180,7 +4240,7 @@ function jjTrip(btn) {
   legOf(0); if (stops.length > 2) legOf(1);
   const kmOf = pts => { const c = [0]; for (let j = 1; j < pts.length; j++) c.push(c[j - 1] + haversine({ lat: pts[j - 1][0], lng: pts[j - 1][1] }, { lat: pts[j][0], lng: pts[j][1] })); return c; };
   const at = (pts, cum, f) => { const d = f * cum[cum.length - 1]; let j = 1; while (j < cum.length - 1 && cum[j] < d) j++; const s0 = cum[j - 1], s1 = cum[j] || s0 + 1e-9, r = Math.min(1, Math.max(0, (d - s0) / (s1 - s0))), p = pts[j - 1], q = pts[j] || p; return [[p[0] + (q[0] - p[0]) * r, p[1] + (q[1] - p[1]) * r], q[1] < p[1]]; };
-  let i = 0, phase = 'dwell', t0 = performance.now(), lastStep = 0, alive = true, segs = null, si = 0, seg = null, cum = null, D = 0, kind = '';
+  let fpN = 0, i = 0, phase = 'dwell', t0 = performance.now(), lastStep = 0, alive = true, segs = null, si = 0, seg = null, cum = null, D = 0, kind = '';
   const el = () => me.getElement(), lblOf = () => el()?.querySelector('.jj-lbl'), hopEl = () => el()?.querySelector('.jj-hop');
   const setKind = k => { if (k === kind) return; kind = k; const ck = k === 'sea' ? 'ship' : k === 'air' ? 'plane' : ch, h = hopEl(); if (h) { h.className = `jj-hop jj-${ck}`; h.innerHTML = jjCharHtml(ck); } };
   const say = t => { const l = lblOf(); if (!l) return; if (t) { l.textContent = t; l.classList.add('on'); } else l.classList.remove('on'); };
@@ -4197,8 +4257,11 @@ function jjTrip(btn) {
     else if (phase === 'go') { const k = Math.min(1, (now - t0) / D), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, [ll, west] = at(seg.pts, cum, e);
       me.setLatLng(ll); const fl = hopEl()?.firstElementChild; if (fl) { if (kind === 'air') { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), q0 = seg.pts[j - 1], q1 = seg.pts[j] || q0, pa = map.latLngToLayerPoint(q0), pb = map.latLngToLayerPoint(q1); fl.style.transform = `rotate(${Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI}deg)`; }
         else { const carL = kind === 'road' && /^car/.test(ch); fl.style.transform = (ch === 'back' && kind === 'road') ? '' : (carL ? !west : west) ? 'scaleX(-1)' : ''; } }   // 카니발 그림은 왼쪽 보기 → 동쪽 갈 때 뒤집기 · 뒷모습은 그대로
-      if (seg.kind === 'road' && now - lastStep > 260) { sfx('step'); lastStep = now; }
-      if (k >= 1) { L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : seg.kind === 'air' ? '#8a4fd1' : '#ffbc00', weight: 3, opacity: .85, dashArray: seg.kind === 'road' ? '2 7' : '4 6', lineCap: 'round', interactive: false }).addTo(trail);
+      if (seg.kind === 'road' && now - lastStep > 260) { sfx('step'); lastStep = now;
+        if (!/^car/.test(ch)) { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), q0 = seg.pts[j - 1], q1 = seg.pts[j] || q0, pa = map.latLngToLayerPoint(q0), pb = map.latLngToLayerPoint(q1), ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI + 90;
+          L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'jj-fp', html: `<i style="transform:rotate(${ang.toFixed(0)}deg)${(fpN++ % 2) ? ' translateX(4px)' : ' translateX(-4px)'}"></i>`, iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(trail); } }   // 11/08 걷는 친구 = 발자국 · 차 = 타이어 자국(선)
+      if (k >= 1) { if (seg.kind === 'road' && /^car/.test(ch)) { L.polyline(seg.pts, { color: '#3a3a3a', weight: 6, opacity: .55, dashArray: '7 3', interactive: false }).addTo(trail); L.polyline(seg.pts, { color: '#f4efe6', weight: 2, opacity: .9, interactive: false }).addTo(trail); }
+        else if (seg.kind !== 'road') L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : '#8a4fd1', weight: 3, opacity: .85, dashArray: '4 6', lineCap: 'round', interactive: false }).addTo(trail);
         if (++si < segs.length) startSeg(now); else { i++; phase = 'dwell'; t0 = now; hopEl()?.classList.remove('go', 'sail'); setKind('road'); mark(i); } } }
     requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
@@ -4489,7 +4552,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); posWatch();   /* 11/07 사진 보이는 위치 */ initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, jjLeg, jjStops, jjChar, LS, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, openPlanner, jjLeg, jjStops, jjChar, LS, openJjPicker, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
