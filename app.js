@@ -2281,7 +2281,7 @@ function renderTrips() {
     if (b.dataset.addplace != null) { const it = t.items[b.dataset.addplace]; openPlaceForm({ id: uid(), type: 'restaurant', country: t.country, region, name: it.place, cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, note: it.activity }); }
     if (b.dataset.act === 'additem') openItemForm(t);
     if (b.dataset.act === 'tphoto') return isRO() ? goToken() : openTripPhotos(t);
-    if (b.dataset.tpost) return openTripPost(t, () => renderTrips());   /* 11/08 */
+    if (b.dataset.tpost) { showView('journal'); openTripPost(t, { page: true }); window.scrollTo?.(0, 0); $('#view-journal')?.scrollTo?.(0, 0); return; }   /* 11/08 발자취 글 보기와 같은 화면 */
     if (b.dataset.tpsb != null) { LS.set('tpSb', b.dataset.tpsb === '1'); return renderTrips(); }
     if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), dates: ps.map(x => x.date), covers: [{ label: '여행 표지', now: () => t.coverPhoto, set: path => { t.coverPhoto = path; markDirty(); renderTrips(); toast('여행 표지로 지정했어요'); } }], delLabel: '여행에서 빼기', del: k => { const ph = ps[k].path; if (!(t.photos || []).some(x => x.path === ph)) { toast('장소 기록 사진이에요 — 그 장소의 방문 기록에서 빼주세요', 3500); return false; } t.photos = t.photos.filter(x => x.path !== ph); if (t.coverPhoto === ph) delete t.coverPhoto; ps.splice(k, 1); markDirty(); renderTrips(); } }); }
     if (b.dataset.act === 'tpos') return openPosEditor((tripCoverStyle(t).match(/url\('([^']+)'\)/) || [])[1]);   /* 11/07 */
@@ -3006,21 +3006,25 @@ function openGrowthPost(g, done) {   /* 성장 앨범 사진 한 장 — 인스�
     ${socialHtml('g:' + g.id)}</div></div></div>`);
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') { closeSheet(); return done?.(); } if (b.dataset.act === 'gpedit') return openGrowthEdit(g, done); };
 }
-function openTripPost(t, done) {   /* 11/08 여행 사진 — 인스타식 글 보기(사진 넘기기) + 좋아요·댓글 (social t:'t:<여행id>') */
+function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스타 글 보기(발자취 글 상세)와 같은 모양 + 좋아요·댓글 (social t:'t:<여행id>') */
   const ps = (t.photos || []).filter(x => x.path), r = tripRange(t), who = [...new Set(ps.flatMap(x => x.who || []))];
-  const cv = Math.max(0, ps.findIndex(x => x.path === t.coverPhoto)), list = cv ? [ps[cv], ...ps.filter((_, i) => i !== cv)] : ps;
-  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">‹</button><b>${t.country && t.country !== 'KR' ? '✈ ' : ''}${esc(tripName(t))}</b><button class="lnk" data-act="tpgo">여행 화면</button></div><div class="vf-scroll gpost">
-    ${list.length ? `<div class="tpo-car" id="tpo-car">${list.map((x, k) => `<button class="tpo-ph" data-tpk="${k}"><img src="${photoUrl(x.path)}" alt="" loading="${k < 2 ? 'eager' : 'lazy'}"></button>`).join('')}</div>${list.length > 1 ? `<div class="tpo-nav"><button data-tpn="-1">‹</button><span class="num" id="tpo-n">1 / ${list.length}</span><button data-tpn="1">›</button></div>` : ''}` : '<div class="help" style="padding:24px">여행에 직접 올린 사진이 없어요</div>'}
-    <div style="padding:12px 16px 20px"><p class="jr-meta"><span class="num">${r ? esc(r[0].replace(/-/g, '.') + (r[1] !== r[0] ? ' — ' + r[1].slice(5).replace('-', '.') : '')) : esc(String(t.year || ''))}</span> · ${esc([tripCity(t), t.country && t.country !== 'KR' ? ccKo(t.country) : ''].filter(Boolean).join(' · '))} · 사진 ${list.length}장</p>
-    ${t.memo ? `<p class="jr-memo serif">“${esc(t.memo)}”</p>` : ''}${who.length ? `<p class="jr-who">${who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}
-    ${socialHtml('t:' + t.id)}</div></div></div>`);
-  const car = $('#tpo-car'), cur = () => car ? Math.round(car.scrollLeft / Math.max(1, car.clientWidth)) : 0;
-  car?.addEventListener('scroll', () => { const n = $('#tpo-n'); if (n) n.textContent = `${cur() + 1} / ${list.length}`; }, { passive: true });
-  $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.act === 'back') { closeSheet(); return done?.(); }
-    if (b.dataset.act === 'tpgo') { closeSheet(); S.trip = t; S.tripDay = 0; return showView('trips'); }
-    if (b.dataset.tpn) { car.scrollTo({ left: (cur() + +b.dataset.tpn) * car.clientWidth, behavior: 'smooth' }); return; }
-    if (b.dataset.tpk != null) return openLightbox(list.map(x => photoUrl(x.path)), +b.dataset.tpk, `${tripName(t)} ${t.year || ''}`, { raws: list.map(x => x.path), dates: list.map(x => x.date) }); };
+  const cv = Math.max(0, ps.findIndex(x => x.path === t.coverPhoto)), list = cv ? [ps[cv], ...ps.filter((_, i) => i !== cv)] : ps, urls = list.map(x => photoUrl(x.path));
+  const dow = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? '' : ` (${DAYS[x.getDay()]})`; }, ov = t.country && t.country !== 'KR';
+  const page = !!opts.page, box = page ? $('#journal') : null;
+  const html = `<div class="jr-sheet post"><div class="hd"><button class="back" data-act="back">‹</button><div style="flex:1;min-width:0"><p class="cap3">여행 · 사진 ${list.length}</p><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b></div><button class="chip" data-act="tpgo">여행 화면</button></div>
+    <div class="jr-feed"><article class="jr-card">
+      <div class="jr-body"><button class="jr-place" data-act="tpgo">${urls[0] ? `<span class="tile"><img src="${urls[0]}" alt=""></span>` : ''}<span><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b><small>${esc(['여행', [tripCity(t), ov ? ccKo(t.country) : ''].filter(Boolean).join(' · ')].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
+        <p class="jr-meta"><span class="num">${r ? esc(r[0].replace(/-/g, '.')) + esc(dow(r[0])) + (r[1] !== r[0] ? ' — ' + esc(r[1].slice(5).replace('-', '.')) + esc(dow(r[1])) : '') : esc(String(t.year || ''))}</span></p>
+        ${t.memo ? `<p class="jr-memo serif">“${esc(t.memo)}”</p>` : ''}
+        ${who.length ? `<p class="jr-who">${who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}${socialHtml('t:' + t.id)}</div>
+      ${urls.length ? `<div class="jr-phs">${urls.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${urls.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${urls.length > 1 ? `<span class="n">${k + 1}/${urls.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article></div></div>`;
+  page ? (box.innerHTML = html) : openSheet(html);
+  const root = page ? box : $('#sheet-inner');
+  root.onclick = e => { const b = e.target.closest('button'); if (!b || b.closest('.soc')) return;
+    if (b.dataset.act === 'back') { if (page) { openJournal({ page: true }); $('#view-journal')?.scrollTo?.(0, 0); } else { closeSheet(); opts.done?.(); } return; }
+    if (b.dataset.act === 'tpgo') { if (!page) closeSheet(); S.trip = t; S.tripDay = 0; return showView('trips'); }
+    if (b.dataset.pn) { const phs = [...b.parentElement.querySelectorAll('.jr-ph')], k = phs.findIndex(x => x.classList.contains('on')); phs[k]?.classList.remove('on'); phs[(k + +b.dataset.pn + phs.length) % phs.length].classList.add('on'); return; }
+    if (b.dataset.k != null) return openLightbox(urls, +b.dataset.k, `${tripName(t)} ${t.year || ''}`, { raws: list.map(x => x.path), dates: list.map(x => x.date) }); };
 }
 function openGrowthEdit(g, done) {   /* 11/06 성장 앨범 사진 편집: 날짜 · 사진 속 사람 · 메모 · 앨범에서 빼기 */
   const who = new Set(g.who || []), by = (S.db.meta.family || {}).birthYear || {};
@@ -3097,7 +3101,7 @@ function openJournal(opts = {}) {
     if (b.dataset.sbpg != null) { openJournal({ ...opts, sb: true, pg: +b.dataset.sbpg, turn: +b.dataset.sbpg > pg ? 'n' : 'p' }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.act === 'storykit') return copyStoryKit(sb ? [ents[pg]] : ents, t);
     if (b.dataset.act === 'back') { if (opts.post) return openJournal({ ...opts, post: null }); opts.placeId ? openDetail(opts.placeId) : closeSheet(); return; }
-    if (b.dataset.tpost) { const tt = S.db.trips.find(x => x.id === b.dataset.tpost); if (tt) openTripPost(tt); return; }
+    if (b.dataset.tpost) { const tt = S.db.trips.find(x => x.id === b.dataset.tpost); if (tt) { openTripPost(tt, { page: opts.page, done: () => openJournal(opts) }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); } return; }
     if (b.dataset.post) { const r = (box || $('#sheet-inner')); openJournal({ ...opts, post: b.dataset.post }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.kind) return openJournal({ ...opts, kind: b.dataset.kind });
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
