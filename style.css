@@ -1270,3 +1270,33 @@ body.tm-full-on { overflow: hidden; }
 .howto td { padding: 7px 0; border-bottom: 1px solid var(--line); line-height: 1.5; } .howto tr:first-child td { border-top: 1px solid var(--line); }
 .ht-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; } .ht-bar span { padding: 6px 12px; border-radius: 999px; background: var(--bg-subtle); border: 1px solid var(--line); font-size: calc(12px * var(--fz, 1)); font-weight: 700; }
 .ht-bar .a { background: var(--accent); border-color: var(--accent); color: #10202a; } .ht-bar .d { color: #c0392b; }
+.tf-kind { display: inline-flex; margin-bottom: 8px; }
+/* 11/07 성장 앨범 연도·여행 체크 */
+.gf-box { width: min(560px, 100%); } .gf-box h4 { margin: 14px 0 6px; font-size: calc(13px * var(--fz, 1)); color: var(--text-2); }
+.gf-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.gf-chips button { border: 1px solid var(--line); background: var(--bg-subtle); color: var(--text-3); border-radius: 999px; padding: 6px 11px; font: inherit; font-size: calc(13px * var(--fz, 1)); cursor: pointer; }
+.gf-chips button.on { background: color-mix(in srgb, var(--accent) 22%, var(--panel)); border-color: var(--accent); color: var(--text-1); font-weight: 700; } .gf-chips small { color: var(--text-3); font-weight: 400; }
+.gf-list { display: grid; gap: 4px; max-height: 34vh; overflow: auto; }
+.gf-list button { display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line); background: var(--panel); color: var(--text-3); border-radius: 10px; padding: 8px 10px; font: inherit; cursor: pointer; }
+.gf-list button.on { color: var(--text-1); } .gf-list button span { width: 18px; flex: none; } .gf-list button b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .gf-list small { color: var(--text-3); white-space: nowrap; font-size: calc(11px * var(--fz, 1)); }
+.btn-line.on { border-color: var(--accent); color: var(--accent-ink, var(--text-1)); }
+.pc-feat .tagr.tagp { top: 48px; }
+/* 11/07 사진 보이는 위치 */
+.ps-box { width: min(620px, 100%); }
+.ps-main .ps-in { position: relative; display: inline-block; line-height: 0; }
+.ps-main { margin: 10px 0; touch-action: none; cursor: crosshair; user-select: none; background: #000; border-radius: 10px; overflow: hidden; display: flex; justify-content: center; }
+.ps-main img { display: block; max-width: 100%; max-height: 46vh; pointer-events: none; }
+.ps-main .ps-dot { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.4); background: color-mix(in srgb, var(--accent) 60%, transparent); pointer-events: none; }
+.ps-prev { display: grid; grid-template-columns: 2.4fr .9fr .9fr; gap: 8px; align-items: end; margin-bottom: 12px; }
+.ps-prev div { display: grid; gap: 4px; } .ps-prev small { font-size: 11px; color: var(--text-3); text-align: center; }
+.ps-prev span { display: block; background-size: cover; background-repeat: no-repeat; border-radius: 8px; border: 1px solid var(--line); }
+.ps-w { aspect-ratio: 16 / 5; } .ps-t { aspect-ratio: 3 / 4; } .ps-s { aspect-ratio: 1; }
+.gf-list { grid-template-columns: minmax(0, 1fr); } .gf-list button { min-width: 0; width: 100%; box-sizing: border-box; }
+/* 11/07 사진 확대 */
+.lb { overflow: hidden; }
+.lb > img { transform-origin: center center; touch-action: none; user-select: none; -webkit-user-drag: none; will-change: transform; }
+.lb.zoomed > img { cursor: grab; position: relative; z-index: 1; } .lb.panning > img { cursor: grabbing; }
+.lb.zoomed .cap, .lb.zoomed .lb-acts { opacity: .25; transition: opacity .2s; } .lb.zoomed .cap:hover, .lb.zoomed .lb-acts:hover { opacity: 1; }
+.lb .lb-z { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 3; width: auto; height: auto; border-radius: 999px; padding: 8px 16px; background: rgba(255,255,255,.92); color: #10202a; font-weight: 700; font-size: 13px; border: 0; cursor: pointer; }
+.lb .lb-z[hidden] { display: none; }
+.lb .x, .lb .pv, .lb .nx, .lb .lb-acts { z-index: 2; }
