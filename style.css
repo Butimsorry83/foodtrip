@@ -1324,3 +1324,34 @@ body.tm-full-on { overflow: hidden; }
 .ps-zb2 .ps-zl { color: var(--text-1); }
 .ps-main img, .ps-main .ps-z img { max-height: 38vh; }
 .ps-box { max-height: 94vh; } .ps-prev { margin-bottom: 8px; }
+/* 11/07 작은 배지 (지도 오른쪽) */
+.tm-bdgc { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
+.tm-bdgc > p { margin: 0 0 6px; } .tm-bdgc > p b { color: var(--text-1); }
+.bdgc-g { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; }
+.bdgc-g > span { flex: none; width: 30px; padding-top: 7px; font-size: calc(10px * var(--fz, 1)); font-weight: 700; color: var(--text-3); }
+.bdgc-g > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.bdgc { display: inline-flex; flex-direction: column; align-items: center; gap: 1px; width: 34px; padding: 3px 0 2px; border: 0; border-radius: 8px; background: none; cursor: pointer; opacity: .45; filter: grayscale(1); }
+.bdgc i { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; background: var(--bg-subtle); }
+.bdgc em { font-style: normal; font-size: 6px; letter-spacing: .5px; color: var(--accent); line-height: 1; white-space: nowrap; }
+.bdgc.ok { opacity: 1; filter: none; } .bdgc.ok i { background: var(--accent); color: #10202a; } .bdgc.max i { box-shadow: 0 0 0 2px var(--accent-soft, #fff4cc), 0 0 0 3px var(--accent); }
+.bdgc:hover { background: var(--bg-subtle); } .bdgc.new i { animation: bdgPop .6s ease 2; } @keyframes bdgPop { 50% { transform: scale(1.35); } }
+@media (max-width: 860px) { .bdgc-g > div { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .bdgc-g > div::-webkit-scrollbar { display: none; } }
+/* 11/07 연도별 우리 여행 */
+.tm-log { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+.tl-hd { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; } .tl-hd b { font-size: calc(15px * var(--fz, 1)); }
+.tl-hd i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin: 0 3px 0 8px; vertical-align: 0; }
+.tl-y { display: flex; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--line); } .tl-y:last-child { border-bottom: 0; }
+.tl-yr { flex: none; width: 46px; font-size: calc(17px * var(--fz, 1)); font-weight: 800; color: var(--text-1); padding-top: 3px; }
+.tl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; min-width: 0; }
+.tl-ar { color: var(--text-3); font-size: 12px; padding: 0 2px; }
+.tl-i { border: 0; background: var(--bg-subtle); color: var(--text-2); border-radius: 999px; padding: 5px 10px; font: inherit; font-size: calc(12px * var(--fz, 1)); font-variant-numeric: tabular-nums; cursor: pointer; border-left: 3px solid var(--tlc, var(--line)); }
+.tl-i b { color: var(--text-1); font-weight: 700; margin-left: 2px; } .tl-i small { margin-left: 4px; color: var(--text-3); font-size: .9em; }
+.tl-i:hover { background: color-mix(in srgb, var(--tlc, var(--accent)) 16%, var(--panel)); }
+.k-kr { --tlc: var(--primary-2); } .k-ov { --tlc: #f2833a; } .k-biz { --tlc: #6b4fbb; } .k-lv { --tlc: var(--cat-mine, #d6336c); } .k-plan { --tlc: var(--accent); }
+.tl-hd i.k-kr { background: var(--primary-2); } .tl-hd i.k-ov { background: #f2833a; } .tl-hd i.k-biz { background: #6b4fbb; } .tl-hd i.k-lv { background: var(--cat-mine, #d6336c); }
+.tl-i { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 11/07 연도별 여행 — 쭉 이어서 */
+.tl-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 3px; }
+.tl-flow .tl-yr { width: auto; padding: 0 4px 0 2px; font-size: calc(16px * var(--fz, 1)); line-height: 1; }
+.tl-sep { display: inline-block; width: 22px; height: 2px; margin: 0 4px; background: repeating-linear-gradient(90deg, var(--text-3) 0 4px, transparent 4px 7px); opacity: .7; }
+.tl-yg { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; max-width: 100%; }

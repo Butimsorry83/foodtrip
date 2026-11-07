@@ -2820,7 +2820,7 @@ function renderSettings() {
     <div class="gt">거점</div>
     <div class="grp">${S.db.bases.map(b => `<button data-base="${b.id}">${baseIco(b)}<span class="st-name">${esc(b.name)}<span class="cap3"> · ${esc(baseSub(b))}</span></span>${S.base?.id === b.id ? '<span class="ok">사용 중</span>' : ''}<span class="st-edit rw" data-bedit="${b.id}">수정</span></button>`).join('')}<button class="st-add rw" data-act="baseadd">+ 거점 추가</button></div>
     <div class="gt">도움말</div>
-    <div class="grp"><button data-act="howto"><span style="flex:1;text-align:left">📖 사진·검색 쓰는 법<p class="cap3">대표 사진 · 성장 앨범 넣기 · 새 장소 찾기 — 한 장으로</p></span><span class="cap3">›</span></button></div>
+    <div class="grp"><button data-act="phclean" class="rw"><span style="flex:1;text-align:left">🧹 안 쓰는 사진 정리<p class="cap3">기록·앨범 어디에도 없는 사진 찾아서 지우기 (지우기 전 목록 확인)</p></span><span class="cap3">›</span></button><button data-act="howto"><span style="flex:1;text-align:left">📖 사진·검색 쓰는 법<p class="cap3">대표 사진 · 성장 앨범 넣기 · 새 장소 찾기 — 한 장으로</p></span><span class="cap3">›</span></button></div>
     <div class="gt">사진 · API 키</div>
     <div class="grp">
       <button data-key="tourapi"><span style="flex:1;text-align:left">한국관광공사 TourAPI<p class="cap3">대표사진 ${withPhoto}/${spots.length} · 키는 PC에서만</p></span>${st(withPhoto > 0, '수집됨', '미수집')}</button>
@@ -2848,6 +2848,7 @@ function renderSettings() {
     if (b.dataset.base) { setBase(b.dataset.base); renderSettings(); return; }
     if (act === 'family') openFamilyEdit();
     if (act === 'howto') openHowto();   /* 11/07 */
+    if (act === 'phclean') openPhotoClean();
     if (act === 'baseadd') openBaseForm();
     if (act === 'heropick') return openHeroPicker();
     if (act === 'tone') return openTonePicker();
@@ -3186,6 +3187,28 @@ function badgeSeries(s) {
 function badgeList(s) {                                              // 단계 하나 = 배지 하나 (개수·새 배지 알림용)
   return badgeSeries(s).flatMap(x => x.tiers.map(n => ({ name: x.lbl(n), ok: x.cur >= n })));
 }
+function badgeHtmlC(s) {                                              // 11/07 작은 배지 (지도 오른쪽) — 아이콘 + ●○ · 올리거나 누르면 설명
+  const ser = badgeSeries(s), all = badgeList(s), got = all.filter(b => b.ok).length;
+  const nxt = ser.map(x => { const n = x.tiers.find(t => x.cur < t); return n ? { x, n, r: x.cur / n } : null; }).filter(Boolean).sort((a, b) => b.r - a.r)[0];
+  const chip = x => { const lv = x.tiers.filter(t => x.cur >= t).length, n = x.tiers.find(t => x.cur < t), tip = `${lv ? x.lbl(x.tiers[lv - 1]) : x.name} · ${n ? `${x.cur.toLocaleString()}/${n.toLocaleString()} → ${x.lbl(n)}` : '완료'} (${x.hint})`;
+    return `<button type="button" class="bdgc${lv ? ' ok' : ''}${lv === x.tiers.length ? ' max' : ''}" data-bt="${esc(tip)}" data-t="${esc(x.tiers.map(x.lbl).join('|'))}" title="${esc(tip)}"><i>${x.ico}</i><em>${x.tiers.map(t => x.cur >= t ? '●' : '○').join('')}</em></button>`; };
+  return `<div class="tm-bdgc"><p class="cap3">배지 <b>${got}</b>/${all.length}${nxt ? ` · 다음 <b>${esc(nxt.x.lbl(nxt.n))}</b> ${nxt.x.cur.toLocaleString()}/${nxt.n.toLocaleString()}` : ''}</p>
+    ${[...new Set(ser.map(x => x.g))].map(g => `<div class="bdgc-g"><span>${g === '아빠 출장' ? '💼' : g === '가족·기록' ? '가족' : g}</span><div>${ser.filter(x => x.g === g).map(chip).join('')}</div></div>`).join('')}</div>`;
+}
+function travelLogHtml(mode) {                                        // 11/07 연도별 우리 여행 기록 (최근 해 위 · 휴양지·여행만 · 여행은 한 칸)
+  const D = x => x ? `${+x.slice(5, 7)}/${+x.slice(8, 10)}` : '', ent = [];
+  for (const t of S.db.trips) { const r = tripRange(t); if (!r) continue; if (mode === 'kr' && t.country !== 'KR') continue;
+    const n = tripVisits(t).length, fut = r[0] > today();
+    ent.push({ d: r[0], k: fut ? 'plan' : isBiz(t) ? 'biz' : t.country === 'KR' ? 'kr' : 'ov', html: `<button class="tl-i" data-tlt="${t.id}">${D(r[0])}${r[1] !== r[0] ? '~' + D(r[1]) : ''} <b>${esc(tripName(t))}</b>${n > 1 ? `<small>${n}곳</small>` : ''}${fut ? '<small>예정</small>' : ''}</button>` }); }
+  for (const p of S.db.places) { if (p.type !== 'spot' || (mode === 'kr' && (p.country || 'KR') !== 'KR')) continue;
+    for (const v of p.visitLog || []) if (v.date && !v.trip) ent.push({ d: v.date, k: (p.country || 'KR') === 'KR' ? 'kr' : 'ov', html: `<button class="tl-i" data-tlp="${p.id}">${D(v.date)} <b>${esc(p.name)}</b></button>` }); }
+  for (const l of S.db.lived || []) if (l.from) { const ov = (l.country || 'KR') !== 'KR';   /* 11/07 해외 살이(가나 등)는 국내 지도에서도 「파견」으로 */
+    ent.push({ d: String(l.from).length === 4 ? l.from + '-01-01' : l.from, k: 'lv', html: `<button class="tl-i" data-tll="${l.id}">${String(l.from).length > 4 ? D(l.from) : ''} <b>${ov ? '✈ ' + esc((ccKo(l.country) || l.name) + ' 파견') : '⌂ ' + esc(l.name)}</b><small>${ov ? esc(l.name) : '이사'}</small></button>` }); }
+  const ys = {}; ent.forEach(e => (ys[e.d.slice(0, 4)] ||= []).push(e));
+  const yrs = Object.keys(ys).sort().reverse(); if (!yrs.length) return '';
+  return `<div class="tm-log"><div class="tl-hd"><b>연도별 우리 여행</b><span class="cap3">휴양지·여행 · 누르면 그 여행·장소로 · <i class="k-kr"></i>국내 <i class="k-ov"></i>해외 <i class="k-biz"></i>출장 <i class="k-lv"></i>이사</span></div>
+    <div class="tl-flow">${yrs.map(y => ys[y].sort((a, b) => a.d.localeCompare(b.d)).map((e, i) => i ? `<span class="tl-ar">→</span><span class="tl-c k-${e.k}">${e.html}</span>` : `<span class="tl-yg"><span class="tl-yr serif">${y}</span><span class="tl-c k-${e.k}">${e.html}</span></span>`).join('')).join('<span class="tl-sep"></span>')}</div></div>`;   /* 11/07 연도 줄바꿈 없이 쭉 이어서 */
+}
 function badgeHtml(s) {
   const ser = badgeSeries(s), all = badgeList(s), got = all.filter(b => b.ok).length;
   const nxt = ser.map(x => { const n = x.tiers.find(t => x.cur < t); return n ? { x, n, r: x.cur / n } : null; }).filter(Boolean).sort((a, b) => b.r - a.r)[0];
@@ -3211,8 +3234,9 @@ function travelCardHtml(s, mode) {
         <div class="tm-legend"><span><i class="lg-done"></i>가봤음(국내)</span>${contLegend(s)}<span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span>${soloLegend().map(n => `<span><i class="lg-solo" style="background:${famHex(n)}"></i>${n === dadName() ? `💼 ${esc(n)} 출장` : `${esc(n)} 혼자`}</span>`).join('')}</div>
         ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripName(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
         ${notYet.length ? `<div class="tm-notyet"><p class="cap3">아직 안 가본 시·도 ${notYet.length}곳 <span>· 저장한 곳 많은 순</span></p><div>${notYet.slice(0, 8).map(k => `<span class="chip">${k}${s.saved[k] ? ` <small>저장 ${s.saved[k]}</small>` : ''}</span>`).join('')}</div></div>` : '<p class="tm-next">🎉 17개 시·도를 모두 가봤어요!</p>'}
+        ${badgeHtmlC(s)}
       </div></div>
-    ${badgeHtml(s)}`;
+    ${travelLogHtml(mode)}`;   /* 11/07 배지 → 오른쪽 · 이 자리엔 연도별 여행 */
 }
 const DO_LABEL = { 서울: [37.56, 126.99], 부산: [35.18, 129.07], 대구: [35.87, 128.6], 인천: [37.45, 126.62], 광주: [35.16, 126.85], 대전: [36.35, 127.38], 울산: [35.55, 129.25], 세종: [36.56, 127.26], 경기: [37.25, 127.45], 강원: [37.7, 128.35], 충북: [36.8, 127.75], 충남: [36.5, 126.85], 전북: [35.72, 127.15], 전남: [34.85, 126.85], 경북: [36.35, 128.75], 경남: [35.3, 128.25], 제주: [33.38, 126.55] };
 /* ---------------- 경유 공항 · 항로 (11/07) ---------------- */
@@ -3348,8 +3372,12 @@ async function drawTravelCard(mode) {
   const ok = await loadGeo(); if (!$('#tm-card')) return;
   const s = travelStats(); el.innerHTML = travelCardHtml(s, mode);
   if (!S.tmAnimated) { countUp(el.querySelector('.tm-stats')); S.tmAnimated = true; }   // 숫자 올라가기 (탭 처음 열 때)
-  badgeCheck(badgeList(s)).forEach(n => [...el.querySelectorAll('.bdg')].find(x => (x.dataset.t || '').split('|').includes(n))?.classList.add('new'));
-  el.onclick = e => { if (e.target.closest('[data-tmfs]')) { S.tmFull = !S.tmFull; document.body.classList.toggle('tm-full-on', S.tmFull); return drawTravelCard(mode); } const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList(); };
+  badgeCheck(badgeList(s)).forEach(n => [...el.querySelectorAll('.bdg, .bdgc')].find(x => (x.dataset.t || '').split('|').includes(n))?.classList.add('new'));
+  el.onclick = e => { if (e.target.closest('[data-tmfs]')) { S.tmFull = !S.tmFull; document.body.classList.toggle('tm-full-on', S.tmFull); return drawTravelCard(mode); } const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList();
+    const bt = e.target.closest('[data-bt]'); if (bt) return toast(bt.dataset.bt, 3000);   /* 11/07 */
+    const tt = e.target.closest('[data-tlt]'); if (tt) { S.trip = S.db.trips.find(t => t.id === tt.dataset.tlt); S.tripDay = 0; showView('trips'); const t0 = S.trip; loadGeo().then(() => t0 && S.trip === t0 && tripTitle(t0)); return; }
+    const tp = e.target.closest('[data-tlp]'); if (tp) return openDetail(tp.dataset.tlp);
+    const tl = e.target.closest('[data-tll]'); if (tl) { const l = (S.db.lived || []).find(x => x.id === tl.dataset.tll); if (l) return openLivedForm(l); } };
   if (!ok || !window.L) { $('#tm-map').innerHTML = '<div class="help">지도 경계를 불러오지 못했어요</div>'; return; }
   try { const m0 = S.tmMap; if (m0) { m0._onZoomTransitionEnd = () => {}; m0.stop(); m0.remove(); } } catch {} S.tmMap = null;   /* 11/07 줌 애니메이션 중 지도 바꿀 때 Leaflet 오류 방지 */
   const cs = getComputedStyle(document.body), v = n => cs.getPropertyValue(n).trim();
@@ -3827,6 +3855,39 @@ function growthPlay(who, fromY) {                                   // 연도순
 }
 function openVisitGrowth(v) {                                       // 11/07 방문 기록 → 성장 앨범 (사진 여러 장 한 번에 · 날짜는 기록 날짜)
   if (!v) return; openGrowthPicker({ raws: (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []), date: v.date, who: v.who });
+}
+async function openPhotoClean() {                                     // 11/07 안 쓰는 사진 정리: 저장소 photos/ 중 db 어디에도 안 나오는 파일 → 목록 확인 → 한 커밋으로 삭제
+  if (isRO() || OFFLINE) return goToken();
+  if (dirty || saving) return toast('저장 중인 내용이 있어요 — 잠시 뒤 다시 눌러주세요', 3000);
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">‹ 설정</button><b>🧹 안 쓰는 사진 정리</b><span></span></div><div class="vf-scroll" style="padding:16px" id="pc-body"><p class="cap3">저장소 사진 목록 확인 중…</p></div><div class="vf-foot"><button class="btn-pri" data-act="pcdel" disabled>선택한 사진 지우기</button></div></div>`);
+  const H = { Authorization: 'Bearer ' + S.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' }, A = `https://api.github.com/repos/${S.repo}/git`;
+  let list = [];
+  try { const ref = await (await fetch(`${A}/ref/heads/${CFG.branch}`, { headers: H })).json(), tr = await (await fetch(`${A}/trees/${ref.object.sha}?recursive=1`, { headers: H })).json();
+    const used = JSON.stringify(S.db) + JSON.stringify(LS.get('photos', {}));
+    list = (tr.tree || []).filter(x => x.type === 'blob' && /^photos\/.+\.(jpe?g|png|webp)$/i.test(x.path) && !used.includes(x.path)).map(x => ({ path: x.path, size: x.size || 0 }));
+    if (tr.truncated) toast('사진이 너무 많아 일부만 확인했어요', 3000);
+  } catch (e) { $('#pc-body').innerHTML = `<p class="cap3">목록을 못 가져왔어요: ${esc(e.message)}</p>`; return; }
+  const pick = new Set(list.map(x => x.path)), grp = x => x.path.split('/').slice(0, -1).join('/') + ' · ' + (x.path.split('/').pop().match(/^\d{4}-\d{2}-\d{2}/) || ['기타'])[0];
+  const owner = x => { const id = x.path.split('/')[1]; if (id === 'hero') return '홈 배경'; if (id === 'lived') return '살았던 곳'; if (id === 'trips') return '여행 ' + (S.db.trips.find(t => t.id === x.path.split('/')[2])?.title || ''); return placeById(id)?.name || '지워진 장소'; };
+  const draw = () => { const gs = {}; list.forEach(x => (gs[grp(x)] ||= []).push(x)); const mb = list.filter(x => pick.has(x.path)).reduce((a, x) => a + x.size, 0) / 1e6;
+    $('#pc-body').innerHTML = list.length ? `<p class="cap3">기록·여행·살았던 곳·성장 앨범·홈 배경 어디에도 쓰이지 않는 사진 <b>${list.length}장</b> · 지우면 저장소에서 사라집니다 (예전 커밋 기록엔 남음)</p>
+      ${Object.entries(gs).map(([k, xs]) => `<div class="pc-g"><h4>${esc(owner(xs[0]))} <small class="cap3">${esc(k.split(' · ')[1])} · ${xs.length}장</small> <button type="button" class="lnk" data-pcg="${esc(k)}">${xs.every(x => pick.has(x.path)) ? '모두 해제' : '모두 선택'}</button></h4>
+        <div class="vg-grid">${xs.map(x => `<button type="button" class="${pick.has(x.path) ? 'on' : ''}" data-pcp="${esc(x.path)}"><img src="${rawUrl(x.path)}" alt="" loading="lazy"><i></i></button>`).join('')}</div></div>`).join('')}` : '<p class="cap3">안 쓰는 사진이 없어요 👍</p>';
+    const btn = $('.vf-foot [data-act=pcdel]'); btn.disabled = !pick.size; btn.textContent = pick.size ? `선택한 ${pick.size}장 지우기 (${mb.toFixed(1)}MB)` : '선택한 사진 지우기'; };
+  draw();
+  $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.act === 'back') return closeSheet();
+    if (b.dataset.pcp) { const k = b.dataset.pcp; pick.has(k) ? pick.delete(k) : pick.add(k); return draw(); }
+    if (b.dataset.pcg) { const xs = list.filter(x => grp(x) === b.dataset.pcg), all = xs.every(x => pick.has(x.path)); xs.forEach(x => all ? pick.delete(x.path) : pick.add(x.path)); return draw(); }
+    if (b.dataset.act === 'pcdel') { if (!pick.size || !confirm(`사진 ${pick.size}장을 저장소에서 지울까요?\n(되돌리려면 GitHub 예전 커밋에서 받아야 해요)`)) return;
+      const used = JSON.stringify(S.db); const del = [...pick].filter(x => !used.includes(x)); b.disabled = true; b.textContent = '지우는 중…';
+      try { const j = async (u, o) => { const r = await fetch(u, { headers: H, ...o }); if (!r.ok) throw new Error('삭제 실패 ' + r.status); return r.json(); };
+        const ref = await j(`${A}/ref/heads/${CFG.branch}`), base = await j(`${A}/commits/${ref.object.sha}`);
+        const tree = await j(`${A}/trees`, { method: 'POST', body: JSON.stringify({ base_tree: base.tree.sha, tree: del.map(path => ({ path, mode: '100644', type: 'blob', sha: null })) }) });
+        const cm = await j(`${A}/commits`, { method: 'POST', body: JSON.stringify({ message: `jjtrip: 안 쓰는 사진 ${del.length}장 정리`, tree: tree.sha, parents: [ref.object.sha] }) });
+        await j(`${A}/refs/heads/${CFG.branch}`, { method: 'PATCH', body: JSON.stringify({ sha: cm.sha }) });
+        list = list.filter(x => !del.includes(x.path)); del.forEach(x => pick.delete(x)); draw(); toast(`🧹 ${del.length}장 지웠어요`, 3000);
+      } catch (err) { toast(err.message + ' — 잠시 뒤 다시', 3500); b.disabled = false; draw(); } } };
 }
 function openHowto() {                                              // 11/07 사진·검색 쓰는 법 (한 장)
   const R = (a, b) => `<tr><th>${a}</th><td>${b}</td></tr>`;
