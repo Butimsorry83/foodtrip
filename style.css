@@ -1379,3 +1379,13 @@ body.tm-full-on { overflow: hidden; }
   .tm-card > .tm-bdgc .bdgc-g { margin-top: 2px; }
   .tm-card > .tm-bdgc .bdgc-g > div { flex-wrap: nowrap; }
 }
+/* 11/07 배지: 국내·해외·가족 한 줄 + 💼 출장은 지도 오른쪽 */
+.tm-bdgb { margin-top: 12px; } .tm-bdgb > div { display: flex; gap: 4px; flex-wrap: wrap; }
+@media (min-width: 861px) {
+  .tm-card > .tm-bdgc { flex-wrap: nowrap; gap: 4px 36px; justify-content: flex-start; }
+  .tm-card > .tm-bdgc > p { position: absolute; } .tm-card > .tm-bdgc { position: relative; padding-top: 30px; }
+  .tm-card > .tm-bdgc > p { top: 10px; left: 0; }
+  .tm-card > .tm-bdgc .bdgc-g { gap: 4px; } .tm-card > .tm-bdgc .bdgc-g > span { width: auto; writing-mode: vertical-rl; padding-top: 6px; letter-spacing: 2px; }
+  .tm-card > .tm-bdgc .bdgc { width: 50px; } .tm-card > .tm-bdgc .bdgc i { width: 36px; height: 36px; } .tm-card > .tm-bdgc .bdgc i svg { width: 20px; height: 20px; }
+  .tm-card > .tm-bdgc .bdgc b { font-size: calc(10px * var(--fz, 1)); }
+}

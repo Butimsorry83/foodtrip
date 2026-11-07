@@ -166,6 +166,11 @@ async function load() {
       (p.visitLog ||= []).push({ id: uid('v'), date: '2022-10-08', dateEnd: null, meal: '', rating: null, memo: null, story: null, who: coreFamily(), photos: ph, photo: ph[0], trip: null }); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); p.visits = (p.visits || 0) + 1;
       setTimeout(() => toast('안성팜랜드 2022.10.08 기록 복구 (사진 33장) · 별점·메모는 편집에서', 4500), 2200); }
     S.db.meta.lostFix1 = today(); markDirty(); }
+  if (S.token && !OFFLINE && !S.db.meta.tpDateFix1) { let n = 0; const fix = {};   /* 11/07 1회: 여행 사진 날짜가 올린 날(11월 2026)로 들어간 것 → 여행 첫날 (방콕 2024 22장) */
+    for (const t of S.db.trips) { const r = tripRange(t); if (!r) continue; for (const x of t.photos || []) if (x.date && x.date >= '2026-11-01' && (x.date < dAdd(r[0], -3) || x.date > dAdd(r[1], 3))) { x.date = r[0]; fix[x.path] = r[0]; n++; } }
+    for (const g of S.db.growth || []) if (fix[g.photo]) g.date = fix[g.photo];
+    for (const t of S.db.trips) if (t.photos?.some(x => fix[x.path])) t.photos.sort((a, c) => (a.date || '').localeCompare(c.date || ''));
+    S.db.meta.tpDateFix1 = today(); markDirty(); if (n) setTimeout(() => toast(`여행 사진 ${n}장 날짜를 여행 첫날로 고쳤어요 (방콕 2024 등)`, 4000), 3000); }
   if (S.token && !OFFLINE && !S.db.meta.viaFix1) { const n = fixVia1(); markDirty(); if (n) setTimeout(() => toast(`경유 항로 ${n}건 넣었어요 (이탈리아·방콕 2024·가나)`, 3500), 1600); }   /* 11/07 1회 경유 */
   if (S.token && !OFFLINE && !S.db.meta.nameFix1) { const n = fixNames1(); markDirty(); if (n) setTimeout(() => toast(`영문 이름 ${n}개 첫 글자를 대문자로 정리했어요`, 3500), 800); }   /* 1회 이름 정리 */
   if (S.token && !OFFLINE && !S.db.meta.autoTrip1) { const n = autoTripsFromVisits(); markDirty(); if (n) setTimeout(() => toast(`해외 기록 ${n}건을 여행으로 묶었어요 — 여행 탭`, 4000), 1500); }   // 1회 자동 정리
@@ -2581,6 +2586,7 @@ function openTripPhotos(t) {                                         // 여행�
   $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return; if (pp.click(b)) return;
     if (b.dataset.act === 'back') { closeSheet(); return; }
     if (b.dataset.act === 'tpsave') { if (!pp.list.length) return toast('사진을 골라주세요'); $$('[data-act=tpsave]').forEach(x => { x.disabled = true; });
+      { const r = tripRange(t); if (r) pp.list.forEach(x => { if (!x.date || x.date < dAdd(r[0], -3) || x.date > dAdd(r[1], 3)) x.date = r[0]; }); }   /* 11/07 찍은 날짜 없는 사진(올린 날) → 여행 첫날 */
       const add = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tpp-gr').checked, memo: t.title || tripCity(t), onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } }); if (pp.coverI != null && add[pp.coverI]) t.coverPhoto = add[pp.coverI].path;   /* 11/07 */ { const t2 = S.db.trips.find(x => x.id === t.id); if (t2) t = t2; }   /* 11/07 */
       t.photos = [...(t.photos || []), ...add].sort((a, c) => (a.date || '').localeCompare(c.date || '')); markDirty(); closeSheet(); renderTrips(); toast(`사진 ${add.length}장 추가`); }
   };
@@ -3189,22 +3195,24 @@ function badgeList(s) {                                              // 단계 �
 }
 const BDG_SVG = {"시·도 정복": "<path d=\"M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z\"/><path d=\"M9 4v14M15 6v14\"/>", "바다": "<circle cx=\"17\" cy=\"6\" r=\"2.5\"/><path d=\"M2 14c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2M2 19c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2 2.5 2 5 2\"/>", "산·숲": "<path d=\"M2 20l7-12 4 6 2.5-3.5L22 20z\"/><path d=\"M7.5 10.5l1.5 1.5 1.5-1.5\"/>", "맛집 탐방": "<path d=\"M7 3c-1.7 0-3 1.8-3 4s1.3 3.5 3 3.5S10 9.2 10 7s-1.3-4-3-4zM7 10.5V21\"/><path d=\"M15 3l1 18M20 3l-1 18\"/>", "단골": "<path d=\"M12 20s-7-4.4-7-9.6A4 4 0 0 1 12 8a4 4 0 0 1 7 2.4C19 15.6 12 20 12 20z\"/>", "먼 길": "<path d=\"M3 16v-3.5L5.5 7h13L21 12.5V16z\"/><path d=\"M3 12.5h18\"/><circle cx=\"7.5\" cy=\"16.5\" r=\"1.8\"/><circle cx=\"16.5\" cy=\"16.5\" r=\"1.8\"/>", "사계절": "<path d=\"M5 19C5 11 11 5 20 5c0 9-6 15-14 15\"/><path d=\"M5 19l9-9\"/>", "나라": "<path d=\"M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z\"/>", "대륙": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M15.5 8.5l-2 5-5 2 2-5z\"/>", "환승": "<path d=\"M4 8h14l-3-3M20 16H6l3 3\"/>", "지구 바퀴": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18\"/>", "가족 해외여행": "<rect x=\"5\" y=\"7\" width=\"14\" height=\"13\" rx=\"2\"/><path d=\"M9 7V4h6v3M9.5 7v13M14.5 7v13\"/>", "해외 살이": "<path d=\"M3 12l7-6 7 6v8H3z\"/><path d=\"M8.5 20v-4.5h3V20\"/><path d=\"M16 5l5-1.5L19.5 8.5M21 3.5l-5 5\"/>", "온 가족": "<circle cx=\"7.5\" cy=\"7\" r=\"2.5\"/><circle cx=\"16.5\" cy=\"7\" r=\"2.5\"/><circle cx=\"12\" cy=\"12.5\" r=\"2\"/><path d=\"M3 20v-2.5A3.5 3.5 0 0 1 6.5 14H8M21 20v-2.5a3.5 3.5 0 0 0-3.5-3.5H16M9 20v-1.5a3 3 0 0 1 6 0V20\"/>", "기록": "<path d=\"M4 20l1.2-4.8L16 4.4l3.6 3.6L8.8 18.8z\"/><path d=\"M14 6.5l3.5 3.5\"/>", "사진": "<rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M8 7l2-3h4l2 3\"/><circle cx=\"12\" cy=\"13.5\" r=\"3.5\"/>", "성장 앨범": "<path d=\"M12 21v-9\"/><path d=\"M12 12C12 8 9 6 5 6c0 4 3 6 7 6zM12 12c0-4 3-7 7-7 0 4-3 7-7 7z\"/>", "이야기꾼": "<path d=\"M4 5h16v11H10l-5 4v-4H4z\"/><path d=\"M8 10h8\"/>", "우리 집들": "<path d=\"M2 12.5L7 8l5 4.5V20H2z\"/><path d=\"M12 10l5-4.5 5 4.5v10H12\"/><path d=\"M5.5 20v-3h3v3\"/>", "출장 나라": "<rect x=\"3\" y=\"7\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M9 7V5h6v2M3 12.5h18M11 12.5v2h2v-2\"/>", "출장 횟수": "<path d=\"M21 15.5v-2l-8-5V4a1.5 1.5 0 0 0-3 0v4.5l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z\"/>", "출장 대륙": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3c3.5 3.5 3.5 14.5 0 18M12 3c-3.5 3.5-3.5 14.5 0 18\"/>"};   /* 11/07 배지 그림 (선 아이콘, 색 테마 따라감) */
 const BDG_SHORT = {"시·도 정복": "시·도", "맛집 탐방": "맛집", "지구 바퀴": "지구", "가족 해외여행": "가족 해외", "이야기꾼": "댓글", "우리 집들": "우리 집", "성장 앨범": "성장"};
-function badgeHtmlC(s) {                                              // 11/07 작은 배지 (지도 오른쪽) — 아이콘 + ●○ · 올리거나 누르면 설명
+function badgeHtmlC(s, part) {   /* 11/07 part 'biz' = 💼 출장만(지도 오른쪽) · 그 외 = 국내·해외·가족(지도 아래 한 줄) */                                              // 11/07 작은 배지 (지도 오른쪽) — 아이콘 + ●○ · 올리거나 누르면 설명
   const ser = badgeSeries(s), all = badgeList(s), got = all.filter(b => b.ok).length;
   const nxt = ser.map(x => { const n = x.tiers.find(t => x.cur < t); return n ? { x, n, r: x.cur / n } : null; }).filter(Boolean).sort((a, b) => b.r - a.r)[0];
   const chip = x => { const lv = x.tiers.filter(t => x.cur >= t).length, n = x.tiers.find(t => x.cur < t), tip = `${lv ? x.lbl(x.tiers[lv - 1]) : x.name} · ${n ? `${x.cur.toLocaleString()}/${n.toLocaleString()} → ${x.lbl(n)}` : '완료'} (${x.hint})`;
     const st = !lv ? 0 : lv === x.tiers.length ? 4 : lv / x.tiers.length < .34 ? 1 : lv / x.tiers.length < .67 ? 2 : 3;   // 0 아직 · 1 동 · 2 은 · 3 금 · 4 완료
     return `<button type="button" class="bdgc st${st}" data-bt="${esc(tip)}" data-t="${esc(x.tiers.map(x.lbl).join('|'))}" title="${esc(tip)}"><i>${BDG_SVG[x.name] ? `<svg viewBox="0 0 24 24">${BDG_SVG[x.name]}</svg>` : x.ico}</i><b>${esc(BDG_SHORT[x.name] || x.name)}</b><em>${x.tiers.map(t => `<s class="${x.cur >= t ? 'on' : ''}"></s>`).join('')}</em></button>`; };
+  const isB = g => g === '아빠 출장';
+  if (part === 'biz') { const b = ser.filter(x => isB(x.g)); return b.length ? `<div class="tm-bdgc tm-bdgb"><p class="cap3">💼 ${esc(dadName())}의 출장</p><div>${b.map(chip).join('')}</div></div>` : ''; }
   return `<div class="tm-bdgc"><p class="cap3">배지 <b>${got}</b>/${all.length}${nxt ? ` · 다음 <b>${esc(nxt.x.lbl(nxt.n))}</b> ${nxt.x.cur.toLocaleString()}/${nxt.n.toLocaleString()}` : ''}</p>
-    ${[...new Set(ser.map(x => x.g))].map(g => `<div class="bdgc-g"><span>${g === '아빠 출장' ? '💼' : g === '가족·기록' ? '가족' : g}</span><div>${ser.filter(x => x.g === g).map(chip).join('')}</div></div>`).join('')}</div>`;
+    ${[...new Set(ser.map(x => x.g))].filter(g => !isB(g)).map(g => `<div class="bdgc-g"><span>${g === '아빠 출장' ? '💼' : g === '가족·기록' ? '가족' : g}</span><div>${ser.filter(x => x.g === g).map(chip).join('')}</div></div>`).join('')}</div>`;
 }
 function travelLogHtml(mode) {                                        // 11/07 연도별 우리 여행 기록 (최근 해 위 · 휴양지·여행만 · 여행은 한 칸)
   const D = x => x ? `${+x.slice(5, 7)}/${+x.slice(8, 10)}` : '', ent = [];
-  for (const t of S.db.trips) { const r = tripRange(t); if (!r) continue; if (mode === 'kr' && t.country !== 'KR') continue;
-    const n = tripVisits(t).length, fut = r[0] > today();
-    ent.push({ d: r[0], k: fut ? 'plan' : isBiz(t) ? 'biz' : t.country === 'KR' ? 'kr' : 'ov', html: `<button class="tl-i" data-tlt="${t.id}">${D(r[0])}${r[1] !== r[0] ? '~' + D(r[1]) : ''} <b>${esc(tripName(t))}</b>${n > 1 ? `<small>${n}곳</small>` : ''}${fut ? '<small>예정</small>' : ''}</button>` }); }
-  for (const p of S.db.places) { if (p.type !== 'spot' || (mode === 'kr' && (p.country || 'KR') !== 'KR')) continue;
-    for (const v of p.visitLog || []) if (v.date && !v.trip) ent.push({ d: v.date, k: (p.country || 'KR') === 'KR' ? 'kr' : 'ov', html: `<button class="tl-i" data-tlp="${p.id}">${D(v.date)} <b>${esc(p.name)}</b></button>` }); }
+  for (const t of S.db.trips) { const r = tripRange(t); if (!r) continue;   /* 11/07 지도 모드 상관없이 항상 전체 (ZED 결정 A) */
+    const n = tripVisits(t).length, fut = r[0] > today(), ov = t.country && t.country !== 'KR';
+    ent.push({ d: r[0], k: fut ? 'plan' : isBiz(t) ? 'biz' : ov ? 'ov' : 'kr', html: `<button class="tl-i" data-tlt="${t.id}">${D(r[0])}${r[1] !== r[0] ? '~' + D(r[1]) : ''} <b>${ov ? (isBiz(t) ? '💼 ' : '✈ ') : ''}${esc(tripName(t))}</b>${n > 1 ? `<small>${n}곳</small>` : ''}${fut ? '<small>예정</small>' : ''}</button>` }); }
+  for (const p of S.db.places) { if (p.type !== 'spot') continue; const ov = (p.country || 'KR') !== 'KR';
+    for (const v of p.visitLog || []) if (v.date && !v.trip) ent.push({ d: v.date, k: ov ? 'ov' : 'kr', html: `<button class="tl-i" data-tlp="${p.id}">${D(v.date)} <b>${ov ? '✈ ' : ''}${esc(p.name)}</b></button>` }); }
   for (const l of S.db.lived || []) if (l.from) { const ov = (l.country || 'KR') !== 'KR';   /* 11/07 해외 살이(가나 등)는 국내 지도에서도 「파견」으로 */
     ent.push({ d: String(l.from).length === 4 ? l.from + '-01-01' : l.from, k: 'lv', html: `<button class="tl-i" data-tll="${l.id}">${String(l.from).length > 4 ? D(l.from) : ''} <b>${ov ? '✈ ' + esc((ccKo(l.country) || l.name) + ' 파견') : '⌂ ' + esc(l.name)}</b><small>${ov ? esc(l.name) : '이사'}</small></button>` }); }
   const ys = {}; ent.forEach(e => (ys[e.d.slice(0, 4)] ||= []).push(e));
@@ -3237,6 +3245,7 @@ function travelCardHtml(s, mode) {
         <div class="tm-legend"><span><i class="lg-done"></i>가봤음(국내)</span>${contLegend(s)}<span><i class="lg-plan"></i>계획</span><span><i class="lg-wish"></i>가고싶다</span><span><i class="lg-lv">⌂</i>살았던 곳${(S.db.lived || []).length ? ' ' + (S.db.lived || []).length : ''}</span>${soloLegend().map(n => `<span><i class="lg-solo" style="background:${famHex(n)}"></i>${n === dadName() ? `💼 ${esc(n)} 출장` : `${esc(n)} 혼자`}</span>`).join('')}</div>
         ${s.plan.length ? `<p class="tm-next">✈ 다음 여행 · ${s.plan.map(o => `<b>${esc(o.trips.map(x => tripName(x.t)).join('·'))}</b>`).join(', ')}</p>` : ''}
         ${notYet.length ? `<div class="tm-notyet"><p class="cap3">아직 안 가본 시·도 ${notYet.length}곳 <span>· 저장한 곳 많은 순</span></p><div>${notYet.slice(0, 8).map(k => `<span class="chip">${k}${s.saved[k] ? ` <small>저장 ${s.saved[k]}</small>` : ''}</span>`).join('')}</div></div>` : '<p class="tm-next">🎉 17개 시·도를 모두 가봤어요!</p>'}
+        ${badgeHtmlC(s, 'biz')}
       </div></div>
     ${badgeHtmlC(s)}
     ${travelLogHtml(mode)}`;   /* 11/07 지도 아래: 배지(크게) → 연도별 여행 */
