@@ -1389,3 +1389,12 @@ body.tm-full-on { overflow: hidden; }
   .tm-card > .tm-bdgc .bdgc { width: 50px; } .tm-card > .tm-bdgc .bdgc i { width: 36px; height: 36px; } .tm-card > .tm-bdgc .bdgc i svg { width: 20px; height: 20px; }
   .tm-card > .tm-bdgc .bdgc b { font-size: calc(10px * var(--fz, 1)); }
 }
+/* 11/08 여행 사진 인스타식 보기 */
+.tpo-car { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; background: #000; }
+.tpo-car::-webkit-scrollbar { display: none; }
+.tpo-ph { flex: 0 0 100%; scroll-snap-align: center; border: 0; padding: 0; background: #000; cursor: zoom-in; }
+.tpo-ph img { display: block; width: 100%; max-height: 70vh; object-fit: contain; margin: 0 auto; }
+.tpo-nav { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 8px 0 0; }
+.tpo-nav button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--text-1); font-size: 18px; cursor: pointer; }
+.tpo-nav span { font-size: calc(12px * var(--fz, 1)); color: var(--text-3); }
+.jr-tile.tt::after { content: '여행'; position: absolute; left: 8px; top: 6px; font: 700 calc(10px * var(--fz, 1)) var(--font-num, inherit); color: #fff; background: rgba(0,0,0,.45); padding: 2px 6px; border-radius: 6px; }
