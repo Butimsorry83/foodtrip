@@ -161,6 +161,11 @@ async function load() {
   if ((trashPurge() > 0 || S.migratedCities) && S.token) { S.migratedCities = false; markDirty(); }
   S.baseDb = clone(S.db);                                       // 3-way 병합 기준 (마지막으로 서버와 일치한 상태)
   if (String(LS.get('font', '')).startsWith('c:')) try { applyTheme(); } catch {}   /* 내 글꼴은 데이터 읽은 뒤 적용 */
+  if (S.token && !OFFLINE && !S.db.meta.lostFix1) {   /* 11/07 1회: 사진만 올라가고 기록이 사라진 안성팜랜드 2022.10.08 복구 (사진 33장) */
+    const p = placeById('p0098'); if (p && !(p.visitLog || []).some(v => v.date === '2022-10-08')) { const ph = Array.from({ length: 33 }, (_, i) => `photos/p0098/2022-10-08_mw6fygt8_${i}.jpg`);
+      (p.visitLog ||= []).push({ id: uid('v'), date: '2022-10-08', dateEnd: null, meal: '', rating: null, memo: null, story: null, who: coreFamily(), photos: ph, photo: ph[0], trip: null }); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); p.visits = (p.visits || 0) + 1;
+      setTimeout(() => toast('안성팜랜드 2022.10.08 기록 복구 (사진 33장) · 별점·메모는 편집에서', 4500), 2200); }
+    S.db.meta.lostFix1 = today(); markDirty(); }
   if (S.token && !OFFLINE && !S.db.meta.viaFix1) { const n = fixVia1(); markDirty(); if (n) setTimeout(() => toast(`경유 항로 ${n}건 넣었어요 (이탈리아·방콕 2024·가나)`, 3500), 1600); }   /* 11/07 1회 경유 */
   if (S.token && !OFFLINE && !S.db.meta.nameFix1) { const n = fixNames1(); markDirty(); if (n) setTimeout(() => toast(`영문 이름 ${n}개 첫 글자를 대문자로 정리했어요`, 3500), 800); }   /* 1회 이름 정리 */
   if (S.token && !OFFLINE && !S.db.meta.autoTrip1) { const n = autoTripsFromVisits(); markDirty(); if (n) setTimeout(() => toast(`해외 기록 ${n}건을 여행으로 묶었어요 — 여행 탭`, 4000), 1500); }   // 1회 자동 정리
@@ -270,6 +275,7 @@ async function save() {
     } else if (remote) S.sha = remote.sha;
     S.db.meta.updated = new Date().toISOString().slice(0, 10);
     const body = JSON.stringify(S.db);
+    if (remote && remote.sha === S.sha && body === JSON.stringify(remote.db)) { S.baseDb = clone(S.db); setSync('ok'); saving = false; if (dirty) markDirty(); return; }   /* 11/07 바뀐 게 없으면 저장(커밋·배포) 안 함 */
     const b64 = b64utf8(body);
     const r = await fetch(`https://api.github.com/repos/${S.repo}/contents/${CFG.path}`, {
       method: 'PUT', headers: { Authorization: 'Bearer ' + S.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
@@ -829,6 +835,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       const entry = { date: $('#vdate').value || today(), dateEnd: ($('#vend').value && $('#vend').value > ($('#vdate').value || today())) ? $('#vend').value : null, meal: $('#vmeal').value, rating: st.rating || null, memo: $('#vmemo').value.trim() || null, story: $('#vstory').value.trim() || null, who: [...st.who], menu: st.menu.slice(), photo: null, photos: [] };
       const fresh = st.photos.filter(ph => !ph.path);                // 새 사진은 한꺼번에 (커밋 1번)
       const up = await uploadPhotos(fresh.map(ph => ({ b64: ph.b64, url: ph.url, date: entry.date })), p.id, { onStep: (i, n) => { if (n > 1) $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } });
+      { const p2 = placeById(p.id); if (p2 && p2 !== p) { if (edit) edit = (p2.visitLog || []).find(v => v.id === edit.id) || edit; p = p2; } }   /* 11/07 사진 올리는 동안 다른 기기 저장과 합쳐지면 장소 객체가 바뀜 → 새 객체에 기록 (기록이 사라지던 문제) */
       let ui = 0; for (const ph of st.photos) { if (ph.path) entry.photos.push(ph.path); else if (up[ui]) entry.photos.push(up[ui++].path); }
       entry.photo = entry.photos[0] || null;
       if ($('#vtie')?.checked) { const tt = tieVisitTrip(p, { ...edit, ...entry, trip: edit?.trip }); if (tt) { entry.trip = tt.id; setTimeout(() => toast(`✈ 「${tt.title || tripCity(tt)}」 여행에 묶음`, 3000), 900); } } else entry.trip = null;
@@ -1987,7 +1994,7 @@ function renderHome() {
   const d = homeData(); const phone = window.innerWidth <= 860; S.homeMode = phone ? 'phone' : 'pc';
   el.innerHTML = phone ? renderHomePhone(d) : renderHomePC(d);
   fitPcHero(); seasonFx(el.querySelector(phone ? '.ph-hero' : '.pc-hero-wrap'), d.season);
-  $('#hero-search').onsubmit = e => { e.preventDefault(); S.q = $('#hq').value.trim(); $('#q').value = S.q; S.region = 'all'; renderRegionChips(); renderTagChips(); renderList(); showView('explore'); fitToVisible(); };
+  $('#hero-search').onsubmit = e => { e.preventDefault(); S.q = $('#hq').value.trim(); $$('#q, #q-pc, #q-hdr').forEach(x => { if (x) x.value = S.q; }); S.region = 'all'; renderRegionChips(); renderTagChips(); showView('explore'); renderList(); fitToVisible(); if (S.q) setTimeout(() => $('#list [data-act=newplace]')?.click(), 60); };   /* 11/07 홈 검색 = 찾기 검색과 같게 (엔터 = 우리 기록 + 국내·전 세계 새로 찾기) */
   el.onclick = e => {
     const cg = e.target.closest('[data-capgo]'); if (cg) return openDetail(cg.dataset.capgo);   /* 11/07 카드 아래 이름 = 그 장소 자세히 (사진은 넘기기 그대로) */
     const b = e.target.closest('button'); if (!b) return;
@@ -2574,7 +2581,7 @@ function openTripPhotos(t) {                                         // 여행�
   $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return; if (pp.click(b)) return;
     if (b.dataset.act === 'back') { closeSheet(); return; }
     if (b.dataset.act === 'tpsave') { if (!pp.list.length) return toast('사진을 골라주세요'); $$('[data-act=tpsave]').forEach(x => { x.disabled = true; });
-      const add = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tpp-gr').checked, memo: t.title || tripCity(t), onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } }); if (pp.coverI != null && add[pp.coverI]) t.coverPhoto = add[pp.coverI].path;   /* 11/07 */
+      const add = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tpp-gr').checked, memo: t.title || tripCity(t), onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } }); if (pp.coverI != null && add[pp.coverI]) t.coverPhoto = add[pp.coverI].path;   /* 11/07 */ { const t2 = S.db.trips.find(x => x.id === t.id); if (t2) t = t2; }   /* 11/07 */
       t.photos = [...(t.photos || []), ...add].sort((a, c) => (a.date || '').localeCompare(c.date || '')); markDirty(); closeSheet(); renderTrips(); toast(`사진 ${add.length}장 추가`); }
   };
 }
@@ -4228,7 +4235,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); posWatch();   /* 11/07 사진 보이는 위치 */ initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
