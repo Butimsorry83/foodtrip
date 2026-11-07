@@ -1355,3 +1355,27 @@ body.tm-full-on { overflow: hidden; }
 .tl-flow .tl-yr { width: auto; padding: 0 4px 0 2px; font-size: calc(16px * var(--fz, 1)); line-height: 1; }
 .tl-sep { display: inline-block; width: 22px; height: 2px; margin: 0 4px; background: repeating-linear-gradient(90deg, var(--text-3) 0 4px, transparent 4px 7px); opacity: .7; }
 .tl-yg { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; max-width: 100%; }
+/* 11/07 배지 v2 — 크게 · 그림 아이콘 · 동/은/금 */
+.bdgc-g { gap: 8px; margin-top: 8px; } .bdgc-g > span { width: 32px; padding-top: 14px; font-size: calc(11px * var(--fz, 1)); }
+.bdgc-g > div { gap: 6px 4px; }
+.bdgc { width: 58px; gap: 3px; padding: 5px 0 4px; opacity: 1; filter: none; border-radius: 10px; }
+.bdgc i { width: 40px; height: 40px; background: var(--bg-subtle); color: var(--text-3); border: 2px solid transparent; transition: transform .15s; }
+.bdgc i svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.bdgc b { font-size: calc(10.5px * var(--fz, 1)); font-weight: 600; color: var(--text-3); line-height: 1.1; white-space: nowrap; }
+.bdgc em { display: flex; gap: 2px; font-size: 0; } .bdgc em s { width: 6px; height: 6px; border-radius: 50%; background: var(--line); text-decoration: none; } .bdgc em s.on { background: var(--accent); }
+.bdgc.st0 i { opacity: .55; }
+.bdgc.st1 i { background: linear-gradient(145deg, #f3c9a0, #d9925a); color: #5a2e0e; }
+.bdgc.st2 i { background: linear-gradient(145deg, #eef2f6, #b9c3cf); color: #2f3b48; }
+.bdgc.st3 i, .bdgc.st4 i { background: linear-gradient(145deg, #ffe58a, #f2b705); color: #5a3e00; }
+.bdgc.st4 i { border-color: #fff; box-shadow: 0 0 0 2px #f2b705, 0 2px 8px rgba(242,183,5,.45); }
+.bdgc:not(.st0) b { color: var(--text-1); } .bdgc:hover i { transform: translateY(-2px); }
+.bdgc.ok, .bdgc.max { filter: none; }
+@media (max-width: 860px) { .bdgc { width: 54px; } }
+/* 11/07 배지 지도 아래로 — 그룹 가로 배치 */
+.tm-card > .tm-bdgc { margin-top: 16px; padding-top: 12px; }
+@media (min-width: 861px) {
+  .tm-card > .tm-bdgc { display: flex; flex-wrap: wrap; gap: 4px 28px; }
+  .tm-card > .tm-bdgc > p { flex: 0 0 100%; }
+  .tm-card > .tm-bdgc .bdgc-g { margin-top: 2px; }
+  .tm-card > .tm-bdgc .bdgc-g > div { flex-wrap: nowrap; }
+}
