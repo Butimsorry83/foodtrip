@@ -3985,47 +3985,57 @@ function visitRaw(v) { return (v.photos && v.photos.length ? v.photos : v.photo 
  */
 const posKey = u => String(u || '').replace(/^https:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[^/]+\//, '');
 function posGet(u) { const m = S.db?.meta?.photoPos; return m ? m[posKey(u)] || null : null; }
+function zoomGet(u) { const m = S.db?.meta?.photoZoom; return m ? m[posKey(u)] || null : null; }   /* 11/07 사진 크기 { z: 0.5~3, r: 가로/세로 비율 } */
+function zoomSize(zm, w, h) {                                        // 틀(w×h)에 「꽉 채움 × z」 크기 → background-size (%)
+  if (!zm || !w || !h) return ''; const rf = w / h, ri = zm.r || rf, z = zm.z || 1;
+  return ri > rf ? `${(ri / rf * 100 * z).toFixed(1)}% ${(100 * z).toFixed(1)}%` : `${(100 * z).toFixed(1)}% ${(rf / ri * 100 * z).toFixed(1)}%`;
+}
 function posApply(root) {
-  if (!S.db?.meta?.photoPos || !root || root.nodeType !== 1) return;
+  if (!(S.db?.meta?.photoPos || S.db?.meta?.photoZoom) || !root || root.nodeType !== 1) return;
   const one = el => { if (el.tagName === 'IMG') { const p = posGet(el.getAttribute('src')); if (p && el.style.objectPosition !== p) el.style.objectPosition = p; return; }
-    const bg = el.style?.backgroundImage; if (!bg || bg.indexOf('url(') < 0) return; const u = (bg.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]; const p = u && posGet(u); if (p && el.style.backgroundPosition !== p) el.style.backgroundPosition = p; };
+    const bg = el.style?.backgroundImage; if (!bg || bg.indexOf('url(') < 0) return; const u = (bg.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]; if (!u) return;
+    const p = posGet(u); if (p && el.style.backgroundPosition !== p) el.style.backgroundPosition = p;
+    const zm = zoomGet(u); if (zm && zm.z !== 1 && !/gradient/.test(bg)) { const sz = zoomSize(zm, el.clientWidth, el.clientHeight); if (sz && el.style.backgroundSize !== sz) { el.style.backgroundSize = sz; el.style.backgroundRepeat = 'no-repeat'; } } };
   one(root); root.querySelectorAll?.('[style*="background-image"], img').forEach(one);
 }
 function posWatch() {
   if (S._posObs) return; S._posObs = new MutationObserver(ms => { for (const m of ms) { if (m.type === 'attributes') posApply(m.target); else m.addedNodes.forEach(posApply); } });
   S._posObs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'src'] }); posApply(document.body);
+  let rz = 0; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => posApply(document.body), 200); });
   document.addEventListener('click', e => { const b = e.target.closest('[data-posu]'); if (b) { e.stopPropagation(); e.preventDefault(); openPosEditor(b.dataset.posu); } }, true);
 }
-function openPosEditor(url) {                                          // 초점 고르기: 사진 위 한 점 누르기·끌기 · 확대해서 정확히 (휠·두 손가락·＋－) · PC 가로 / 폰 세로 미리보기
-  if (isRO()) return goToken(); if (!url) return; const k = posKey(url); let [x, y] = (posGet(url) || '50% 50%').split(' ').map(v => parseFloat(v)), z = 1;
+function openPosEditor(url) {                                          // 11/07 보이는 위치 + 사진 크기: 큰 사진에 점 찍기 · 아래 틀(PC 가로·폰 세로·정사각)을 끌어서 옮기기 · 크기 －/＋ (50%~300%)
+  if (isRO()) return goToken(); if (!url) return; const k = posKey(url); let [x, y] = (posGet(url) || '50% 50%').split(' ').map(v => parseFloat(v)), z = zoomGet(url)?.z || 1, r = zoomGet(url)?.r || 0;
   document.querySelector('.gy-pop')?.remove(); const el = document.createElement('div'); el.className = 'gy-pop'; document.body.appendChild(el);
-  el.innerHTML = `<div class="gy-box ps-box" role="dialog" aria-label="보이는 위치"><b>⌖ 보이는 위치</b><p class="cap3">꼭 보여야 할 곳(얼굴 등)을 누르거나 끌어 주세요 · 확대하면 더 정확하게 · 이 사진이 나오는 모든 화면에 적용</p>
-    <div class="ps-main"><span class="ps-in"><span class="ps-z"><img src="${url}" alt="" draggable="false"><i class="ps-dot"></i></span></span>
-      <div class="ps-zb"><button type="button" data-psz="1.6" title="확대">＋</button><span class="ps-zl">100%</span><button type="button" data-psz="0.625" title="축소">－</button></div></div>
+  el.innerHTML = `<div class="gy-box ps-box" role="dialog" aria-label="보이는 위치"><b>⌖ 보이는 위치 · 크기</b><p class="cap3">위 사진에서 꼭 보일 곳을 누르거나, 아래 틀 속 사진을 끌어서 옮기세요 · 크기 －/＋ · 이 사진이 나오는 모든 화면에 적용</p>
+    <div class="ps-main"><span class="ps-in"><img src="${url}" alt="" draggable="false"><i class="ps-dot"></i></span></div>
+    <div class="ps-zb2"><span>사진 크기</span><button type="button" data-psz="-1">－</button><b class="ps-zl">100%</b><button type="button" data-psz="1">＋</button><small>100%보다 작으면 사진 전체가 보이고 빈 곳은 바탕색</small></div>
     <div class="ps-prev"><div><span class="ps-w" style="background-image:url('${url}')"></span><small>PC 가로 · 여행 표지</small></div><div><span class="ps-t" style="background-image:url('${url}')"></span><small>폰·카드 세로</small></div><div><span class="ps-s" style="background-image:url('${url}')"></span><small>정사각</small></div></div>
-    <div class="gy-btns"><button type="button" data-psc="1">가운데로</button><button type="button" data-psx="1">취소</button><button type="button" class="pri" data-psok="1">저장</button></div></div>`;
-  const box = el.querySelector('.ps-in'), zz = el.querySelector('.ps-z'), img = zz.querySelector('img'), dot = el.querySelector('.ps-dot');
-  const view = () => { const w = box.clientWidth, h = box.clientHeight; let tx = w / 2 - x / 100 * w * z, ty = h / 2 - y / 100 * h * z;   // 확대하면 점이 가운데로 오게
-    tx = Math.min(0, Math.max(w - w * z, tx)); ty = Math.min(0, Math.max(h - h * z, ty)); zz.style.transform = z > 1 ? `translate(${tx}px,${ty}px) scale(${z})` : ''; dot.style.transform = `scale(${1 / z})`; el.querySelector('.ps-zl').textContent = Math.round(z * 100) + '%'; };
-  const draw = () => { const p = `${x.toFixed(1)}% ${y.toFixed(1)}%`; dot.style.left = x + '%'; dot.style.top = y + '%'; el.querySelectorAll('.ps-prev span').forEach(s0 => { s0.style.backgroundPosition = p; }); };
-  const zoom = f => { z = Math.max(1, Math.min(8, z * f)); if (z < 1.05) z = 1; view(); };
-  const at = e => { const r = img.getBoundingClientRect(); x = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)); y = Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100)); draw(); };
-  const pts = new Map(); let pin = null;
-  box.onpointerdown = e => { box.setPointerCapture?.(e.pointerId); pts.set(e.pointerId, e); if (pts.size === 2) { const [p1, p2] = [...pts.values()]; pin = { d: Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY), z }; } else at(e); };
-  box.onpointermove = e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e);
-    if (pin && pts.size === 2) { const [p1, p2] = [...pts.values()]; z = Math.max(1, Math.min(8, pin.z * Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY) / pin.d)); view(); return; }
-    if (!pin) at(e); };
-  box.onpointerup = box.onpointercancel = e => { pts.delete(e.pointerId); if (pts.size < 2 && pin) { if (!pts.size) pin = null; } if (!pts.size) view(); };   // 손 떼면 점이 가운데로
-  box.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.2 : 1 / 1.2); }, { passive: false });
-  img.onload = () => view(); draw(); view();
+    <div class="gy-btns"><button type="button" data-psc="1">처음대로</button><button type="button" data-psx="1">취소</button><button type="button" class="pri" data-psok="1">저장</button></div></div>`;
+  const img = el.querySelector('.ps-main img'), dot = el.querySelector('.ps-dot'), pv = [...el.querySelectorAll('.ps-prev span')];
+  const draw = () => { const p = `${x.toFixed(1)}% ${y.toFixed(1)}%`; dot.style.left = x + '%'; dot.style.top = y + '%'; el.querySelector('.ps-zl').textContent = Math.round(z * 100) + '%';
+    pv.forEach(s0 => { s0.style.backgroundPosition = p; s0.style.backgroundSize = z === 1 ? 'cover' : zoomSize({ z, r }, s0.clientWidth, s0.clientHeight); s0.style.backgroundRepeat = 'no-repeat'; }); };
+  img.onload = () => { r = img.naturalWidth / img.naturalHeight; draw(); }; if (img.complete && img.naturalWidth) r = img.naturalWidth / img.naturalHeight;
+  const at = e => { const rc = img.getBoundingClientRect(); x = Math.max(0, Math.min(100, (e.clientX - rc.left) / rc.width * 100)); y = Math.max(0, Math.min(100, (e.clientY - rc.top) / rc.height * 100)); draw(); };
+  const main = el.querySelector('.ps-in'); let md = false;
+  main.onpointerdown = e => { md = true; main.setPointerCapture?.(e.pointerId); at(e); }; main.onpointermove = e => { if (md) at(e); }; main.onpointerup = main.onpointercancel = () => { md = false; };
+  pv.forEach(s0 => { let d0 = null;   // 틀 속 사진 끌어서 옮기기 (끄는 방향으로 사진이 따라옴)
+    s0.onpointerdown = e => { s0.setPointerCapture?.(e.pointerId); d0 = { cx: e.clientX, cy: e.clientY, x, y }; };
+    s0.onpointermove = e => { if (!d0) return; const k2 = 100 / Math.max(.3, z); x = Math.max(0, Math.min(100, d0.x - (e.clientX - d0.cx) / s0.clientWidth * k2)); y = Math.max(0, Math.min(100, d0.y - (e.clientY - d0.cy) / s0.clientHeight * k2)); draw(); };
+    s0.onpointerup = s0.onpointercancel = () => { d0 = null; }; });
+  el.querySelector('.ps-prev').addEventListener('wheel', e => { e.preventDefault(); z = Math.max(.5, Math.min(3, +(z * (e.deltaY < 0 ? 1.1 : 1 / 1.1)).toFixed(2))); if (Math.abs(z - 1) < .04) z = 1; draw(); }, { passive: false });
+  draw();
   const close = () => { el.remove(); document.removeEventListener('keydown', key, true); }, key = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   document.addEventListener('keydown', key, true);
   el.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (e.target === el) return close(); if (!b) return;
-    if (b.dataset.psz) return zoom(+b.dataset.psz);
-    if (b.dataset.psc) { x = 50; y = 50; z = 1; draw(); return view(); } if (b.dataset.psx) return close();
-    if (b.dataset.psok) { const m = (S.db.meta.photoPos ||= {}); if (Math.abs(x - 50) < .5 && Math.abs(y - 50) < .5) delete m[k]; else m[k] = `${x.toFixed(1)}% ${y.toFixed(1)}%`; markDirty();
-      document.querySelectorAll('[style*="background-image"], img').forEach(n => { const u = n.tagName === 'IMG' ? n.getAttribute('src') : (n.style.backgroundImage.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]; if (u && posKey(u) === k) { if (n.tagName === 'IMG') n.style.objectPosition = m[k] || ''; else n.style.backgroundPosition = m[k] || ''; } });
-      toast('보이는 위치 저장 · 모든 화면에 적용'); close(); } };
+    if (b.dataset.psz) { const st = [.5, .6, .7, .8, .9, 1, 1.15, 1.3, 1.5, 1.75, 2, 2.5, 3], d = +b.dataset.psz; let n = d > 0 ? st.find(v => v > z + .001) : [...st].reverse().find(v => v < z - .001); z = n ?? z; return draw(); }
+    if (b.dataset.psc) { x = 50; y = 50; z = 1; return draw(); } if (b.dataset.psx) return close();
+    if (b.dataset.psok) { const m = (S.db.meta.photoPos ||= {}), mz = (S.db.meta.photoZoom ||= {});
+      if (Math.abs(x - 50) < .5 && Math.abs(y - 50) < .5) delete m[k]; else m[k] = `${x.toFixed(1)}% ${y.toFixed(1)}%`;
+      if (z === 1) delete mz[k]; else mz[k] = { z, r: +(r || 1).toFixed(4) }; markDirty();
+      document.querySelectorAll('[style*="background-image"], img').forEach(n => { const u = n.tagName === 'IMG' ? n.getAttribute('src') : (n.style.backgroundImage.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]; if (!u || posKey(u) !== k) return;
+        if (n.tagName === 'IMG') { n.style.objectPosition = m[k] || ''; return; } n.style.backgroundPosition = m[k] || ''; if (/gradient/.test(n.style.backgroundImage)) return; n.style.backgroundSize = mz[k] ? zoomSize(mz[k], n.clientWidth, n.clientHeight) : ''; if (mz[k]) n.style.backgroundRepeat = 'no-repeat'; });
+      toast('보이는 위치·크기 저장 · 모든 화면에 적용'); close(); } };
 }
 function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크게 보기 (좌우 넘김 · 스와이프) · 11/07 어디서 열어도 같은 버튼 줄
   /* meta: { raws[], date | dates[], who, covers: [{ label, now: () => path, set: path => {} }], growth (기본 true), extra: [{ label: i => '', click: i => {} }], del: i => bool, delLabel } */

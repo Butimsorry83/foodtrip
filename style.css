@@ -1315,3 +1315,12 @@ body.tm-full-on { overflow: hidden; }
 .ps-zb { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.55); border-radius: 999px; padding: 3px; line-height: 1; }
 .ps-zb button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(255,255,255,.92); color: #10202a; font-size: 16px; font-weight: 800; cursor: pointer; }
 .ps-zl { color: #fff; font: 600 11px var(--font-num, inherit); min-width: 38px; text-align: center; }
+/* 11/07 위치·크기 편집 v2 */
+.ps-zb2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 2px 0 10px; font-size: calc(13px * var(--fz, 1)); }
+.ps-zb2 > span { font-weight: 700; color: var(--text-2); }
+.ps-zb2 button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--bg-subtle); color: var(--text-1); font-size: 16px; font-weight: 800; cursor: pointer; }
+.ps-zb2 .ps-zl { min-width: 44px; text-align: center; font-family: var(--font-num, inherit); } .ps-zb2 small { color: var(--text-3); font-size: 11px; }
+.ps-prev span { cursor: grab; touch-action: none; background-color: var(--bg-subtle); } .ps-prev span:active { cursor: grabbing; }
+.ps-zb2 .ps-zl { color: var(--text-1); }
+.ps-main img, .ps-main .ps-z img { max-height: 38vh; }
+.ps-box { max-height: 94vh; } .ps-prev { margin-bottom: 8px; }
