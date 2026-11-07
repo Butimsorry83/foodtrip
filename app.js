@@ -1993,7 +1993,7 @@ function renderHome() {
     if (b.dataset.wish) { const p = placeById(b.dataset.wish); p.wish = !p.wish; markDirty(); renderHome(); return; }
     if (b.dataset.go) return openDetail(b.dataset.go);
     if (b.dataset.reco) return openRecommend(placeById(b.dataset.reco));
-    if (b.dataset.trip) { S.trip = S.db.trips.find(t => t.id === b.dataset.trip); S.tripDay = 0; showView('trips'); return; }
+    if (b.dataset.trip) { S.trip = S.db.trips.find(t => t.id === b.dataset.trip); S.tripDay = 0; showView('trips'); const t0 = S.trip; loadGeo().then(() => t0 && S.trip === t0 && tripTitle(t0)); return; }   /* 11/07 홈에서 열 때도 여행 이름 효과 */
     if (b.dataset.region) { S.region = b.dataset.region; S.scope = 'all'; S.flags.clear(); S.tags.clear(); LS.set('region', S.region); renderRegionChips(); renderTagChips(); const base = S.db.bases.find(x => x.default_for === S.region); if (base) setBase(base.id, true); renderList(); showView('explore'); fitToVisible(); return; }
     if (b.dataset.cuisine) { S.region = 'domestic'; S.scope = 'restaurant'; $$('#f-scope button').forEach(x => x.classList.toggle('on', x.dataset.v === 'restaurant')); S.q = b.dataset.cuisine; $('#q').value = S.q; renderRegionChips(); renderTagChips(); renderList(); showView('explore'); return; }
     const act = b.dataset.act; const n = d.feats.length;
