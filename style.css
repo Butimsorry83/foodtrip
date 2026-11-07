@@ -1244,3 +1244,29 @@ body.tm-full-on { overflow: hidden; }
 .gp-loc .crd { margin-top: 8px; font: 500 clamp(11px, 1.2vw, 14px) var(--font-num); letter-spacing: .2em; color: var(--accent); opacity: 0; animation: ltfade .4s ease forwards; }
 @keyframes ltin { to { opacity: 1; } }
 @media (max-width: 420px) { .gy-opt .seg small { display: none; } .gy-opt .seg button { padding: 6px 10px; } }
+/* 11/07 검색: 항상 새로 찾기 · 저장됨 */
+.newfind { padding: 8px 12px 4px; }
+.newfind button { width: 100%; display: flex; align-items: center; gap: 6px; padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--panel)); color: var(--text-1); font: inherit; font-size: calc(14px * var(--fz, 1)); cursor: pointer; text-align: left; }
+.newfind button small { margin-left: auto; color: var(--text-3); font-size: calc(11px * var(--fz, 1)); white-space: nowrap; }
+.newfind button:hover { background: color-mix(in srgb, var(--accent) 18%, var(--panel)); }
+#phits button.saved { background: var(--bg-subtle); } #phits .sv { font-style: normal; font-size: 11px; font-weight: 700; color: var(--accent-ink, #0a7c6b); margin-left: 6px; }
+/* 11/07 사진 크게 보기 공통 버튼 줄 — 첫 버튼(대표)만 강조, 나머지는 흰 반투명 */
+.lb .lb-acts { bottom: 58px; gap: 6px; }
+.lb .lb-acts .lb-gr { padding: 9px 14px; font-size: calc(13px * var(--fz, 1)); background: rgba(255,255,255,.92); color: #10202a; font-weight: 700; }
+.lb .lb-acts .lb-gr[data-lbcv] { background: var(--accent); color: #10202a; }
+.lb .lb-acts .lb-gr.on { background: rgba(255,255,255,.25); color: #fff; box-shadow: none; cursor: default; }
+.lb .lb-acts .lb-gr.lb-del { background: rgba(0,0,0,.55); color: #ffb4b4; }
+@media (max-width: 600px) { .lb .lb-acts { bottom: 54px; max-width: 96vw; } .lb .lb-acts .lb-gr { padding: 8px 11px; font-size: 12px; } }
+.lv-ph { position: relative; }
+.lv-ph .cv { position: absolute; left: 4px; top: 4px; font-size: calc(10px * var(--fz, 1)); font-weight: 700; background: var(--accent); color: #000; padding: 2px 6px; border-radius: 6px; }
+.lv-ph .cvset { position: absolute; left: 4px; top: 4px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0,0,0,.45); color: #fff; font-size: 11px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.lv-ph .cvset:hover { background: var(--accent); color: #000; }
+/* 11/07 넣기 창은 사진 크게 보기 위에 */
+.gy-pop { z-index: 4000; }
+/* 11/07 사진·검색 쓰는 법 */
+.howto h4 { margin: 18px 0 8px; font-size: calc(15px * var(--fz, 1)); } .howto h4:first-child { margin-top: 0; }
+.howto table { width: 100%; border-collapse: collapse; font-size: calc(13px * var(--fz, 1)); }
+.howto th { text-align: left; white-space: nowrap; vertical-align: top; padding: 7px 10px 7px 0; color: var(--text-2); font-weight: 700; width: 1%; }
+.howto td { padding: 7px 0; border-bottom: 1px solid var(--line); line-height: 1.5; } .howto tr:first-child td { border-top: 1px solid var(--line); }
+.ht-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; } .ht-bar span { padding: 6px 12px; border-radius: 999px; background: var(--bg-subtle); border: 1px solid var(--line); font-size: calc(12px * var(--fz, 1)); font-weight: 700; }
+.ht-bar .a { background: var(--accent); border-color: var(--accent); color: #10202a; } .ht-bar .d { color: #c0392b; }

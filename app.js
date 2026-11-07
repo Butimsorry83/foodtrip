@@ -515,7 +515,8 @@ function renderList() {
   $('#count2').innerHTML = `<b>${items.length}곳</b> <span>· ${S.radius ? S.radius + 'km 이내' : '전체'}</span>`;
   const el = $('#list');
   if (!items.length) { el.innerHTML = emptyHtml(); renderMarkers(); return; }
-  el.innerHTML = items.map(rowHtml).join('');
+  const q = S.q.trim();   /* 11/07 결과가 있어도 항상 「새로 찾기」 (엔터 = 새로 찾기) */
+  el.innerHTML = (q ? `<div class="newfind"><button class="rw" data-act="newplace">🌍 <b>「${esc(q)}」</b> 새로 찾기 <small>${/[A-Za-z]{3,}/.test(q) ? '전 세계' : '국내 + 전 세계'} · 엔터</small></button></div>` : '') + items.map(rowHtml).join('');
   renderMarkers();
 }
 
@@ -639,7 +640,7 @@ function openDetail(id) {
     const go = e.target.closest('[data-go]'); if (go) return openDetail(go.dataset.go);
     const tg = e.target.closest('[data-tag]');
     if (tg) { if (document.body.classList.contains('ro')) return; const t = tg.dataset.tag; const set = new Set(p.tags || []); set.has(t) ? set.delete(t) : set.add(t); p.tags = [...set]; tg.classList.toggle('tag'); tg.classList.toggle('off'); markDirty(); renderTagChips(); renderList(); return; }
-    const vlb = e.target.closest('[data-vlb]'); if (vlb) { const v = p.visitLog[+vlb.dataset.vlb]; openLightbox(visitPhotos(v), +vlb.dataset.k, `${p.name} · ${(v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(v), date: v.date, who: v.who }); return; }
+    const vlb = e.target.closest('[data-vlb]'); if (vlb) { const v = p.visitLog[+vlb.dataset.vlb]; openLightbox(visitPhotos(v), +vlb.dataset.k, `${p.name} · ${(v.date || '').replace(/-/g, '.')}`, visitLbMeta(p, v, () => openDetail(p.id))); return; }
     const vgr = e.target.closest('[data-vgr]'); if (vgr) { openVisitGrowth(p.visitLog[+vgr.dataset.vgr]); return; }   /* 11/07 */
     const vedit = e.target.closest('[data-vedit]'); if (vedit) { openVisitForm(p, p.visitLog[+vedit.dataset.vedit]); return; }
     const vdel = e.target.closest('[data-vdel]');
@@ -780,7 +781,7 @@ function bindReorder(grid, getList, redraw) {
 }
 function openVisitForm(p, edit, back) {                          // 시안 07: 방문 기록 · 내 사진 올리기 (edit = 기존 기록 편집)
   const di = distInfo(p); const mealNow = (() => { const h = new Date().getHours(); return h < 11 ? '아침' : h < 15 ? '점심' : h < 17 ? '간식' : '저녁'; })();
-  const st = edit ? { photos: (edit.photos?.length ? edit.photos : edit.photo ? [edit.photo] : []).map(path => ({ path, url: photoUrl(path) })), rating: edit.rating || 0, who: new Set(edit.who || []), menu: (edit.menu || []).map(m => typeof m === 'string' ? m : m.name || '') } : { photos: [], rating: 0, who: new Set(familyNames()), menu: [] };
+  const st = edit ? { photos: (edit.photos?.length ? edit.photos : edit.photo ? [edit.photo] : []).map(path => ({ path, url: photoUrl(path) })), rating: edit.rating || 0, who: new Set(edit.who || []), menu: (edit.menu || []).map(m => typeof m === 'string' ? m : m.name || '') } : { photos: [], rating: 0, who: new Set(coreFamily()),   /* 11/07 기본 = 우리 가족(아빠·엄마·하준·이준) · 친척은 그때그때 */ menu: [] };
   const d0 = edit?.date || today();
   const dateTxt = iso => { const d = new Date(iso + 'T00:00:00'); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')} (${DAYS[d.getDay()]})`; };
   openSheet(`<div class="vf-sheet">
@@ -1742,7 +1743,8 @@ function photoUrl(path) {
   return path.startsWith('photos/') ? rawUrl(path) : path;
 }
 // 사진 우선순위: 가족 사진(방문기록) → 기본 사진(관광공사·해외 대표) → 없음(정보 카드)
-function familyPhoto(p) { const v = (p.visitLog || []).slice().reverse().find(x => x.photo); return v ? photoUrl(v.photo) : null; }
+function familyPhotoRaw(p) { const v = (p.visitLog || []).slice().reverse().find(x => x.photo); return v ? v.photo : null; }
+function familyPhoto(p) { return photoUrl(p.coverPhoto) || (familyPhotoRaw(p) ? photoUrl(familyPhotoRaw(p)) : null); }   /* 11/07 장소 대표 사진(coverPhoto) 우선 */
 function imgOf(p) { return familyPhoto(p) || photoUrl(p.basePhoto?.path) || null; }
 function imgCredit(p) { return !familyPhoto(p) && p.basePhoto ? (p.basePhoto.source || '한국관광공사') : ''; }
 const CAT_VAR = { '한식': 'korean', '중식': 'chinese', '일식': 'japanese', '양식': 'western', '카페': 'cafe', '현지': 'local', '해산물': 'seafood', '쌀국수': 'pho', 'BBQ': 'bbq', '기타': 'etc' };
@@ -2075,7 +2077,7 @@ function openPlaceForm(p) {
       await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value, isNew);
       b.textContent = '검색';
       f._hits = hits; f._picked = null;
-      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; });
+      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; }, isNew ? sp => { closeSheet(); openDetail(sp.id); toast(`이미 저장된 곳 · 「${sp.name}」`); } : null);
     }
   });
   $('#pq').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); f.querySelector('[data-act=psearch]').click(); } });   /* 11/05 검색칸 엔터 = 검색 (저장 X) */
@@ -2109,11 +2111,15 @@ function openPlaceForm(p) {
     if (isNew && p.type === 'spot' && hasCoord(p) && !distInfo(p)?.fly) {   /* 거점 없는 먼 나라(신혼여행지 등)는 근처 식당 추천 생략 */ toast('추가됨 — 근처 식당 추천'); openRecommend(p); } else { openDetail(p.id); toast(isNew ? '추가됨' : '저장됨'); }
   });
 }
-function showHits(el, hits, pick) {
+function savedMatch(h) {                                           // 11/07 새 검색 결과가 이미 저장된 장소인지 (150m 안 · 이름 겹침)
+  if (!hasCoord(h)) return null; const nk = x => String(x || '').replace(/\s|\(.*?\)/g, '').toLowerCase(), a = nk(h.name);
+  return S.db.places.find(p => hasCoord(p) && haversine(p, h) < .15 && (nk(p.name).includes(a.slice(0, 4)) || a.includes(nk(p.name).slice(0, 4)))) || null;
+}
+function showHits(el, hits, pick, openSaved) {
   if (!hits.length) { el.hidden = false; el.innerHTML = '<button type="button" disabled>검색 결과 없음</button>'; return; }
-  el.hidden = false;
-  el.innerHTML = hits.map((h, i) => `<button type="button" data-i="${i}">${esc(h.name)}<small>${esc(h.address || '')} · ${h.src}</small></button>`).join('');
-  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; const h = hits[b.dataset.i]; pick(h); el.hidden = true; toast(`「${h.name}」 선택 · 이름·주소·좌표 입력됨`); };
+  el.hidden = false; const sv = hits.map(h => openSaved ? savedMatch(h) : null);
+  el.innerHTML = hits.map((h, i) => `<button type="button" data-i="${i}"${sv[i] ? ' class="saved"' : ''}>${esc(h.name)}${sv[i] ? ' <em class="sv">저장됨 ✓ 열기</em>' : ''}<small>${esc(h.address || '')} · ${h.src}</small></button>`).join('');
+  el.onclick = e => { const b = e.target.closest('button'); if (!b) return; const i = +b.dataset.i, h = hits[i]; if (sv[i]) { el.hidden = true; return openSaved(sv[i]); } pick(h); el.hidden = true; toast(`「${h.name}」 선택 · 이름·주소·좌표 입력됨`); };
 }
 
 /* ---------------- 지오코딩 ---------------- */
@@ -2260,7 +2266,7 @@ function renderTrips() {
     if (b.dataset.act === 'additem') openItemForm(t);
     if (b.dataset.act === 'tphoto') return isRO() ? goToken() : openTripPhotos(t);
     if (b.dataset.tpsb != null) { LS.set('tpSb', b.dataset.tpsb === '1'); return renderTrips(); }
-    if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), date: null, cover: S.token || OFFLINE ? path => { t.coverPhoto = path; markDirty(); renderTrips(); toast('여행 표지로 지정했어요'); } : null, coverNow: t.coverPhoto }); }
+    if (b.dataset.tplb != null) { const ps = tripAllPhotos(t); return openLightbox(ps.map(x => photoUrl(x.path)), +b.dataset.tplb, `${tripName(t)} ${t.year || ''}`, { raws: ps.map(x => x.path), dates: ps.map(x => x.date), covers: [{ label: '여행 표지', now: () => t.coverPhoto, set: path => { t.coverPhoto = path; markDirty(); renderTrips(); toast('여행 표지로 지정했어요'); } }], delLabel: '여행에서 빼기', del: k => { const ph = ps[k].path; if (!(t.photos || []).some(x => x.path === ph)) { toast('장소 기록 사진이에요 — 그 장소의 방문 기록에서 빼주세요', 3500); return false; } t.photos = t.photos.filter(x => x.path !== ph); if (t.coverPhoto === ph) delete t.coverPhoto; ps.splice(k, 1); markDirty(); renderTrips(); } }); }
     if (b.dataset.act === 'edit-trip') openTripEdit(t);
     if (b.dataset.act === 'tshare') shareLink('t', t.id, t.title);
     if (b.dataset.act === 'txlsx') exportXlsx({ trip: t });
@@ -2516,16 +2522,16 @@ async function uploadPhotos(list, dir, opt = {}) {                  // → [{ pa
     if (opt.toGrowth && (opt.who || []).length) S.db.growth.push({ id: uid('g'), who: opt.who, date: x.date || null, photo: path, memo: opt.memo || null }); }
   return res;
 }
-function photoPickerHtml(id) {                                       // 사진 고르기 + 누구 + 성장 앨범 체크 (공통 조각)
-  return `<div class="lv-phs" id="${id}-phs"></div><button type="button" class="btn-line" data-pp="${id}" style="width:100%;margin-top:8px">＋ 사진 고르기</button><input type="file" id="${id}-file" accept="image/*" multiple hidden>
+function photoPickerHtml(id, cover) {                                // 사진 고르기 + 누구 + 성장 앨범 체크 (공통 조각) · 11/07 cover = ★로 표지 고르기
+  return `${cover ? `<p class="cap3" style="margin:0 0 6px">${esc(cover)}</p>` : ''}<div class="lv-phs" id="${id}-phs"></div><button type="button" class="btn-line" data-pp="${id}" style="width:100%;margin-top:8px">＋ 사진 고르기</button><input type="file" id="${id}-file" accept="image/*" multiple hidden>
     <div class="lv-gr"><span class="cap3">함께 간 사람 · 사진에 나온 사람 (선택)</span><div class="chips" id="${id}-who">${familyNames().map(n => `<button type="button" class="chip" data-ppw="${esc(n)}">${esc(n)}</button>`).join('')}</div>
     <label class="ti-chk"><input type="checkbox" id="${id}-gr" checked> 고른 사람의 🌱 성장 앨범에도 넣기</label></div>`;
 }
 function bindPhotoPicker(id) {                                       // → { list, who:Set, draw }
-  const st = { list: [], who: new Set() };
-  st.draw = () => { $(`#${id}-phs`).innerHTML = st.list.map((x, i) => `<div class="lv-ph new" style="background-image:url('${x.url}')"><small>${esc((x.date || '').replace(/-/g, '.'))}</small><button type="button" data-pprm="${i}">✕</button></div>`).join(''); };
-  $(`#${id}-file`).onchange = async e => { $(`#${id}-phs`).dataset.busy = '사진 읽는 중…'; st.list.push(...await readPhotos(e.target.files)); delete $(`#${id}-phs`).dataset.busy; st.draw(); e.target.value = ''; };
-  st.click = b => { if (b.dataset.pp === id) { $(`#${id}-file`).click(); return true; } if (b.dataset.ppw) { st.who.has(b.dataset.ppw) ? st.who.delete(b.dataset.ppw) : st.who.add(b.dataset.ppw); b.classList.toggle('on'); return true; } if (b.dataset.pprm != null) { st.list.splice(+b.dataset.pprm, 1); st.draw(); return true; } return false; };
+  const st = { list: [], who: new Set(), coverI: null };
+  st.draw = () => { $(`#${id}-phs`).innerHTML = st.list.map((x, i) => `<div class="lv-ph new" style="background-image:url('${x.url}')"><small>${esc((x.date || '').replace(/-/g, '.'))}</small><button type="button" data-pprm="${i}">✕</button>${st.cover ? (st.coverI === i ? '<span class="cv">★ 표지</span>' : `<button type="button" class="cvset" data-ppcv="${i}" title="표지로">★</button>`) : ''}</div>`).join(''); };
+  $(`#${id}-file`).onchange = async e => { $(`#${id}-phs`).dataset.busy = '사진 읽는 중…'; st.list.push(...await readPhotos(e.target.files)); if (st.autoCover && st.coverI == null && st.list.length) st.coverI = 0; delete $(`#${id}-phs`).dataset.busy; st.draw(); e.target.value = ''; };
+  st.click = b => { if (b.dataset.pp === id) { $(`#${id}-file`).click(); return true; } if (b.dataset.ppw) { st.who.has(b.dataset.ppw) ? st.who.delete(b.dataset.ppw) : st.who.add(b.dataset.ppw); b.classList.toggle('on'); return true; } if (b.dataset.pprm != null) { const k = +b.dataset.pprm; st.list.splice(k, 1); if (st.coverI === k) st.coverI = st.autoCover && st.list.length ? 0 : null; else if (st.coverI > k) st.coverI--; st.draw(); return true; } if (b.dataset.ppcv != null) { st.coverI = +b.dataset.ppcv; st.draw(); return true; } return false; };
   return st;
 }
 async function openTripForm() {                                     // 여행 추가: 간단 기록 (옛날 여행은 일정 없이 기간·동네·사진만)
@@ -2536,10 +2542,10 @@ async function openTripForm() {                                     // 여행 �
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><div class="ti-f"><label>나라</label><select id="tf-cc">${countryOptions('KR')}</select></div><div class="ti-f"><label>도시·동네</label><input id="tf-city" placeholder="예: 피렌체 · 강릉 경포"></div></div>
     <div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="btn-line" data-act="tffind" style="flex:none;padding:0 14px">📍 위치 찾기</button><p class="cap3" id="tf-pos" style="margin:auto 0">지도에 표시할 위치 (선택)</p></div><div id="tf-hits" class="lv-hits"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px"><div class="ti-f"><label>시작일</label><input id="tf-s" type="date" max="${today()}"></div><div class="ti-f"><label>마지막 날</label><input id="tf-e" type="date"></div></div>
-    <div class="vsec" style="margin-top:14px"><h4>사진 <span class="cap3">촬영일 자동 · 장수 제한 없음</span></h4>${photoPickerHtml('tfp')}</div>
+    <div class="vsec" style="margin-top:14px"><h4>사진 <span class="cap3">촬영일 자동 · 장수 제한 없음</span></h4>${photoPickerHtml('tfp', '★ 누른 사진 = 여행 표지 (안 고르면 첫 장)')}</div>
     <div class="vsec"><h4>한 줄 메모 <span class="cap3">선택</span></h4><input id="tf-memo" class="vmemo" style="min-height:0;height:40px" placeholder="예: 비 오던 두오모 앞"></div></div>
     <div class="vf-foot"><button class="btn-pri" data-act="tfsave">여행 저장</button></div></div>`);
-  const pp = bindPhotoPicker('tfp');
+  const pp = bindPhotoPicker('tfp'); pp.cover = true; pp.autoCover = true;
   $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return; if (pp.click(b)) return; const act = b.dataset.act;
     if (act === 'back') return closeSheet();
     if (act === 'tffind') { const q = $('#tf-city').value.trim(); if (!q) return toast('도시·동네를 먼저 입력하세요'); const box = $('#tf-hits'); box.innerHTML = '<div class="help">찾는 중…</div>'; const hits = await addrSearch(q, $('#tf-cc').value); S.tfHits = hits;
@@ -2549,19 +2555,19 @@ async function openTripForm() {                                     // 여행 �
       const city = niceName($('#tf-city').value), s0 = $('#tf-s').value, e0 = $('#tf-e').value || s0; if (!city) return toast('도시·동네를 입력하세요'); if (!s0) return toast('시작일을 넣어주세요 (대략이라도)');
       $$('[data-act=tfsave]').forEach(x => { x.disabled = true; });
       const t = { id: 'trip' + uid(''), title: niceName($('#tf-title').value) || `${s0.slice(0, 4)} ${city}`, city, country: $('#tf-cc').value, year: +s0.slice(0, 4), start: s0, end: e0 < s0 ? s0 : e0, memo: $('#tf-memo').value.trim() || null, items: [], ...(loc.lat != null ? loc : {}) };
-      t.photos = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tfp-gr').checked, memo: t.title, onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } });
+      t.photos = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tfp-gr').checked, memo: t.title, onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } }); if (pp.coverI != null && t.photos[pp.coverI]) t.coverPhoto = t.photos[pp.coverI].path;   /* 11/07 */
       S.db.trips.push(t); markDirty(); closeSheet(); S.trip = t; S.tripDay = 0; showView('trips'); renderTrips(); tripTitle(t); toast('여행 저장');
     }
   };
 }
 function openTripPhotos(t) {                                         // 여행에 사진 추가
-  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>${esc(tripName(t))} 사진 추가</b><button class="lnk pri" data-act="tpsave">저장</button></div><div class="vf-scroll" style="padding:16px">${photoPickerHtml('tpp')}</div>
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">취소</button><b>${esc(tripName(t))} 사진 추가</b><button class="lnk pri" data-act="tpsave">저장</button></div><div class="vf-scroll" style="padding:16px">${photoPickerHtml('tpp', '★ 누르면 그 사진이 여행 표지 (안 누르면 지금 표지 그대로)')}</div>
     <div class="vf-foot"><button class="btn-pri" data-act="tpsave">사진 저장</button></div></div>`);
-  const pp = bindPhotoPicker('tpp');
+  const pp = bindPhotoPicker('tpp'); pp.cover = true;
   $('#sheet-inner').onclick = async e => { const b = e.target.closest('button'); if (!b) return; if (pp.click(b)) return;
     if (b.dataset.act === 'back') { closeSheet(); return; }
     if (b.dataset.act === 'tpsave') { if (!pp.list.length) return toast('사진을 골라주세요'); $$('[data-act=tpsave]').forEach(x => { x.disabled = true; });
-      const add = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tpp-gr').checked, memo: t.title || tripCity(t), onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } });
+      const add = await uploadPhotos(pp.list, `trips/${t.id}`, { who: [...pp.who], toGrowth: $('#tpp-gr').checked, memo: t.title || tripCity(t), onStep: (i, n) => { $('.vf-foot .btn-pri').textContent = `사진 올리는 중 ${i}/${n}`; } }); if (pp.coverI != null && add[pp.coverI]) t.coverPhoto = add[pp.coverI].path;   /* 11/07 */
       t.photos = [...(t.photos || []), ...add].sort((a, c) => (a.date || '').localeCompare(c.date || '')); markDirty(); closeSheet(); renderTrips(); toast(`사진 ${add.length}장 추가`); }
   };
 }
@@ -2799,6 +2805,8 @@ function renderSettings() {
     <div class="grp"><button class="st-fam" data-act="family">${fam.map((n, i) => `<span class="fc" style="background:${FAM_COLORS[i % FAM_COLORS.length]}">${esc(n)}</span>`).join('')}<span class="cap st-more">${f.kids?.length ? `아이 ${f.kids.join('·')}세 · ` : ''}편집 ›</span></button></div>
     <div class="gt">거점</div>
     <div class="grp">${S.db.bases.map(b => `<button data-base="${b.id}">${baseIco(b)}<span class="st-name">${esc(b.name)}<span class="cap3"> · ${esc(baseSub(b))}</span></span>${S.base?.id === b.id ? '<span class="ok">사용 중</span>' : ''}<span class="st-edit rw" data-bedit="${b.id}">수정</span></button>`).join('')}<button class="st-add rw" data-act="baseadd">+ 거점 추가</button></div>
+    <div class="gt">도움말</div>
+    <div class="grp"><button data-act="howto"><span style="flex:1;text-align:left">📖 사진·검색 쓰는 법<p class="cap3">대표 사진 · 성장 앨범 넣기 · 새 장소 찾기 — 한 장으로</p></span><span class="cap3">›</span></button></div>
     <div class="gt">사진 · API 키</div>
     <div class="grp">
       <button data-key="tourapi"><span style="flex:1;text-align:left">한국관광공사 TourAPI<p class="cap3">대표사진 ${withPhoto}/${spots.length} · 키는 PC에서만</p></span>${st(withPhoto > 0, '수집됨', '미수집')}</button>
@@ -2825,6 +2833,7 @@ function renderSettings() {
     if (b.dataset.key) { b.dataset.key === 'tourapi' ? openTourApiInfo() : openKeySheet(b.dataset.key); return; }
     if (b.dataset.base) { setBase(b.dataset.base); renderSettings(); return; }
     if (act === 'family') openFamilyEdit();
+    if (act === 'howto') openHowto();   /* 11/07 */
     if (act === 'baseadd') openBaseForm();
     if (act === 'heropick') return openHeroPicker();
     if (act === 'tone') return openTonePicker();
@@ -2920,14 +2929,10 @@ function openGrowth(opts) {
     if (b.dataset.act === 'grmusic') return openGrowthMusic(() => openGrowth({ page: true, gwho: who }));
     if (b.dataset.act === 'grbirth') return isRO() ? goToken() : openGrowthBirth();
     if (b.dataset.gr) { const list = growthEnts(who), k = list.findIndex(g => g.id === b.dataset.gr);
-      openLightbox(list.map(g => photoUrl(g.photo)), k, who || '성장 앨범');
-      const lb = $('#lb'); if (lb && !isRO()) {
-        const curG = () => { const src = lb.querySelector('img')?.getAttribute('src'); return list.find(g => photoUrl(g.photo) === src) || list[k]; };   /* 넘겨 본 사진 기준 */
-        const so = document.createElement('button'); so.className = 'lb-gr lb-soc'; const sc = g0 => { const a = socOf('g:' + g0.id); return `♡ ${a.filter(x => x.k === 'l').length} · 💬 ${a.filter(x => x.k === 'c').length}`; }; so.textContent = sc(curG());
-        so.onclick = ev => { ev.stopPropagation(); const g = curG(); lb.remove(); openGrowthPost(g, () => openGrowth({ page: true, gwho: who })); }; lb.appendChild(so);
-        const ed = document.createElement('button'); ed.className = 'lb-gr lb-edit'; ed.textContent = '✎ 편집';   /* 11/06 날짜·사람·메모·빼기 한 곳에서 */
-        ed.onclick = ev => { ev.stopPropagation(); const g = curG(); lb.remove(); openGrowthEdit(g, () => openGrowth({ page: true, gwho: who })); };
-        lb.appendChild(ed); }
+      const sc = g0 => { const a = socOf('g:' + g0.id); return `♡ ${a.filter(x => x.k === 'l').length} · 💬 ${a.filter(x => x.k === 'c').length}`; }, back = () => openGrowth({ page: true, gwho: who });   /* 11/07 공통 버튼 줄 */
+      openLightbox(list.map(g => photoUrl(g.photo)), k, who || '성장 앨범', { raws: list.map(g => g.photo), dates: list.map(g => g.date), growth: false,
+        extra: [{ label: j => sc(list[j]), click: j => { $('#lb')?.remove(); openGrowthPost(list[j], back); } }, ...(isRO() ? [] : [{ label: () => '✎ 편집', click: j => { $('#lb')?.remove(); openGrowthEdit(list[j], back); } }])],
+        delLabel: '앨범에서 빼기', del: j => { const g = list[j]; S.db.growth = (S.db.growth || []).filter(x => x.id !== g.id); list.splice(j, 1); markDirty(); setTimeout(back, 0); } });
       return; }
   };
 }
@@ -3056,7 +3061,7 @@ function openJournal(opts = {}) {
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
     if (b.dataset.go) return openDetail(b.dataset.go);
     if (b.dataset.addlog) return openVisitForm(placeById(b.dataset.addlog));
-    if (b.dataset.lb != null) { const en = ents[+b.dataset.lb]; return openLightbox(visitPhotos(en.v), +(b.dataset.k || 0), `${en.p.name} · ${(en.v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(en.v), date: en.v.date, who: en.v.who }); }
+    if (b.dataset.lb != null) { const en = ents[+b.dataset.lb]; return openLightbox(visitPhotos(en.v), +(b.dataset.k || 0), `${en.p.name} · ${(en.v.date || '').replace(/-/g, '.')}`, visitLbMeta(en.p, en.v)); }
     if (b.dataset.edit != null) { const en = ents[+b.dataset.edit]; return openVisitForm(en.p, en.v, () => { if (opts.page) { closeSheet(); openJournal(opts); } else openJournal(opts); }); }
     if (b.dataset.act === 'share') shareLink('j', 'all', '우리 가족 기록');
   };
@@ -3406,7 +3411,7 @@ async function drawTravelCard(mode) {
         locTitle(big, [(h.country || 'KR') === 'KR' ? h.name : regionEn(h.country), livedYears(h)].filter(Boolean).join(' · '), fmtCoord(h)); }); }); }
   map.getContainer().addEventListener('click', e => {
     const lb = e.target.closest('[data-lvlb]'), le = e.target.closest('[data-lvedit]');
-    if (lb) { const h = (S.db.lived || []).find(x => x.id === lb.dataset.lvlb); const ps = (h.photos || []).filter(x => photoUrl(x.path)); return openLightbox(ps.map(x => photoUrl(x.path)), +lb.dataset.k, `⌂ ${h.name}`, { raws: ps.map(x => x.path), date: null }); }
+    if (lb) { const h = (S.db.lived || []).find(x => x.id === lb.dataset.lvlb); const ps = (h.photos || []).filter(x => photoUrl(x.path)); return openLightbox(ps.map(x => photoUrl(x.path)), +lb.dataset.k, `⌂ ${h.name}`, { raws: ps.map(x => x.path), dates: ps.map(x => x.date || null), who: lvPre(h), covers: [{ label: '집 대표', now: () => (h.photos || [])[0]?.path, set: ph => { const k = h.photos.findIndex(x => x.path === ph); h.photos.unshift(...h.photos.splice(k, 1)); markDirty(); toast('집 대표 사진으로 지정'); } }], delLabel: '집 사진에서 빼기', del: k => { const ph = ps[k].path; h.photos = h.photos.filter(x => x.path !== ph); ps.splice(k, 1); markDirty(); } }); }
     if (le) return isRO() ? goToken() : openLivedForm((S.db.lived || []).find(x => x.id === le.dataset.lvedit));
     const b = e.target.closest('[data-tmgo],[data-tmpost]'); if (!b) return; if (b.dataset.tmgo) openDetail(b.dataset.tmgo); else openJournal({ page: true, post: b.dataset.tmpost }); });
   const wpts = mode === 'world' ? [[37.58, 127.21], ...[...s.done, ...s.plan].flatMap(o => o.trips.filter(x => x.loc).map(x => [x.loc.lat, x.loc.lng])), ...livedSorted().filter(hasCoord).map(h => [h.lat, h.lng])] : [];   // 여행지 + 살았던 곳 모두 보이게
@@ -3752,23 +3757,46 @@ function growthPlay(who, fromY) {                                   // 연도순
   draw(); tick();
 }
 function openVisitGrowth(v) {                                       // 11/07 방문 기록 → 성장 앨범 (사진 여러 장 한 번에 · 날짜는 기록 날짜)
-  if (isRO()) return goToken(); if (!v) return;
-  const raws = (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []).filter(x => x && !/^local:/.test(x)); if (!raws.length) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
-  const by = (S.db.meta.family || {}).birthYear || {}, y = +(v.date || '').slice(0, 4), fam = familyNames(), born = n => !by[n] || !y || by[n] <= y;
-  const sel = new Set(((v.who || []).filter(n => fam.includes(n)).length ? v.who : coreFamily()).filter(n => fam.includes(n) && born(n)));
+  if (!v) return; openGrowthPicker({ raws: (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []), date: v.date, who: v.who });
+}
+function openHowto() {                                              // 11/07 사진·검색 쓰는 법 (한 장)
+  const R = (a, b) => `<tr><th>${a}</th><td>${b}</td></tr>`;
+  openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">‹ 설정</button><b>사진·검색 쓰는 법</b><span></span></div><div class="vf-scroll howto" style="padding:16px">
+    <h4>📷 사진을 누르면 — 어디서나 같은 버튼 줄</h4>
+    <div class="ht-bar"><span class="a">★ 대표로</span><span>🌱 성장앨범</span><span>⬇ 저장</span><span class="d">🗑 빼기</span></div>
+    <table>${R('★ 대표로', '방문 기록 → <b>장소 대표</b> · <b>여행 표지</b>(여행에 묶인 기록) / 여행 → <b>여행 표지</b> / 살았던 곳 → <b>집 대표</b>')}${R('🌱 성장앨범', '지금 사진이 골라진 채로 넣기 창이 열림 · 다른 사진도 같이 고를 수 있음')}${R('🗑 빼기', '그 목록에서만 빠짐 · 사진 파일은 저장소에 남음')}</table>
+    <h4>🌱 성장 앨범에 넣는 법 (창은 하나)</h4>
+    <table>${R('여행·장소 사진', '방문 기록 옆 <b>🌱 성장앨범</b> → 그 기록 사진 전부 한 번에 (날짜 = 기록 날짜)')}${R('사진 한두 장', '사진 크게 보기 → <b>🌱 성장앨범</b>')}${R('그 밖의 사진', '성장 앨범 → <b>＋ 사진 올리기</b>')}${R('사람', '기본 = ' + esc(coreFamily().join('·')) + ' · 친척은 그때그때 누르기')}</table>
+    <h4>⭐ 표지 고르기</h4>
+    <table>${R('사진 올릴 때', '사진 칸의 <b>★</b> 누르기 → 「표지」 (안 고르면 첫 장)')}${R('올린 뒤에', '사진 크게 보기 → <b>★ 대표로</b>')}</table>
+    <h4>🔍 찾기</h4>
+    <table>${R('우리 기록', '검색어를 치면 바로 목록에 걸러짐')}${R('새 장소', '목록 맨 위 <b>🌍 새로 찾기</b> 또는 <b>엔터</b> → 국내(카카오) + 전 세계')}${R('이미 저장된 곳', '새로 찾기 결과에 <b>저장됨 ✓ 열기</b> → 누르면 그 장소로 (중복 저장 안 됨)')}</table>
+    <h4>▶ 성장 앨범 재생</h4>
+    <table>${R('시작', '<b>▶ 연도순 재생</b> → 시작 연도 · 전체/하이라이트 · 속도 고르기')}${R('재생 중', '‹ › 넘기기 · ❚❚ 멈춤 · ×1/×1.7/×3 속도 · 🔊 음악')}</table>
+  </div></div>`);
+  $('#sheet-inner').onclick = e => { if (e.target.closest('[data-act=back]')) { closeSheet(); } };
+}
+function openGrowthPicker(o) {                                      // 11/07 성장 앨범 넣기 창 하나로 통일 — o: { raws, date, dates[], who, pre[] (미리 고를 사진, 없으면 전부) }
+  if (isRO()) return goToken();
+  const all = (o.raws || []).map((ph, k) => ({ ph, d: o.dates?.[k] || o.date || null })).filter(x => x.ph && !/^local:/.test(x.ph)); if (!all.length) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
+  const raws = all.map(x => x.ph), dOf = ph => all.find(x => x.ph === ph)?.d || null;
+  const by = (S.db.meta.family || {}).birthYear || {}, fam = familyNames(), pickY = () => Math.min(...[...pick].map(ph => +(dOf(ph) || '').slice(0, 4) || 9999)), born = n => { const y = pickY(); return !by[n] || y === 9999 || by[n] <= y; };
+  const sel = new Set(((o.who || []).filter(n => fam.includes(n)).length ? o.who : coreFamily()).filter(n => fam.includes(n)));
   const inGr = ph => new Set((S.db.growth || []).filter(g => g.photo === ph).flatMap(g => g.who || []));
   const done = ph => sel.size && [...sel].every(n => inGr(ph).has(n));
-  const pick = new Set(raws.filter(ph => !done(ph)));
+  const pick = new Set(o.pre?.length ? o.pre.filter(ph => raws.includes(ph)) : raws.filter(ph => !done(ph)));
   document.querySelector('.gy-pop')?.remove(); const el = document.createElement('div'); el.className = 'gy-pop'; document.body.appendChild(el);
-  const draw = () => { el.innerHTML = `<div class="gy-box vg-box" role="dialog" aria-label="성장 앨범에 넣기"><b>🌱 성장 앨범에 넣기</b><p class="cap3">${esc((v.date || '날짜 없음').replace(/-/g, '.'))} · 기록 날짜로 들어가요 · 이미 넣은 사진은 ✓</p>
+  const ds = [...new Set(all.map(x => x.d).filter(Boolean))].sort(), dTxt = ds.length ? ds[0].replace(/-/g, '.') + (ds.length > 1 ? ' ~ ' + ds[ds.length - 1].replace(/-/g, '.') : '') : '날짜 없음';
+  const draw = () => { [...sel].forEach(n => { if (!born(n)) sel.delete(n); });
+    el.innerHTML = `<div class="gy-box vg-box" role="dialog" aria-label="성장 앨범에 넣기"><b>🌱 성장 앨범에 넣기</b><p class="cap3">${esc(dTxt)} · 사진 날짜로 들어가요 · 이미 넣은 사진은 ✓</p>
     <div class="chips vg-who">${fam.map(n => `<button type="button" class="chip${sel.has(n) ? ' on' : ''}" data-vgn="${esc(n)}" ${born(n) ? '' : 'disabled'}>${esc(n)}${born(n) ? '' : ' <small>출생 전</small>'}</button>`).join('')}</div>
-    <div class="vg-bar"><span class="cap3">사진 ${pick.size}/${raws.length}장 선택</span><button type="button" class="lnk" data-vga="1">${pick.size === raws.length ? '전체 해제' : '전체 선택'}</button></div>
+    <div class="vg-bar"><span class="cap3">사진 ${pick.size}/${raws.length}장 선택</span>${raws.length > 1 ? `<button type="button" class="lnk" data-vga="1">${pick.size === raws.length ? '전체 해제' : '전체 선택'}</button>` : ''}</div>
     <div class="vg-grid">${raws.map((ph, k) => `<button type="button" class="${pick.has(ph) ? 'on' : ''}" data-vgp="${k}"><img src="${photoUrl(ph)}" alt="" loading="lazy">${done(ph) ? '<em>✓</em>' : ''}<i></i></button>`).join('')}</div>
     <div class="gy-btns"><button type="button" data-vgx="1">취소</button><button type="button" class="pri" data-vgok="1" ${sel.size && pick.size ? '' : 'disabled'}>🌱 ${pick.size}장 넣기</button></div></div>`; };
   draw();
-  const close = () => { el.remove(); document.removeEventListener('keydown', key); }, key = e => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', key);
-  el.onclick = e => { const b = e.target.closest('button'); if (e.target === el) return close(); if (!b || b.disabled) return;
+  const close = () => { el.remove(); document.removeEventListener('keydown', key, true); }, key = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  document.addEventListener('keydown', key, true);
+  el.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (e.target === el) return close(); if (!b || b.disabled) return;
     if (b.dataset.vgn) { const n = b.dataset.vgn; sel.has(n) ? sel.delete(n) : sel.add(n); return draw(); }
     if (b.dataset.vgp) { const ph = raws[+b.dataset.vgp]; pick.has(ph) ? pick.delete(ph) : pick.add(ph); return draw(); }
     if (b.dataset.vga) { if (pick.size === raws.length) pick.clear(); else raws.forEach(ph => pick.add(ph)); return draw(); }
@@ -3776,24 +3804,8 @@ function openVisitGrowth(v) {                                       // 11/07 방
     if (b.dataset.vgok) { S.db.growth ||= []; let add = 0, upd = 0;
       for (const ph of raws.filter(x => pick.has(x))) { const g = S.db.growth.find(x => x.photo === ph);
         if (g) { const before = (g.who || []).length; g.who = [...new Set([...(g.who || []), ...sel])]; if (g.who.length > before) upd++; }
-        else { S.db.growth.push({ id: uid('g'), who: [...sel], date: v.date || null, photo: ph, memo: null }); add++; } }
+        else { S.db.growth.push({ id: uid('g'), who: [...sel], date: dOf(ph), photo: ph, memo: null }); add++; } }
       markDirty(); toast(`🌱 ${[...sel].join('·')} · ${add}장 추가${upd ? ` · ${upd}장 사람 추가` : ''}`, 3000); close(); } };
-}
-function growthAddFromVisit(path, date, anchor, who0) {   /* 방문 기록 사진 → 성장 앨범 (같은 파일 재사용) · 11/06 여러 명 고르기 창(화면 안에 뜸) */
-  if (isRO()) return goToken(); if (!path || /^local:/.test(path)) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
-  const host = anchor?.closest('#lb') || document.body; host.querySelector('.ga-pop')?.remove();
-  const by = (S.db.meta.family || {}).birthYear || {}, y = +(date || '').slice(0, 4), fam = familyNames();
-  const already = new Set((S.db.growth || []).filter(g => g.photo === path).flatMap(g => g.who || []));
-  const sel = new Set((who0 && who0.length ? who0 : coreFamily()).filter(n => fam.includes(n) && !already.has(n) && (!by[n] || !y || by[n] <= y)));
-  const pop = document.createElement('div'); pop.className = 'ga-pop';
-  const draw = () => { pop.innerHTML = `<b>누가 나온 사진인가요?</b><p class="cap3">${date ? esc(date.replace(/-/g, '.')) + ' · ' : ''}여러 명 고를 수 있어요</p>
-    <div class="chips">${fam.map(n => { const born = !by[n] || !y || by[n] <= y, has = already.has(n); return `<button type="button" class="chip${sel.has(n) ? ' on' : ''}" data-gan="${esc(n)}" ${has || !born ? 'disabled' : ''}>${esc(n)}${has ? ' ✓' : !born ? ' <small>출생 전</small>' : ''}</button>`; }).join('')}</div>
-    <div class="ga-btns"><button type="button" data-gax="1">취소</button><button type="button" class="pri" data-gaok="1" ${sel.size ? '' : 'disabled'}>🌱 ${sel.size ? sel.size + '명 ' : ''}성장 앨범에 넣기</button></div>`; };
-  draw(); host.appendChild(pop);
-  pop.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (!b || b.disabled) return;
-    if (b.dataset.gan) { sel.has(b.dataset.gan) ? sel.delete(b.dataset.gan) : sel.add(b.dataset.gan); return draw(); }
-    if (b.dataset.gax) return pop.remove();
-    if (b.dataset.gaok) { S.db.growth ||= []; S.db.growth.push({ id: uid('g'), who: [...sel], date: date || null, photo: path, memo: null }); markDirty(); toast(`🌱 ${[...sel].join('·')} 성장 앨범에 추가`); pop.remove(); } };
 }
 /* ---------------- 애니메이션 · 장소 타이틀 (11/04) — 「동작 줄이기」 설정이면 모두 끔 ---------------- */
 const PLANE_D = 'M2 11 L10 10 L14 3 L16 3 L13.5 10 L20 10 L22 7.5 L23.5 7.5 L22.5 12 L23.5 16.5 L22 16.5 L20 14 L13.5 14 L16 21 L14 21 L10 14 L2 13 Z';   // 비행기 그림 (원본은 머리가 왼쪽 → 쓸 때 좌우 뒤집음) — 윈도우 이모지(파란 네모) 대신 직접 그림
@@ -3905,14 +3917,35 @@ function fxObserve() {                                              // 카드가
   mark(document); new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.nodeType === 1 && (n.matches?.(FX_SEL) ? mark(n.parentNode) : mark(n))))).observe(document.body, { childList: true, subtree: true });
 }
 function visitRaw(v) { return (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []).filter(x => photoUrl(x)); }
-function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크게 보기 (좌우 넘김 · 스와이프) · meta: { raws, date } 있으면 「성장 앨범」 버튼
-  document.getElementById('lb')?.remove(); if (!srcs.length) return;
+function openLightbox(srcs, i = 0, cap = '', meta = null) {        // 사진 크게 보기 (좌우 넘김 · 스와이프) · 11/07 어디서 열어도 같은 버튼 줄
+  /* meta: { raws[], date | dates[], who, covers: [{ label, now: () => path, set: path => {} }], growth (기본 true), extra: [{ label: i => '', click: i => {} }], del: i => bool, delLabel } */
+  document.getElementById('lb')?.remove(); if (!srcs.length) return; meta = meta || {};
   const el = document.createElement('div'); el.id = 'lb'; el.className = 'lb'; document.body.appendChild(el);
-  const draw = () => { el.innerHTML = `<img src="${srcs[i]}" alt=""><button class="x" data-lbx="1">✕</button>${srcs.length > 1 ? `<button class="pv" data-lbp="-1">‹</button><button class="nx" data-lbp="1">›</button>` : ''}<p class="cap">${esc(cap)}${srcs.length > 1 ? ` · ${i + 1}/${srcs.length}` : ''}</p>${meta?.raws?.[i] ? `<div class="lb-acts">${meta.cover ? `<button class="lb-gr" data-lbcv="1">${meta.coverNow === meta.raws[i] ? '✓ 지금 표지' : '★ 여행 표지로'}</button>` : ''}<button class="lb-gr" data-lbg="1">🌱 성장 앨범에 넣기</button></div>` : ''}`; };
+  const rw = !isRO(), raw = () => meta.raws?.[i], dt = () => meta.dates?.[i] || meta.date || null;
+  const draw = () => { if (!srcs.length) return el.remove(); i = Math.min(i, srcs.length - 1);
+    const covers = rw && raw() ? (meta.covers || []).filter(Boolean) : [], gr = rw && raw() && meta.growth !== false && !/^local:/.test(raw());
+    el.innerHTML = `<img src="${srcs[i]}" alt=""><button class="x" data-lbx="1">✕</button>${srcs.length > 1 ? `<button class="pv" data-lbp="-1">‹</button><button class="nx" data-lbp="1">›</button>` : ''}<p class="cap">${esc(cap)}${srcs.length > 1 ? ` · ${i + 1}/${srcs.length}` : ''}</p>
+      <div class="lb-acts">${covers.map((c, k) => { const on = c.now() === raw(); return `<button class="lb-gr${on ? ' on' : ''}" data-lbcv="${k}" ${on ? 'disabled' : ''}>${on ? '✓' : '★'} ${esc(c.label)}${on ? '' : '로'}</button>`; }).join('')}${gr ? '<button class="lb-gr" data-lbg="1">🌱 성장앨범</button>' : ''}${(meta.extra || []).map((x, k) => `<button class="lb-gr" data-lbe="${k}">${esc(x.label(i))}</button>`).join('')}<button class="lb-gr" data-lbdl="1">⬇ 저장</button>${rw && meta.del ? `<button class="lb-gr lb-del" data-lbdel="1">🗑 ${esc(meta.delLabel || '빼기')}</button>` : ''}</div>`; };
+  const save = async () => { const u = srcs[i], name = `jjtrip_${(dt() || cap || 'photo').replace(/[^\w가-힣.-]+/g, '_')}_${i + 1}.jpg`;
+    try { const bl = await (await fetch(u)).blob(), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); } catch { window.open(u, '_blank'); } };
   draw();
-  el.onclick = e => { const b = e.target.closest('button'); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.lbg) return growthAddFromVisit(meta.raws[i], meta.date, b, meta.who); if (b.dataset.lbcv) { meta.cover(meta.raws[i]); meta.coverNow = meta.raws[i]; return draw(); } if (b.dataset.lbx) el.remove(); if (b.dataset.lbp) { i = (i + +b.dataset.lbp + srcs.length) % srcs.length; draw(); } };
+  el.onclick = async e => { const b = e.target.closest('button'); if (!b) { if (e.target === el) el.remove(); return; }
+    if (b.dataset.lbg) return openGrowthPicker({ raws: meta.raws, dates: meta.dates, date: meta.date, who: meta.who, pre: [raw()] });   /* 11/07 넣기 창 하나로 */
+    if (b.dataset.lbcv != null) { meta.covers[+b.dataset.lbcv].set(raw()); return draw(); }
+    if (b.dataset.lbe != null) return meta.extra[+b.dataset.lbe].click(i);
+    if (b.dataset.lbdl) return save();
+    if (b.dataset.lbdel) { if (!confirm(`이 사진을 ${meta.delLabel || '빼기'} 할까요?\n(사진 파일은 저장소에 남아 있어요)`)) return; if (meta.del(i) !== false) { srcs.splice(i, 1); meta.raws?.splice(i, 1); meta.dates?.splice(i, 1); toast('뺐어요'); draw(); } return; }
+    if (b.dataset.lbx) el.remove(); if (b.dataset.lbp) { i = (i + +b.dataset.lbp + srcs.length) % srcs.length; draw(); } };
   let x0 = null; el.ontouchstart = e => { x0 = e.touches[0].clientX; }; el.ontouchend = e => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 50 && srcs.length > 1) { i = (i + (dx < 0 ? 1 : -1) + srcs.length) % srcs.length; draw(); } x0 = null; };
   document.addEventListener('keydown', function k(ev) { if (!document.getElementById('lb')) return document.removeEventListener('keydown', k); if (ev.key === 'Escape') el.remove(); if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { i = (i + (ev.key === 'ArrowRight' ? 1 : -1) + srcs.length) % srcs.length; draw(); } });
+}
+/* 11/07 사진 크게 보기 공통 meta — 방문 기록 */
+function visitLbMeta(p, v, after) {
+  const t = v.trip && S.db.trips.find(x => x.id === v.trip), raws = visitRaw(v);
+  return { raws, date: v.date, who: v.who,
+    covers: [{ label: '장소 대표', now: () => p.coverPhoto || familyPhotoRaw(p), set: ph => { p.coverPhoto = ph; markDirty(); after?.(); toast('장소 대표 사진으로 지정'); } },
+      t && { label: '여행 표지', now: () => t.coverPhoto, set: ph => { t.coverPhoto = ph; markDirty(); toast(`「${tripName(t)}」 여행 표지로 지정`); } }],
+    delLabel: '기록에서 빼기', del: k => { const ph = raws[k]; v.photos = visitRaw(v).filter(x => x !== ph); v.photo = v.photos[0] || null; if (p.coverPhoto === ph) delete p.coverPhoto; markDirty(); after?.(); } };
 }
 
 /* ---------------- 뷰 전환 ---------------- */
@@ -3999,7 +4032,7 @@ function bindOnce() {
   $$('#q, #q-pc, #q-hdr').forEach(i => { if (!i) return; i.setAttribute('enterkeyhint', 'search'); i.addEventListener('keydown', e => {   /* 11/07 결과 없을 때 엔터 = 국내·전 세계 새로 찾기 */
     if (e.key !== 'Enter') return; e.preventDefault();
     const run = () => { if (Date.now() - (S._qEnter || 0) < 600) return; S._qEnter = Date.now(); S.q = i.value; if (!S.q.trim()) return; $$('#q, #q-pc, #q-hdr').forEach(x => { if (x && x !== i) x.value = S.q; });
-      if (S.view !== 'explore') showView('explore'); renderList(); const b = $('.empty11 [data-act=newplace]'); if (b) { i.blur(); b.click(); } };
+      if (S.view !== 'explore') showView('explore'); renderList(); const b = $('#list [data-act=newplace]'); if (b) { i.blur(); b.click(); } };
     if (e.isComposing || e.keyCode === 229) { i.addEventListener('compositionend', () => setTimeout(run, 0), { once: true }); setTimeout(run, 120); return; }   // 한글 조합 중 엔터도 한 번에
     run();
   }); });
@@ -4010,7 +4043,7 @@ function bindOnce() {
   $('#count-sub').onclick = () => { const seq = ['dist', 'rating', 'reviews', 'name']; S.sort = seq[(seq.indexOf(S.sort) + 1) % seq.length]; $('#sort').value = S.sort; LS.set('sort', S.sort); renderList(); };
   $('#f-region').onclick = e => { const b = e.target.closest('button'); if (!b) return; S.region = b.dataset.v; LS.set('region', S.region); renderRegionChips(); renderTagChips(); const base = S.db.bases.find(x => x.default_for === S.region); if (base) setBase(base.id, true); renderList(); fitToVisible(); };
   $('#f-season').onclick = e => { const b = e.target.closest('button[data-v]'); if (!b || b.closest('#f-tags')) return; const v = b.dataset.v; S.flags.has(v) ? S.flags.delete(v) : S.flags.add(v); b.classList.toggle('on'); renderList(); };
-  $('#list').onclick = e => { const eb = e.target.closest('.empty11 button'); if (eb) return emptyAct(eb.dataset.act); const r = e.target.closest('.row'); if (!r) return; const p = placeById(r.dataset.id); if (window.innerWidth > 860 && hasCoord(p)) { map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)); selectOnMap(r.dataset.id); } else openDetail(r.dataset.id); };
+  $('#list').onclick = e => { const eb = e.target.closest('.empty11 button, .newfind button'); if (eb) return emptyAct(eb.dataset.act); const r = e.target.closest('.row'); if (!r) return; const p = placeById(r.dataset.id); if (window.innerWidth > 860 && hasCoord(p)) { map.setView([p.lat, p.lng], Math.max(map.getZoom(), 12)); selectOnMap(r.dataset.id); } else openDetail(r.dataset.id); };
   // 바깥(어두운 영역) 클릭으로 닫기: 누른 곳·뗀 곳이 모두 바깥일 때만 (글자 드래그하다 바깥에서 떼면 안 닫힘) + 입력 중이면 확인
   let downBg = false;
   $('#sheet').addEventListener('pointerdown', e => { downBg = e.target.id === 'sheet'; });
@@ -4047,7 +4080,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
