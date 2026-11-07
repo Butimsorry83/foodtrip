@@ -1398,3 +1398,81 @@ body.tm-full-on { overflow: hidden; }
 .tpo-nav button { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--text-1); font-size: 18px; cursor: pointer; }
 .tpo-nav span { font-size: calc(12px * var(--fz, 1)); color: var(--text-3); }
 .jr-tile.tt::after { content: '여행'; position: absolute; left: 8px; top: 6px; font: 700 calc(10px * var(--fz, 1)) var(--font-num, inherit); color: #fff; background: rgba(0,0,0,.45); padding: 2px 6px; border-radius: 6px; }
+
+/* 11/08 음식 탭 = 발자취와 같은 모양 */
+#view-food { background: var(--bg-subtle); } #view-food .wrap { padding: 0; max-width: 760px; margin: 0 auto; height: 100%; } #view-food .jr-sheet { min-height: 100%; } #view-food .jr-feed { overflow: visible; }
+@media (min-width: 861px) {
+  #view-food .wrap { max-width: 1440px; padding: 0 48px; }
+  #view-food .jr-sheet .hd, #view-food .jr-chips { padding-left: 24px; padding-right: 24px; }
+  #view-food .jr-feed { padding: 8px 24px 40px; }
+  #view-food .jr-grid { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  #view-food .jr-tile .ov b { font-size: calc(16px * var(--fz, 1)); } #view-food .jr-tile .ov small { font-size: calc(12px * var(--fz, 1)); }
+  #view-food .jr-nolog { display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 24px; padding: 4px 18px; }
+  #view-food .jr-nolog .row-nl { border-top: 0; border-bottom: 1px solid var(--line); }
+  #view-food .jr-card, #view-food .jr-month:not(:has(+ .jr-nolog)) { max-width: 760px; margin-left: auto; margin-right: auto; }
+  #view-food .jr-sheet.post .jr-month { display: none; }
+  #view-food .jr-sheet.post .jr-feed { padding-top: 20px; }
+  #view-food .jr-sheet.post .jr-card { max-width: none; display: grid; grid-template-columns: minmax(0, 1fr) 400px; min-height: calc(100vh - 260px); }
+}
+@media (max-width: 860px) { body.at-food #top { display: none; } }
+#set-btn { display: flex; align-items: center; justify-content: center; } #set-btn.on { background: rgba(255,255,255,.3); }
+/* 11/08 ▶ 준준트립 */
+.tm-jjb { height: 34px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--accent); color: #3a2a00; font-weight: 800; font-size: calc(13px * var(--fz, 1)); cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.12); white-space: nowrap; }
+.tm-jjb.on { background: var(--hero); color: #fff; }
+.jj-mk { overflow: visible; }
+.jj-hop { display: block; width: 56px; height: 40px; filter: drop-shadow(0 3px 4px rgba(0,0,0,.35)); }
+.jj-hop img { width: 56px; height: auto; display: block; transition: transform .2s; }
+.jj-hop.go { animation: jjHop .32s ease-in-out infinite; }
+@keyframes jjHop { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+.jj-lbl { position: absolute; left: 50%; bottom: 44px; transform: translateX(-50%) scale(.8); opacity: 0; white-space: nowrap; background: var(--panel); color: var(--text-1); font-size: calc(12px * var(--fz, 1)); font-weight: 700; padding: 5px 10px; border-radius: 999px; box-shadow: 0 3px 10px rgba(0,0,0,.2); transition: opacity .25s, transform .25s; pointer-events: none; }
+.jj-lbl.on { opacity: 1; transform: translateX(-50%) scale(1); }
+.jj-year { position: absolute; left: 16px; bottom: 14px; z-index: 900; font-size: calc(42px * var(--fz, 1)); font-weight: 800; color: var(--hero); opacity: .85; text-shadow: 0 2px 0 #fff; pointer-events: none; }
+.jj-year.pop { animation: jjYr .5s ease-out; } @keyframes jjYr { from { transform: scale(1.35); opacity: 0; } to { transform: scale(1); opacity: .85; } }
+.tl-i.tl-now, .tl-now { outline: 3px solid var(--accent); outline-offset: 1px; border-radius: 999px; }
+@media (max-width: 860px) { .tm-jjb { height: 30px; padding: 0 10px; } .jj-year { font-size: 30px; } }
+.tm-mapw > .tm-jjb { position: absolute; left: 64px; top: 12px; z-index: 950; }
+.leaflet-container .leaflet-marker-pane .jj-hop img { width: 56px !important; height: auto !important; }
+@media (max-width: 860px) { .tm-mapw > .tm-jjb { left: 12px; } }
+/* 11/08 설정 소리 */
+.st-sl { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.st-sl span { width: 64px; font-size: calc(13px * var(--fz, 1)); color: var(--text-2); flex: none; }
+.st-sl input { flex: 1; accent-color: var(--primary); }
+.st-sl b { width: 32px; text-align: right; font-size: calc(12px * var(--fz, 1)); color: var(--text-3); font-weight: 600; }
+.tgl { width: 46px; height: 26px; border-radius: 999px; background: var(--line-strong, #c9d3d8); position: relative; flex: none; transition: background .2s; }
+.tgl i { position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: left .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.tgl.on { background: var(--primary); } .tgl.on i { left: 23px; }
+/* 11/08 준준트립 캐릭터 3종 + 배 */
+.jj-hop { width: 60px; height: 44px; display: flex; align-items: flex-end; justify-content: center; }
+.jj-hop > svg { display: block; transition: transform .2s; }
+.jj-hop.jj-car.go { animation: jjCar .5s ease-in-out infinite; }
+@keyframes jjCar { 0%, 100% { translate: 0 0; } 50% { translate: 0 -1.5px; } }
+.jj-hop.sail { animation: jjSail 1.6s ease-in-out infinite; }
+@keyframes jjSail { 0%, 100% { translate: 0 0; rotate: -3deg; } 50% { translate: 0 -3px; rotate: 3deg; } }
+/* 11/08 글 보기: 탑승권(B) + 사진 위 길 표시(C) */
+.bp { background: var(--panel); border-radius: 16px; box-shadow: 0 6px 18px rgba(0,0,0,.10); overflow: hidden; border: 1px solid var(--line); margin: 4px 0 2px; }
+.bp-hd { background: var(--hero); color: var(--accent); padding: 8px 14px; display: flex; align-items: center; gap: 8px; }
+.bp-hd img { width: 32px; } .bp-hd b { font-size: calc(11px * var(--fz, 1)); letter-spacing: 2px; font-weight: 800; }
+.bp-rt { display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr); align-items: end; gap: 4px; padding: 12px 14px 8px; color: var(--primary); }
+.bp-rt span, .bp-cells span { display: block; font-size: calc(10px * var(--fz, 1)); color: var(--text-3); letter-spacing: 1px; }
+.bp-rt b { display: block; font: 800 calc(21px * var(--fz, 1))/1.15 var(--font-num, monospace); color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-rt .to { text-align: right; } .bp-rt .to b { color: var(--primary); }
+.bp-rt small { display: block; font-size: calc(11px * var(--fz, 1)); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bp-rt svg { margin-bottom: 16px; }
+.bp-cells { display: grid; grid-template-columns: 1.4fr 1fr .8fr .8fr; gap: 4px; padding: 0 14px 10px; }
+.bp-cells b { display: block; font-size: calc(13px * var(--fz, 1)); color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bp-cells b.rt { color: #f2a93b; }
+.bp-tear { position: relative; border-top: 2px dashed var(--line-strong, #d8c6ad); padding: 10px 14px 12px; }
+.bp-tear > i { position: absolute; top: -10px; width: 18px; height: 18px; border-radius: 50%; background: var(--bg-subtle); border: 1px solid var(--line); }
+.bp-tear > i:first-child { left: -10px; } .bp-tear > i:nth-child(2) { right: -10px; }
+.bp-tear p { margin: 0 0 8px; font-size: calc(30px * var(--fz, 1)); line-height: 1.05; color: var(--text-1); }
+.bp-who { display: flex; flex-wrap: wrap; gap: 5px; }
+.bp-who span { padding: 3px 10px; border-radius: 6px; font-size: calc(12px * var(--fz, 1)); font-weight: 700; color: var(--c); background: color-mix(in srgb, var(--c) 13%, transparent); }
+.jr-route { display: flex; align-items: center; gap: 10px; padding: 10px 16px; color: #fff; font-size: calc(13px * var(--fz, 1)); font-weight: 700; background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0)); z-index: 2; pointer-events: none; }
+.jr-route i { flex: 0 1 150px; min-width: 60px; border-top: 2px dashed var(--accent); position: relative; height: 0; }
+.jr-route i img { position: absolute; left: 58%; top: -18px; width: 38px; animation: jjHop .9s ease-in-out infinite; }
+.jr-route b { color: var(--accent); }
+.jr-sheet.post .jr-route { position: absolute; left: 0; right: 0; top: 0; }
+@media (max-width: 860px) { .jr-sheet.post .jr-route { position: relative; background: var(--hero); border-radius: 12px 12px 0 0; } }
+.jj-hop .jj-carimg { width: 76px !important; height: auto !important; display: block; transition: transform .2s; }
+.jj-hop.jj-car, .jj-hop.jj-carroof { width: 76px; }
+.jj-hop.jj-carroof.go { animation: jjCar .5s ease-in-out infinite; }
+.jj-hop .jj-pl { filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }

@@ -166,6 +166,9 @@ async function load() {
       (p.visitLog ||= []).push({ id: uid('v'), date: '2022-10-08', dateEnd: null, meal: '', rating: null, memo: null, story: null, who: coreFamily(), photos: ph, photo: ph[0], trip: null }); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); p.visits = (p.visits || 0) + 1;
       setTimeout(() => toast('안성팜랜드 2022.10.08 기록 복구 (사진 33장) · 별점·메모는 편집에서', 4500), 2200); }
     S.db.meta.lostFix1 = today(); markDirty(); }
+  if (S.token && !OFFLINE && !S.db.meta.typeFix1) { let n = 0;   /* 11/08 1회: 식당으로 잘못 저장된 여행지·호텔 → 휴양지 (음식 탭 분리) */
+    for (const id of ['pmw452b528slt', 'pmw4vhw0agwsa', 'pmw4y97bspojr', 'pmw52l828rjdr', 'pmw52szbnys92', 'pmw53vqxpdj1f', 'pmw5wj7s60mjh', 'pmw5wous41a90', 'pmw5zgqyuoseb', 'pmw5zjq35cp3m', 'pmw5zopcuq4cu']) { const p = placeById(id); if (p && p.type === 'restaurant') { p.type = 'spot'; n++; } }
+    S.db.meta.typeFix1 = today(); markDirty(); if (n) setTimeout(() => toast(`식당으로 잘못 들어간 여행지 ${n}곳을 휴양지로 고쳤어요`, 3500), 3800); }
   if (S.token && !OFFLINE && !S.db.meta.tpDateFix1) { let n = 0; const fix = {};   /* 11/07 1회: 여행 사진 날짜가 올린 날(11월 2026)로 들어간 것 → 여행 첫날 (방콕 2024 22장) */
     for (const t of S.db.trips) { const r = tripRange(t); if (!r) continue; for (const x of t.photos || []) if (x.date && x.date >= '2026-11-01' && (x.date < dAdd(r[0], -3) || x.date > dAdd(r[1], 3))) { x.date = r[0]; fix[x.path] = r[0]; n++; } }
     for (const g of S.db.growth || []) if (fix[g.photo]) g.date = fix[g.photo];
@@ -1803,6 +1806,7 @@ function tripArt(t) { return tripCoverStyle(t).replace('background-image:', '');
 const SEASON_COPY = { '봄': ['봄나들이', '꽃 피는 계절, 가까운 개울과 공원부터'], '여름': ['여름 물놀이', '시원한 계곡과 바다, 그리고 냉면'], '가을': ['가을 식도락', '제철 먹거리를 찾아 떠나는 짧은 여행'], '겨울': ['겨울 온기', '눈썰매와 뜨끈한 국물 한 그릇'] };
 const SEASON_EN = { '봄': 'spring', '여름': 'summer', '가을': 'autumn', '겨울': 'winter' };
 const ICO = {
+  gear: '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>',   /* 11/08 설정 */
   search: '<svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>',
   bell: '<svg class="i" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10 21h4"></path></svg>',
   eat: '<svg class="i" viewBox="0 0 24 24"><path d="M4 11h16a8 8 0 0 1-16 0Z"></path><path d="M8 7c0-2 2-2 2-4M13 7c0-2 2-2 2-4"></path></svg>',
@@ -1884,7 +1888,7 @@ function renderHomePhone(d) {
   const tripCover = t => `<button class="trip-cover" data-trip="${t.id}" style="${tripCoverStyle(t)}"><span class="yr">${t.year} · ${COUNTRY_EN[t.country] || t.country}</span><span class="city">${esc(tripName(t))}</span><span class="sub">${esc(tripSub(t))}</span>${t.country !== 'KR' ? `<img class="globe" src="${asset('assets/mark-globe.png')}" alt="">` : `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">`}</button>`;
   return `
     <div class="ph-hero" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 72%,transparent),color-mix(in srgb,var(--hero) 82%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><div class="dots"></div><div class="sun"></div>
-      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><div class="ph-tools"><button data-act="tone" title="색 테마 · 글씨체">${ICO.palette}</button><button data-act="theme" title="다크모드">${isDark() ? ICO.sun : ICO.moon}</button><button data-act="heropick" title="배경 바꾸기">${ICO.image}</button></div></div>
+      <div class="ph-top"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:76px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:118px;margin-left:-2px"><span style="flex:1"></span><div class="ph-tools"><button data-act="tone" title="색 테마 · 글씨체">${ICO.palette}</button><button data-act="theme" title="다크모드">${isDark() ? ICO.sun : ICO.moon}</button><button data-act="heropick" title="배경 바꾸기">${ICO.image}</button><button data-view="settings" title="설정">${ICO.gear}</button></div></div>
       <div class="ph-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · ${esc(baseShort())} 기준</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         <p class="sub">${esc(d.famName)} 휴양지 ${d.spots.length}곳, 맛집 ${d.rests.length}곳</p>
@@ -1922,9 +1926,9 @@ function renderHomePC(d) {
     <div class="pc-hero-wrap" style="background-image:linear-gradient(color-mix(in srgb,var(--hero) 78%,transparent),color-mix(in srgb,var(--hero) 78%,transparent)),url('${heroSrc(d.season)}');background-size:cover;background-position:center"><div class="pc-hero" id="pc-hero">
       <div class="bg" style="background-image:linear-gradient(90deg,color-mix(in srgb,var(--hero) 82%,transparent) 0%,color-mix(in srgb,var(--hero) 55%,transparent) 40%,color-mix(in srgb,var(--hero) 0%,transparent) 62%),linear-gradient(180deg,color-mix(in srgb,var(--hero) 55%,transparent),color-mix(in srgb,var(--hero) 0%,transparent) 30%),linear-gradient(0deg,color-mix(in srgb,var(--hero) 60%,transparent),color-mix(in srgb,var(--hero) 0%,transparent) 45%),url('${heroSrc(d.season)}')"></div>
       <div class="note"><span>${esc(d.season)} 배경 · 계절마다 자동 교체</span><button class="hero-pick" data-act="heropick">🖼 배경 바꾸기</button></div>
-      <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'journal', 'settings'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '발자취', '설정'][k]}</button>`).join('')}</div></nav>
+      <nav class="pc-nav"><div class="links">${['home', 'explore', 'trips', 'food', 'journal'].map((v, k) => `<button data-view="${v}" class="${v === 'home' ? 'on' : ''}">${['홈', '찾기', '여행', '음식', '발자취'][k]}</button>`).join('')}</div></nav>
       <div class="pc-logo"><img src="${asset('assets/mark-faces.png')}" alt="" style="width:70px"><img src="${asset('assets/wordmark-white.png')}" alt="준준 TRIP" style="width:112px"></div>
-      <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">${ICO.palette}</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? ICO.sun : ICO.moon}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
+      <div class="pc-right"><button class="theme-tg" data-act="tone" title="색 테마 · 글씨체">${ICO.palette}</button><button class="theme-tg" data-act="theme" title="다크모드 켜기/끄기">${isDark() ? ICO.sun : ICO.moon}</button><button class="theme-tg" data-view="settings" title="설정">${ICO.gear}</button><button data-act="base"><span class="g">⌂</span> 거점: ${esc(S.base?.name || '없음')} ▾</button><button data-act="settings">가족 ${(S.db.meta.family?.adults || 0) + (S.db.meta.family?.kids || []).length + (S.db.meta.family?.seniors || 0) || '설정'}</button></div>
       <div class="pc-copy"><div class="kicker">${SEASON_EN[d.season]} · ${d.ymText} · 우리 가족 식도락</div>
         <h1>${esc(d.title)},<br>어디로 갈까?</h1>
         ${fp ? `<p class="body"><span class="nm"><span class="lbl">이번 계절 ${i + 1}순위</span>${esc(fp.name)}</span>${esc(areaOf(fp))} · ${esc(distText(fp))}<span class="why">${d.why(feat).map(w => `<span>${esc(w)}</span>`).join('')}</span></p><div class="cta"><button class="wt-btn" data-reco="${fp.id}">근처 식당 ${d.nearRest(fp)}곳</button></div>` : ''}
@@ -2092,7 +2096,7 @@ function openPlaceForm(p) {
       await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value, isNew);
       b.textContent = '검색';
       f._hits = hits; f._picked = null;
-      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; }, isNew ? sp => { closeSheet(); openDetail(sp.id); toast(`이미 저장된 곳 · 「${sp.name}」`); } : null);
+      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (isNew && h.src === '카카오' && f.type && !isMine(p)) { const ty = /^(FD6|CE7)$/.test(h.gc || '') ? 'restaurant' : 'spot'; if (f.type.value !== ty) { f.type.value = ty; toast(ty === 'spot' ? '유형 자동: 휴양지' : '유형 자동: 식당'); } }   /* 11/08 카카오 분류로 식당/휴양지 자동 */ if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; }, isNew ? sp => { closeSheet(); openDetail(sp.id); toast(`이미 저장된 곳 · 「${sp.name}」`); } : null);
     }
   });
   $('#pq').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); f.querySelector('[data-act=psearch]').click(); } });   /* 11/05 검색칸 엔터 = 검색 (저장 X) */
@@ -2153,7 +2157,7 @@ function kakaoSearch(q) {
     if (!window.kakao?.maps?.services) return res([]);
     new kakao.maps.services.Places().keywordSearch(q, (data, status) => {
       if (status !== kakao.maps.services.Status.OK) return res([]);
-      res(data.slice(0, 6).map(d => ({ name: d.place_name, lat: +d.y, lng: +d.x, address: d.road_address_name || d.address_name, phone: d.phone, url: d.place_url, src: '카카오' })));
+      res(data.slice(0, 6).map(d => ({ name: d.place_name, lat: +d.y, lng: +d.x, address: d.road_address_name || d.address_name, phone: d.phone, url: d.place_url, gc: d.category_group_code || '', src: '카카오' })));   /* 11/08 gc: FD6 음식점 · CE7 카페 */
     });
   });
 }
@@ -2842,11 +2846,26 @@ function renderSettings() {
       <button data-act="export"><span style="flex:1;text-align:left">JSON 백업</span><span class="cap num">.json</span></button>
       <label class="st-import"><span style="flex:1;text-align:left">JSON 불러오기<p class="cap3">백업 파일로 전체 교체</p></span><span class="cap num">.json</span><input type="file" id="s-import" accept=".json" hidden></label>
       <button data-act="tone"><span style="flex:1;text-align:left">색 테마 · 글씨체<p class="cap3">${esc(TONES.find(x => x[0] === tonePref())[1])} · 밝기 ${themeTxt} · 글씨 ${esc(FONTS.find(x => x[0] === fontPref())[1])} · 크기 ${esc(FZ.find(x => x[0] === fzPref())[1])}</p></span><span class="tn-mini">${TONES.slice(0, 6).map(x => `<i style="background:${x[2]}"></i>`).join('')}</span><span class="cap">›</span></button><button data-act="theme"><span style="flex:1;text-align:left">다크모드</span><span class="cap">${themeTxt} ›</span></button>
+    </div>
+    <div class="gt">소리 · 준준트립</div>
+    <div class="grp">
+      <button data-act="bgm"><span style="flex:1;text-align:left">배경 음악<p class="cap3">Sunny Highway · Sunny Morning Adventure 번갈아 · 성장 앨범은 Family Memory · 이 기기만</p></span><span class="tgl${bgmOn() ? ' on' : ''}" aria-hidden="true"><i></i></span></button>
+      <div class="st-sl"><span>음악 크기</span><input type="range" min="0" max="100" step="5" value="${bgmVol()}" id="st-bgmv" aria-label="음악 크기"><b id="st-bgmv-n">${bgmVol()}</b></div>
+      <div class="st-sl"><span>효과음</span><input type="range" min="0" max="100" step="5" value="${sfxVol()}" id="st-sfxv" aria-label="효과음 크기"><b id="st-sfxv-n">${sfxVol() || '끔'}</b></div>
+      <button data-act="jjchar"><span style="flex:1;text-align:left">▶ 준준트립 · 누가 달릴까?<p class="cap3">국내 지도 버튼 누르면 이 친구가 길 따라 이동</p></span><span class="cap">${esc((JJ_CHARS.find(c => c[0] === jjChar()) || JJ_CHARS[0])[1])} ›</span></button>
+      <button data-act="jjjeju"><span style="flex:1;text-align:left">제주 가는 길<p class="cap3">배 = 목포·완도·녹동항 · 비행기 = 김포공항 출발</p></span><span class="cap">${jjJeju() === 'plane' ? '✈ 비행기' : '⛴ 배'} ›</span></button>
+    </div>
+    <div class="gt">저장</div>
+    <div class="grp">
       <button data-act="usage"><span style="flex:1;text-align:left">저장 공간<p class="cap3" id="st-usage">사진 ${photoCount()}장 · 저장소 용량 확인 중…</p></span><span class="cap num" id="st-usage-v">/ 1GB</span></button>
       <button data-act="trash"><span style="flex:1;text-align:left">휴지통<p class="cap3">삭제한 장소·여행 30일 보관 · 복원 가능</p></span><span class="cap num">${(S.db.trash || []).length}</span></button>
       <button data-act="naver"><span style="flex:1;text-align:left">네이버 전국 맛집 지도<p class="cap3">MY플레이스 리스트 링크 · 상세의 N저장✔ 연동</p></span><span class="cap">${S.db.meta.naverListUrl ? '열기 ›' : '미입력'}</span></button>
       ${OFFLINE ? '' : `<button data-act="reload"><span style="flex:1;text-align:left">다시 불러오기<p class="cap3">갱신 ${esc(S.db.meta.updated || '')}</p></span><span class="cap">↻</span></button>`}</div>
     <p class="cap3 st-foot">준준 TRIP · 키는 기기 브라우저에만 저장 · 데이터는 GitHub <span class="num">${esc(S.repo)}</span></p>`;
+  { const bv = $('#st-bgmv'), sv = $('#st-sfxv');   /* 11/08 소리 크기 */
+    bv?.addEventListener('input', () => { LS.set('bgmVol', +bv.value); $('#st-bgmv-n').textContent = bv.value; if (BGM.a && !BGM.a.paused) BGM.a.volume = +bv.value / 100 * .6; else bgmPlay(); });
+    sv?.addEventListener('input', () => { LS.set('sfxVol', +sv.value); $('#st-sfxv-n').textContent = +sv.value || '끔'; });
+    sv?.addEventListener('change', () => sfx('send')); }
   repoUsage().then(u => { const a = $('#st-usage'), b = $('#st-usage-v'); if (!a) return; if (!u) { a.textContent = `사진 ${photoCount()}장 · 저장소 용량 확인 실패 (잠시 후 다시)`; return; } const pct = u.mb / 1024 * 100; a.textContent = `사진 ${photoCount()}장 · 저장소 ${u.mb.toFixed(0)}MB (이력 포함) · GitHub 권장 1GB`; b.textContent = `${pct.toFixed(1)}%`; if (pct > 80) { b.style.color = 'var(--danger)'; a.textContent += ' · 정리 필요'; } });
   el.onclick = async e => {
     const edit = e.target.closest('[data-bedit]'); if (edit) { e.stopPropagation(); openBaseForm(S.db.bases.find(x => x.id === edit.dataset.bedit)); return; }
@@ -2861,6 +2880,9 @@ function renderSettings() {
     if (act === 'tone') return openTonePicker();
     if (act === 'season') pickMenu(b, [['auto', `자동 (지금은 ${seasonNow()})`, seasonPref() === 'auto'], ...['봄', '여름', '가을', '겨울'].map(x => [x, x, seasonPref() === x])], v => { LS.set('season', v); S.homeStale = true; renderSettings(); });
     if (act === 'trash') openTrash();
+    if (act === 'bgm') { LS.set('bgmOn', !bgmOn()); bgmOn() ? bgmPlay() : bgmPause(); return renderSettings(); }   /* 11/08 */
+    if (act === 'jjjeju') return pickMenu(b, [['ship', '⛴ 배', jjJeju() === 'ship'], ['plane', '✈ 비행기 (김포 출발)', jjJeju() === 'plane']], v => { LS.set('jjJeju', v); renderSettings(); });
+    if (act === 'jjchar') return pickMenu(b, JJ_CHARS.map(([k, n]) => [k, n, jjChar() === k]), v => { LS.set('jjChar', v); renderSettings(); });
     if (act === 'theme') pickMenu(b, [['auto', '시스템 따라', themePref() === 'auto'], ['light', '라이트', themePref() === 'light'], ['dark', '다크', themePref() === 'dark']], v => { LS.set('theme', v); applyTheme(); renderSettings(); });
     if (act === 'naver') { const v = prompt('네이버 MY플레이스 리스트 링크', S.db.meta.naverListUrl || ''); if (v == null) return; if (v.trim() && v.trim() === (S.db.meta.naverListUrl || '')) { window.open(v.trim(), '_blank', 'noopener'); return; } S.db.meta.naverListUrl = v.trim(); markDirty(); renderSettings(); }
     if (act === 'reload') { S.sha = null; await load(); boot(true); toast('다시 불러옴'); }
@@ -3006,6 +3028,20 @@ function openGrowthPost(g, done) {   /* 성장 앨범 사진 한 장 — 인스�
     ${socialHtml('g:' + g.id)}</div></div></div>`);
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.act === 'back') { closeSheet(); return done?.(); } if (b.dataset.act === 'gpedit') return openGrowthEdit(g, done); };
 }
+
+/* ---------------- 11/08 글 보기 = C(지금 모양 + 길 표시) + B 탑승권 ---------------- */
+function bpHome() { const hb = (S.db.bases || []).find(b => b.id === 'b_home') || (S.db.bases || [])[0] || { name: '집', lat: 37.5872, lng: 127.2132 }; const k = (hb.name.match(/\(([^)]+)\)/) || [])[1] || hb.name; return { ko: hb.name, en: (enName(k, 'KR') || 'HOME').toUpperCase(), lat: hb.lat, lng: hb.lng }; }
+function bpKm(lat, lng) { const h = bpHome(); return typeof lat === 'number' && typeof h.lat === 'number' ? Math.round(haversine(h, { lat, lng })) : null; }
+function bpCode(nm, cc) { const e = (enName(nm, cc) || '').replace(/[^A-Za-z0-9 ]/g, '').trim().toUpperCase(), k = (nm || '').trim(); return e ? (e.length > 12 ? e.slice(0, 11) + '…' : e) : (k.length > 7 ? k.slice(0, 6) + '…' : k || '—'); }   // 영문 없으면 한글 그대로
+function tripKm(t) { const c = tripVisits(t).map(e => e.p).find(x => typeof x.lat === 'number') || S.db.places.find(x => x.country === t.country && typeof x.lat === 'number' && (!tripCity(t) || (x.name + (x.address || '')).includes(tripCity(t)))) || S.db.places.find(x => x.country === t.country && typeof x.lat === 'number'); return c ? bpKm(c.lat, c.lng) : null; }
+function bpHtml(o) {   // o: { to, toCode, toSub, date, meal, km, rate, memo, who[], extra }
+  const h = bpHome(), cell = (k, v, cls = '') => `<div><span>${k}</span><b class="${cls}">${v}</b></div>`;
+  return `<div class="bp"><div class="bp-hd"><img src="${asset('assets/mark-faces.png')}" alt=""><b>JUNJUN TRIP · BOARDING PASS</b></div>
+    <div class="bp-rt"><div><span>FROM</span><b class="num">${esc(h.en)}</b><small>${esc(h.ko)}</small></div><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M2 12h16M14 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg><div class="to"><span>TO</span><b class="num">${esc(o.toCode)}</b><small>${esc(o.toSub || o.to)}</small></div></div>
+    <div class="bp-cells">${cell('DATE', esc(o.date || '—'))}${cell(o.extraK || 'MEAL', esc(o.meal || '—'))}${cell('KM', o.km != null ? o.km.toLocaleString() : '—')}${cell('RATE', o.rate ? '★' + o.rate : '—', 'rt')}</div>
+    <div class="bp-tear"><i></i><i></i>${o.memo ? `<p class="hand">“${esc(o.memo)}”</p>` : ''}${(o.who || []).length ? `<div class="bp-who">${o.who.map(n => `<span style="--c:${famHex(n)}">${esc(n)}</span>`).join('')}</div>` : ''}</div></div>`;
+}
+function routeStrip(to, km) { return `<div class="jr-route"><span>${esc(bpHome().ko.replace(/^집\s*\(|\)$/g, ''))}</span><i><img src="${asset('assets/mark-faces.png')}" alt=""></i><b>${esc(to)}${km != null ? ' ' + km.toLocaleString() + 'km' : ''}</b></div>`; }
 function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스타 글 보기(발자취 글 상세)와 같은 모양 + 좋아요·댓글 (social t:'t:<여행id>') */
   const ps = (t.photos || []).filter(x => x.path), r = tripRange(t), who = [...new Set(ps.flatMap(x => x.who || []))];
   const cv = Math.max(0, ps.findIndex(x => x.path === t.coverPhoto)), list = cv ? [ps[cv], ...ps.filter((_, i) => i !== cv)] : ps, urls = list.map(x => photoUrl(x.path));
@@ -3014,10 +3050,8 @@ function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스
   const html = `<div class="jr-sheet post"><div class="hd"><button class="back" data-act="back">‹</button><div style="flex:1;min-width:0"><p class="cap3">여행 · 사진 ${list.length}</p><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b></div><button class="chip" data-act="tpgo">여행 화면</button></div>
     <div class="jr-feed"><article class="jr-card">
       <div class="jr-body"><button class="jr-place" data-act="tpgo">${urls[0] ? `<span class="tile"><img src="${urls[0]}" alt=""></span>` : ''}<span><b>${ov ? '✈ ' : ''}${esc(tripName(t))}</b><small>${esc(['여행', [tripCity(t), ov ? ccKo(t.country) : ''].filter(Boolean).join(' · ')].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
-        <p class="jr-meta"><span class="num">${r ? esc(r[0].replace(/-/g, '.')) + esc(dow(r[0])) + (r[1] !== r[0] ? ' — ' + esc(r[1].slice(5).replace('-', '.')) + esc(dow(r[1])) : '') : esc(String(t.year || ''))}</span></p>
-        ${t.memo ? `<p class="jr-memo serif">“${esc(t.memo)}”</p>` : ''}
-        ${who.length ? `<p class="jr-who">${who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}${socialHtml('t:' + t.id)}</div>
-      ${urls.length ? `<div class="jr-phs">${urls.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${urls.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${urls.length > 1 ? `<span class="n">${k + 1}/${urls.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article></div></div>`;
+        ${bpHtml({ to: tripName(t), toCode: bpCode(tripCity(t) || tripName(t), t.country), toSub: [tripName(t), ov ? ccKo(t.country) : ''].filter(Boolean).join(' · '), date: r ? r[0].slice(2).replace(/-/g, '.') + (r[1] !== r[0] ? '~' + r[1].slice(5).replace('-', '.') : '') : String(t.year || ''), extraK: 'PHOTO', meal: list.length + '장', km: tripKm(t), memo: t.memo, who })}${socialHtml('t:' + t.id)}</div>
+      ${urls.length ? `<div class="jr-phs">${routeStrip(tripName(t), tripKm(t))}${urls.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${urls.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${urls.length > 1 ? `<span class="n">${k + 1}/${urls.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article></div></div>`;
   page ? (box.innerHTML = html) : openSheet(html);
   const root = page ? box : $('#sheet-inner');
   root.onclick = e => { const b = e.target.closest('button'); if (!b || b.closest('.soc')) return;
@@ -3048,6 +3082,8 @@ function openJournal(opts = {}) {
   const t = opts.tripId && S.db.trips.find(x => x.id === opts.tripId);
   let ents = S.db.places.flatMap(p => (p.visitLog || []).map(v => ({ p, v })));
   if (opts.placeId) ents = ents.filter(e => e.p.id === opts.placeId);
+  const food = !!opts.food, gen = !opts.placeId && !opts.tripId;   /* 11/08 음식 탭 = 식당 기록만 · 발자취 = 식당 빼고 */
+  if (gen) ents = ents.filter(e => food ? e.p.type === 'restaurant' : e.p.type !== 'restaurant');
   if (t) { const ids = new Set(t.items.map(i => i.place_id).filter(Boolean)); const { start, end } = tripDates(t);
     const iso = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null; const a = iso(start), z = iso(end);
     ents = ents.filter(e => (a && z ? e.v.date >= a && e.v.date <= z : true) && (ids.has(e.p.id) || (a && z && e.p.region === (t.plan?.region || tripRegion(t))))); }
@@ -3058,7 +3094,7 @@ function openJournal(opts = {}) {
   if (opts.post) ents = ents.filter(e => (e.v.id || '') === opts.post);   // 앨범에서 고른 글 하나
   const album = !opts.placeId && !opts.post;                             // 기록 첫 화면 = 앨범(사진 격자)
   const nPh = ents.reduce((n, e) => n + visitPhotos(e.v).length, 0);
-  const title = opts.post && ents[0] ? ents[0].p.name : opts.placeId ? placeById(opts.placeId)?.name + ' 기록' : t ? `${tripName(t)} 여행기` : '우리 가족 기록';
+  const title = opts.post && ents[0] ? ents[0].p.name : opts.placeId ? placeById(opts.placeId)?.name + ' 기록' : t ? `${tripName(t)} 여행기` : opts.food ? '우리 가족 맛집' : '우리 가족 기록';
   const dow = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? '' : ` (${DAYS[x.getDay()]})`; };
   let lastM = '';
   const cards = ents.map((e, i) => { const { p, v } = e; const ph = visitPhotos(v); const m = (v.date || '').slice(0, 7);
@@ -3066,11 +3102,11 @@ function openJournal(opts = {}) {
     return `${head}<article class="jr-card">
       <div class="jr-body"><button class="jr-place" data-go="${p.id}">${thumbHtml(p, 'tile')}<span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p)].filter(Boolean).join(' · '))}</small></span><i>›</i></button>
         <button class="jr-edit rw" data-edit="${i}" title="기록 편집">편집</button>
-        <p class="jr-meta"><span class="num">${esc((v.date || '').replace(/-/g, '.'))}</span>${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}${v.rating ? ` · <span class="st">${starHtml(v.rating)}</span> <span class="num">${v.rating}</span>` : ''}</p>
-        ${v.memo ? `<p class="jr-memo serif">“${esc(v.memo)}”</p>` : ''}
+        ${opts.post ? bpHtml({ to: p.name, toCode: bpCode(p.name, p.country), toSub: [p.name, areaOf(p)].filter(Boolean).join(' · '), date: (v.date || '').slice(2).replace(/-/g, '.') + dow(v.date), meal: v.meal, km: bpKm(p.lat, p.lng), rate: v.rating, memo: v.memo, who: v.who }) : `<p class="jr-meta"><span class="num">${esc((v.date || '').replace(/-/g, '.'))}</span>${esc(dow(v.date))}${v.meal ? ' · ' + esc(v.meal) : ''}${v.rating ? ` · <span class="st">${starHtml(v.rating)}</span> <span class="num">${v.rating}</span>` : ''}</p>
+        ${v.memo ? `<p class="jr-memo serif">“${esc(v.memo)}”</p>` : ''}`}
         ${v.story ? `<div class="jr-story">${storyHtml(v.story)}</div>` : ''}
         ${(v.menu || []).length ? `<p class="jr-menu">${v.menu.map(x => `<span>${esc(typeof x === 'string' ? x : x.name || '')}</span>`).join('')}</p>` : ''}
-        ${(v.who || []).length ? `<p class="jr-who">${v.who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}${v.id ? socialHtml('v:' + v.id) : ''}</div>${ph.length ? `<div class="jr-phs">${opts.post && ph.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${ph.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article>`; }).join('');   // 어디·언제 먼저, 사진은 아래
+        ${(v.who || []).length && !opts.post ? `<p class="jr-who">${v.who.map(n => `<span>${esc(n)}</span>`).join('')}</p>` : ''}${v.id ? socialHtml('v:' + v.id) : ''}</div>${ph.length ? `<div class="jr-phs">${opts.post ? routeStrip(p.name, bpKm(p.lat, p.lng)) : ''}${opts.post && ph.length > 1 ? '<button class="jr-nav pv" data-pn="-1" title="이전 사진">‹</button><button class="jr-nav nx" data-pn="1" title="다음 사진">›</button>' : ''}${ph.map((u, k) => `<button class="jr-ph${k === 0 ? ' on' : ''}" data-lb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${k === 0 ? `<img class="stamp" src="${asset('assets/mark-stamp-white.png')}" alt="">` : ''}${ph.length > 1 ? `<span class="n">${k + 1}/${ph.length}</span>` : ''}</button>`).join('')}</div>` : ''}</article>`; }).join('');   // 어디·언제 먼저, 사진은 아래
   const sb = !album && ents.length > 0 && !!(opts.sb ?? LS.get('jrSb', false)), pg = Math.max(0, Math.min(opts.pg || 0, ents.length - 1));   // 스크랩북 보기 (쪽 넘김)
   const SB_ROT = [-3, 2.5, -1.5, 3.5, -2.5, 1.5, -3.5, 2];
   const sbPage = (e, i) => { const { p, v } = e, ph = visitPhotos(v), n = ph.length;
@@ -3082,27 +3118,27 @@ function openJournal(opts = {}) {
       <button class="sb-edit rw" data-edit="${i}">편집</button></article>`; };
   const sbHtml = sb ? `${sbPage(ents[pg], pg).replace('<article class="sb-page">', `<article class="sb-page${opts.turn ? ' turn-' + opts.turn : ''}">`)}${ents.length > 1 ? `<div class="sb-nav"><button data-sbpg="${pg - 1}" ${pg ? '' : 'disabled'}>‹ 이전 쪽</button><span class="num">${pg + 1} / ${ents.length}</span><button data-sbpg="${pg + 1}" ${pg < ents.length - 1 ? '' : 'disabled'}>다음 쪽 ›</button></div>` : ''}` : '';
   const withPh = album ? ents.filter(e => visitPhotos(e.v).length) : [], noPh = album ? ents.filter(e => !visitPhotos(e.v).length) : [];
-  const tpT = album && kind === 'all' ? S.db.trips.filter(x => (x.photos || []).length && (!who || x.photos.some(y => (y.who || []).includes(who)))).map(x => ({ d: tripRange(x)?.[0] || String(x.year || ''), html: `<button class="jr-tile tt" data-tpost="${x.id}" style="background-image:url('${photoUrl(x.coverPhoto || x.photos[0].path)}')"><span class="ov"><b>${x.country && x.country !== 'KR' ? '✈ ' : ''}${esc(tripName(x))}</b><small>${esc((tripRange(x)?.[0] || String(x.year || '')).replace(/-/g, '.'))} · ${x.photos.length}장${socOf('t:' + x.id).filter(c => c.k === 'c').length ? ' · 💬' + socOf('t:' + x.id).filter(c => c.k === 'c').length : ''}</small></span><i>${x.photos.length > 1 ? '❐' : ''}</i></button>` })) : [];   /* 11/08 여행 사진도 앨범에 (누르면 인스타식 + 댓글) */
+  const tpT = album && kind === 'all' && !food ? S.db.trips.filter(x => (x.photos || []).length && (!who || x.photos.some(y => (y.who || []).includes(who)))).map(x => ({ d: tripRange(x)?.[0] || String(x.year || ''), html: `<button class="jr-tile tt" data-tpost="${x.id}" style="background-image:url('${photoUrl(x.coverPhoto || x.photos[0].path)}')"><span class="ov"><b>${x.country && x.country !== 'KR' ? '✈ ' : ''}${esc(tripName(x))}</b><small>${esc((tripRange(x)?.[0] || String(x.year || '')).replace(/-/g, '.'))} · ${x.photos.length}장${socOf('t:' + x.id).filter(c => c.k === 'c').length ? ' · 💬' + socOf('t:' + x.id).filter(c => c.k === 'c').length : ''}</small></span><i>${x.photos.length > 1 ? '❐' : ''}</i></button>` })) : [];   /* 11/08 여행 사진도 앨범에 (누르면 인스타식 + 댓글) */
   const tiles = [...withPh.map(e => { const ph = visitPhotos(e.v); return { d: e.v.date || '', html: `<button class="jr-tile" data-post="${esc(e.v.id || '')}" style="background-image:url('${ph[0]}')"><span class="ov"><b>${esc(e.p.name)}</b><small>${esc((e.v.date || '').replace(/-/g, '.'))} · ${ph.length}장</small></span>${ph.length > 1 ? '<i>❐</i>' : ''}</button>` }; }), ...tpT].sort((a, b) => b.d.localeCompare(a.d));
   const grid = tiles.length ? `<div class="jr-grid">${tiles.map(x => x.html).join('')}</div>` : '';
   const noPhHtml = noPh.length ? `<h3 class="jr-month">사진 없는 기록 <small>${noPh.length}</small></h3><div class="jr-nolog">${noPh.map(e => `<div class="row-nl">${thumbHtml(e.p, 'tile')}<button class="jr-place" data-post="${esc(e.v.id || '')}"><span><b>${esc(e.p.name)}</b><small>${esc([(e.v.date || '').replace(/-/g, '.'), e.v.memo ? '“' + e.v.memo + '”' : ''].filter(Boolean).join(' · '))}</small></span></button></div>`).join('')}</div>` : '';
   const chip = (k, label, on) => `<button class="chip${on ? ' on' : ''}" ${k}>${label}</button>`;
-  const noLog = opts.placeId || t || who ? [] : S.db.places.filter(p => (p.visits || 0) > 0 && !(p.visitLog || []).length && (kind === 'all' || p.type === kind)).sort((a, b) => (b.visits || 0) - (a.visits || 0));   // 다녀왔지만 아직 글·사진 없는 곳
+  const noLog = opts.placeId || t || who ? [] : S.db.places.filter(p => (p.visits || 0) > 0 && !(p.visitLog || []).length && (food ? p.type === 'restaurant' : p.type !== 'restaurant') && (kind === 'all' || p.type === kind)).sort((a, b) => (b.visits || 0) - (a.visits || 0));   // 다녀왔지만 아직 글·사진 없는 곳
   const noLogHtml = noLog.length ? `<h3 class="jr-month">다녀온 곳 · 아직 기록 없음 <small>${noLog.length}</small></h3><div class="jr-nolog">${noLog.map(p => `<div class="row-nl">${thumbHtml(p, 'tile')}<button class="jr-place" data-go="${p.id}"><span><b>${esc(p.name)}</b><small>${esc([kindLabel(p), areaOf(p), `방문 ${p.visits}회`].join(' · '))}</small></span></button><button class="chip rw" data-addlog="${p.id}">+ 기록</button></div>`).join('')}</div>` : '';
-  const box = opts.page ? $('#journal') : null;
-  (opts.page ? (h => { box.innerHTML = h; }) : openSheet)(`<div class="jr-sheet${opts.post ? ' post' : ''}"><div class="hd">${opts.page && !opts.post ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">방문 ${ents.length} · 사진 ${nPh}</p><b>${esc(title)}</b></div>${album && opts.page ? jrTabs('album') : ''}${album ? '' : `<div class="sb-tg"><button class="${sb ? '' : 'on'}" data-sbset="0">▦ 인스타</button><button class="${sb ? 'on' : ''}" data-sbset="1">✎ 스크랩북</button></div>`}${t || opts.placeId ? '' : `<button class="chip" data-act="share">공유</button>`}${!album && ents.length ? `<button class="chip" data-act="storykit" title="클로드에 붙일 여행기 재료 복사">✎ 여행기 글 만들기</button>` : ''}</div>
-    ${opts.placeId || opts.post ? '' : `<div class="jr-chips">${chip('data-kind="all"', '전체', kind === 'all')}${chip('data-kind="spot"', '휴양지', kind === 'spot')}${chip('data-kind="restaurant"', '식당', kind === 'restaurant')}${chip('data-kind="mine"', '우리 장소', kind === 'mine')}<span class="sep"></span>${familyNames().map(n => chip(`data-who="${esc(n)}"`, esc(n), who === n)).join('')}</div>`}
-    <div class="jr-feed">${album && opts.page ? '<section class="tm-card" id="tm-card"><div class="help">여행 지도 불러오는 중…</div></section>' : ''}${album ? grid + noPhHtml : sb ? sbHtml : cards}${album ? noLogHtml : ''}${(album ? grid || noPhHtml : cards) || noLogHtml ? '' : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>아직 기록이 없어요</b><p class="cap">장소 상세 › 「다녀왔어요 · 기록 남기기」로 사진과 한줄평을 남기면 여기에 쌓입니다</p></div>`}</div></div>`);
-  if (album && opts.page) drawTravelCard();
+  const box = opts.page ? $(food ? '#food' : '#journal') : null, VJ = food ? '#view-food' : '#view-journal';
+  (opts.page ? (h => { box.innerHTML = h; }) : openSheet)(`<div class="jr-sheet${opts.post ? ' post' : ''}"><div class="hd">${opts.page && !opts.post ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">방문 ${ents.length} · 사진 ${nPh}</p><b>${esc(title)}</b></div>${album && opts.page && !food ? jrTabs('album') : ''}${album ? '' : `<div class="sb-tg"><button class="${sb ? '' : 'on'}" data-sbset="0">▦ 인스타</button><button class="${sb ? 'on' : ''}" data-sbset="1">✎ 스크랩북</button></div>`}${t || opts.placeId ? '' : `<button class="chip" data-act="share">공유</button>`}${!album && ents.length ? `<button class="chip" data-act="storykit" title="클로드에 붙일 여행기 재료 복사">✎ 여행기 글 만들기</button>` : ''}</div>
+    ${opts.placeId || opts.post ? '' : `<div class="jr-chips">${food ? '' : `${chip('data-kind="all"', '전체', kind === 'all')}${chip('data-kind="spot"', '휴양지', kind === 'spot')}${chip('data-kind="mine"', '우리 장소', kind === 'mine')}<span class="sep"></span>`}${familyNames().map(n => chip(`data-who="${esc(n)}"`, esc(n), who === n)).join('')}</div>`}
+    <div class="jr-feed">${album && opts.page && !food ? '<section class="tm-card" id="tm-card"><div class="help">여행 지도 불러오는 중…</div></section>' : ''}${album ? grid + noPhHtml : sb ? sbHtml : cards}${album ? noLogHtml : ''}${(album ? grid || noPhHtml : cards) || noLogHtml ? '' : `<div class="empty11"><img src="${asset('assets/mark-stamp.png')}" alt=""><b>아직 기록이 없어요</b><p class="cap">장소 상세 › 「다녀왔어요 · 기록 남기기」로 사진과 한줄평을 남기면 여기에 쌓입니다</p></div>`}</div></div>`);
+  if (album && opts.page && !food) drawTravelCard();
   (box || $('#sheet-inner')).onclick = e => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.pn) { const phs = [...b.parentElement.querySelectorAll('.jr-ph')], k = phs.findIndex(x => x.classList.contains('on')); phs[k]?.classList.remove('on'); phs[(k + +b.dataset.pn + phs.length) % phs.length].classList.add('on'); return; }   // PC 글 상세 사진 넘김
     if (b.dataset.jtab) return openJournal({ page: opts.page, growth: b.dataset.jtab === 'growth', gwho: S.gwho || '' });
     if (b.dataset.sbset != null) { const on = b.dataset.sbset === '1'; LS.set('jrSb', on); return openJournal({ ...opts, sb: on, pg: 0 }); }
-    if (b.dataset.sbpg != null) { openJournal({ ...opts, sb: true, pg: +b.dataset.sbpg, turn: +b.dataset.sbpg > pg ? 'n' : 'p' }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
+    if (b.dataset.sbpg != null) { openJournal({ ...opts, sb: true, pg: +b.dataset.sbpg, turn: +b.dataset.sbpg > pg ? 'n' : 'p' }); (opts.page ? $(VJ) : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.act === 'storykit') return copyStoryKit(sb ? [ents[pg]] : ents, t);
     if (b.dataset.act === 'back') { if (opts.post) return openJournal({ ...opts, post: null }); opts.placeId ? openDetail(opts.placeId) : closeSheet(); return; }
-    if (b.dataset.tpost) { const tt = S.db.trips.find(x => x.id === b.dataset.tpost); if (tt) { openTripPost(tt, { page: opts.page, done: () => openJournal(opts) }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); } return; }
-    if (b.dataset.post) { const r = (box || $('#sheet-inner')); openJournal({ ...opts, post: b.dataset.post }); (opts.page ? $('#view-journal') : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
+    if (b.dataset.tpost) { const tt = S.db.trips.find(x => x.id === b.dataset.tpost); if (tt) { openTripPost(tt, { page: opts.page, done: () => openJournal(opts) }); (opts.page ? $(VJ) : $('#sheet-inner'))?.scrollTo?.(0, 0); } return; }
+    if (b.dataset.post) { const r = (box || $('#sheet-inner')); openJournal({ ...opts, post: b.dataset.post }); (opts.page ? $(VJ) : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.kind) return openJournal({ ...opts, kind: b.dataset.kind });
     if (b.dataset.who != null) return openJournal({ ...opts, who: who === b.dataset.who ? '' : b.dataset.who });
     if (b.dataset.go) return openDetail(b.dataset.go);
@@ -3258,7 +3294,7 @@ function travelCardHtml(s, mode) {
   const notYet = DO_KEYS.filter(k => !s.doCnt[k]).sort((a, b) => (s.saved[b] || 0) - (s.saved[a] || 0));
   return `<div class="tm-hd"><div><p class="cap3">다녀온 곳</p><b class="serif">우리 가족 여행 지도</b></div>
       <div class="tm-hdr"><button class="tm-lvb" data-act="lived">⌂ 살았던 곳 <b>${(S.db.lived || []).length}</b></button><div class="tm-tg"><button class="${mode === 'kr' ? 'on' : ''}" data-tm="kr">국내</button><button class="${mode === 'world' ? 'on' : ''}" data-tm="world">세계</button><button class="${mode === 'globe' ? 'on' : ''}" data-tm="globe">🌐 지구본</button></div></div></div>
-    <div class="tm-body"><div class="tm-mapw${S.tmFull ? ' full' : ''}"><div class="tm-map" id="tm-map"></div><button class="tm-fs" data-tmfs="1" title="${S.tmFull ? '작게 (Esc)' : '크게 보기'}">${S.tmFull ? '✕ 닫기' : '⤢ 크게 보기'}</button>${S.tmFull ? `<div class="tm-fs-modes seg">${[['kr', '국내'], ['world', '세계'], ['globe', '🌐 지구본']].map(([m, n]) => `<button data-tm="${m}" class="${(S.tmMode || 'kr') === m ? 'on' : ''}">${n}</button>`).join('')}</div>` : ''}</div>
+    <div class="tm-body"><div class="tm-mapw${S.tmFull ? ' full' : ''}"><div class="tm-map" id="tm-map"></div>${mode === 'kr' ? '<button class="tm-jjb" data-act="jjplay" title="연도별 여행 순서대로 준준이들이 국내를 따라가요">▶ 준준트립</button>' : ''}<button class="tm-fs" data-tmfs="1" title="${S.tmFull ? '작게 (Esc)' : '크게 보기'}">${S.tmFull ? '✕ 닫기' : '⤢ 크게 보기'}</button>${S.tmFull ? `<div class="tm-fs-modes seg">${[['kr', '국내'], ['world', '세계'], ['globe', '🌐 지구본']].map(([m, n]) => `<button data-tm="${m}" class="${(S.tmMode || 'kr') === m ? 'on' : ''}">${n}</button>`).join('')}</div>` : ''}</div>
       <div class="tm-side">
         <div class="tm-stats">
           <div><b class="num">${nDo}<small>/17</small></b><span>국내 시·도</span></div>
@@ -3410,6 +3446,7 @@ async function drawTravelCard(mode) {
   if (!S.tmAnimated) { countUp(el.querySelector('.tm-stats')); S.tmAnimated = true; }   // 숫자 올라가기 (탭 처음 열 때)
   badgeCheck(badgeList(s)).forEach(n => [...el.querySelectorAll('.bdg, .bdgc')].find(x => (x.dataset.t || '').split('|').includes(n))?.classList.add('new'));
   el.onclick = e => { if (e.target.closest('[data-tmfs]')) { S.tmFull = !S.tmFull; document.body.classList.toggle('tm-full-on', S.tmFull); return drawTravelCard(mode); } const b = e.target.closest('[data-tm]'); if (b) return drawTravelCard(b.dataset.tm); if (e.target.closest('[data-act=lived]')) return openLivedList();
+    const jb = e.target.closest('[data-act="jjplay"]'); if (jb) return jjTrip(jb);   /* 11/08 */
     const bt = e.target.closest('[data-bt]'); if (bt) return toast(bt.dataset.bt, 3000);   /* 11/07 */
     const tt = e.target.closest('[data-tlt]'); if (tt) { S.trip = S.db.trips.find(t => t.id === tt.dataset.tlt); S.tripDay = 0; showView('trips'); const t0 = S.trip; loadGeo().then(() => t0 && S.trip === t0 && tripTitle(t0)); return; }
     const tp = e.target.closest('[data-tlp]'); if (tp) return openDetail(tp.dataset.tlp);
@@ -3782,8 +3819,8 @@ function openGrowthBirth() {
     if (b.dataset.act === 'bysave') { const o = {}; $$('[data-by]').forEach(i => { if (+i.value) o[i.dataset.by] = +i.value; }); S.db.meta.family ||= {}; S.db.meta.family.birthYear = o; markDirty(); closeSheet(); toast('생년 저장'); openJournal({ page: true, growth: true, gwho: S.gwho || '' }); } };
 }
 /* 11/06 성장 앨범 재생 음악 — 기본: 앱이 직접 연주하는 오르골(Web Audio, 저작권 무관) · 내 음악 파일(가족 공유, music/) · 끄기 */
-function musicPref() { return S.db.meta.growthMusic || { kind: 'box' }; }
-function musicLabel() { const m = musicPref(); return m.kind === 'off' ? '음악 끔' : m.kind === 'file' ? (m.name || '내 음악') : '오르골'; }
+function musicPref() { return S.db.meta.growthMusic || { kind: 'memory' }; }   /* 11/08 기본 = Family Memory */
+function musicLabel() { const m = musicPref(); return m.kind === 'off' ? '음악 끔' : m.kind === 'file' ? (m.name || '내 음악') : m.kind === 'memory' ? 'Family Memory' : '오르골'; }
 function musicBox() {   /* 잔잔한 오르골: C–Am–F–G 아르페지오 + 은은한 메아리, 16마디 반복 */
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
   const ac = new AC(), out = ac.createGain(); out.gain.value = 0; out.connect(ac.destination);
@@ -3808,14 +3845,14 @@ function musicBox() {   /* 잔잔한 오르골: C–Am–F–G 아르페지오 +
 }
 function musicStart() {
   const m = musicPref(); if (m.kind === 'off') return null;
-  if (m.kind === 'file' && m.path) { const src = m.path.startsWith('local:') ? LS.get('music', {})[m.path] : (/^https?:/.test(m.path) ? m.path : rawUrl(m.path)); if (src) { const a = new Audio(src); a.loop = true; a.volume = 0; a.play().catch(() => {}); let v = 0; const fi = setInterval(() => { v = Math.min(.8, v + .08); a.volume = v; if (v >= .8) clearInterval(fi); }, 120);
+  if ((m.kind === 'file' && m.path) || m.kind === 'memory') { const src = m.kind === 'memory' ? 'music/growth-memory.mp3' : m.path.startsWith('local:') ? LS.get('music', {})[m.path] : (/^https?:/.test(m.path) ? m.path : rawUrl(m.path)); if (src) { const a = new Audio(src); a.loop = true; a.volume = 0; a.play().catch(() => {}); let v = 0; const fi = setInterval(() => { v = Math.min(.8, v + .08); a.volume = v; if (v >= .8) clearInterval(fi); }, 120);
       return { stop() { clearInterval(fi); let w = a.volume; const fo = setInterval(() => { w = Math.max(0, w - .1); a.volume = w; if (!w) { clearInterval(fo); a.pause(); } }, 80); }, mute(x) { a.muted = x; } }; } }
   return musicBox();
 }
 function openGrowthMusic(back) {
   const m = musicPref(); let file = null;
   openSheet(`<div class="vf-sheet"><div class="hd"><button class="lnk" data-act="back">닫기</button><b>성장 앨범 음악</b><span></span></div><div class="vf-scroll" style="padding:16px">
-    <div class="mu-list">${[['box', '🎵 오르골 (기본)', '앱이 직접 연주하는 잔잔한 곡 · 데이터 안 씀'], ['file', '📁 내 음악', m.kind === 'file' && m.name ? m.name : 'mp3 · m4a 파일 올리기 (15MB 이하)'], ['off', '🔇 음악 끄기', '사진만 재생']].map(([k, t, d]) => `<button class="mu${m.kind === k ? ' on' : ''}" data-mu="${k}"><b>${t}</b><span>${esc(d)}</span></button>`).join('')}</div>
+    <div class="mu-list">${[['memory', '🎵 Family Memory (기본)', '성장 앨범 전용 곡 · 재생 누르면 자동'], ['box', '🎹 오르골', '앱이 직접 연주하는 잔잔한 곡 · 데이터 안 씀'], ['file', '📁 내 음악', m.kind === 'file' && m.name ? m.name : 'mp3 · m4a 파일 올리기 (15MB 이하)'], ['off', '🔇 음악 끄기', '사진만 재생']].map(([k, t, d]) => `<button class="mu${m.kind === k ? ' on' : ''}" data-mu="${k}"><b>${t}</b><span>${esc(d)}</span></button>`).join('')}</div>
     <button class="btn-line" data-act="mutest" style="margin-top:12px;width:100%">▶ 미리 듣기 (5초)</button>
     <div id="mu-file" ${m.kind === 'file' ? '' : 'hidden'} style="margin-top:14px"><label class="fo-pick"><input id="mu-in" type="file" accept="audio/*,.mp3,.m4a,.aac,.ogg,.wav" hidden><span class="fo-pick-b">📁 음악 파일 고르기</span><span class="fo-pick-n" id="mu-fname">${m.kind === 'file' && m.name ? esc(m.name) : '선택한 파일 없음'}</span></label>
       <p class="cap3" style="margin-top:6px">가족 모두에게 같이 적용 · 저장소 music/ 폴더에 저장 · 저작권 있는 곡은 가족끼리만 보는 용도로</p></div></div></div>`);
@@ -3829,7 +3866,7 @@ function openGrowthMusic(back) {
   $('#sheet-inner').onclick = e => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.act === 'back') { test?.stop(); return back ? (closeSheet(), back()) : closeSheet(); }
     if (b.dataset.mu) { const k = b.dataset.mu; $$('.mu').forEach(x => x.classList.toggle('on', x === b)); $('#mu-file').hidden = k !== 'file'; if (k !== 'file' || musicPref().path) { S.db.meta.growthMusic = { ...musicPref(), kind: k }; markDirty(); } if (k === 'file' && !musicPref().path) $('#mu-in').click(); return; }
-    if (b.dataset.act === 'mutest') { test?.stop(); test = musicStart(); if (!test) return toast('음악 꺼짐'); b.textContent = '♪ 재생 중…'; setTimeout(() => { test?.stop(); test = null; b.textContent = '▶ 미리 듣기 (5초)'; }, 5000); } };
+    if (b.dataset.act === 'mutest') { test?.stop(); bgmHold(true); test = musicStart(); if (!test) { bgmHold(false); return toast('음악 꺼짐'); } setTimeout(() => bgmHold(false), 5200); b.textContent = '♪ 재생 중…'; setTimeout(() => { test?.stop(); test = null; b.textContent = '▶ 미리 듣기 (5초)'; }, 5000); } };
 }
 function growthPickYear(who) {                                     // 11/07 재생 시작 연도 고르기
   const list = growthEnts(who); if (!list.length) return; const cnt = {}; list.forEach(g => { const y = (g.date || '').slice(0, 4) || '?'; cnt[y] = (cnt[y] || 0) + 1; });
@@ -3867,7 +3904,7 @@ function growthPlay(who, fromY) {                                   // 연도순
   const src = growthSrcMap(), locOf = g => growthLoc(src.get(g.photo));
   document.getElementById('grplay')?.remove(); const el = document.createElement('div'); el.id = 'grplay'; el.className = 'grplay'; document.body.appendChild(el);
   let i = Math.max(0, fromY ? list.findIndex(g => ((g.date || '').slice(0, 4) || '?') === fromY) : 0), on = true, tm = null, muted = !!LS.get('grMute', false), sp = grSpeed();
-  let lastY = null, lastK = null, shownI = -1; const mus = musicStart(); mus?.mute(muted);
+  let lastY = null, lastK = null, shownI = -1; bgmHold(true); const mus = musicStart(); mus?.mute(muted);   /* 11/08 배경 음악 멈추고 성장 앨범 곡 */
   const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []), fresh = shownI !== i; shownI = i;
     const newY = fresh && y && y !== lastY && !REDUCE(); if (fresh) lastY = y;
     const L0 = locOf(g), newL = fresh && L0 && L0[0] !== lastK && !REDUCE(); if (fresh) lastK = L0 ? L0[0] : null;
@@ -3881,7 +3918,7 @@ function growthPlay(who, fromY) {                                   // 연도순
   const go = d => { i = Math.max(0, Math.min(list.length - 1, i + d)); draw(); };
   const wait = () => { const t = !!el.querySelector('.gp-title'), l = !!el.querySelector('.gp-loc'); return (t && l ? 4000 : t ? 1200 : l ? 2400 : 0) + 2800 * sp; };   // 제목 효과 시간은 그대로, 사진 시간만 속도 반영
   const tick = () => { clearTimeout(tm); if (!on) return; tm = setTimeout(() => { if (i >= list.length - 1) { on = false; draw(); return; } go(1); tick(); }, wait()); };
-  const close = () => { clearTimeout(tm); mus?.stop(); el.remove(); document.removeEventListener('keydown', key); };
+  const close = () => { clearTimeout(tm); mus?.stop(); setTimeout(() => bgmHold(false), 700); el.remove(); document.removeEventListener('keydown', key); };
   const key = e => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') { go(1); tick(); } else if (e.key === 'ArrowLeft') { go(-1); tick(); } else if (e.key === ' ') { e.preventDefault(); on = !on; draw(); tick(); } };
   document.addEventListener('keydown', key);
   el.onclick = e => { const b = e.target.closest('[data-gp]'); if (!b) return; const a = b.dataset.gp; if (a === 'x') return close(); if (a === 'm') { muted = !muted; LS.set('grMute', muted); mus?.mute(muted); return draw(); }
@@ -3993,7 +4030,52 @@ function tripTitleParts(t) {                                       // 여행 →
   return [en, [t.country === 'KR' ? (/[가-힣]/.test(c) ? c : 'KOREA') : au?.many ? au.sub : regionEn(t.country), start ? d(start) + (end && +end !== +start ? ' — ' + d(end).slice(5) : '') : t.year].filter(Boolean).join(' · '), fmtCoord(loc)];
 }
 function tripTitle(t) { locTitle(...tripTitleParts(t)); }
-function stampFx() { if (REDUCE()) return; const im = document.createElement('img'); im.className = 'stampfx'; im.src = asset('assets/mark-stamp.png'); document.body.appendChild(im); setTimeout(() => im.remove(), 1200); }
+
+/* ---------------- 11/08 효과음 — 음원 파일 없이 Web Audio로 직접 만듦 (기본 켜짐 · 설정에서 끄기/크기) ---------------- */
+const SFX = { ctx: null };
+function sfxVol() { const v = LS.get('sfxVol', null); if (v != null) return +v; const o = LS.get('sfx', 'm'); return o === 'off' ? 0 : o === 's' ? 30 : 60; }   // 0~100 (11/08 슬라이더)
+function sfx(kind) {
+  const vol = sfxVol(); if (!vol || document.querySelector('.grplay')) return;   // 성장 앨범 재생 중엔 조용히
+  try { const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; SFX.ctx ||= new AC(); const c = SFX.ctx; if (c.state === 'suspended') c.resume();
+    const V = .18 * vol / 100, t0 = c.currentTime;
+    const tone = (f, at, dur, type = 'sine', g = 1, f2) => { const o = c.createOscillator(), a = c.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0 + at); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t0 + at + dur);
+      a.gain.setValueAtTime(0.0001, t0 + at); a.gain.exponentialRampToValueAtTime(V * g, t0 + at + .008); a.gain.exponentialRampToValueAtTime(0.0001, t0 + at + dur); o.connect(a).connect(c.destination); o.start(t0 + at); o.stop(t0 + at + dur + .02); };
+    const P = {
+      tap: () => tone(1200, 0, .045, 'sine', .35),                                   // 버튼 톡
+      tab: () => { tone(660, 0, .07, 'triangle', .6); tone(990, .05, .09, 'triangle', .5); },   // 탭 이동
+      like: () => tone(520, 0, .14, 'sine', .9, 1040),                              // 좋아요 뽁
+      send: () => { tone(880, 0, .08, 'triangle', .6); tone(1320, .07, .12, 'triangle', .5); },  // 댓글·저장 딩
+      stamp: () => { tone(140, 0, .18, 'sine', 1.2, 60); tone(320, 0, .05, 'square', .15); },   // 스탬프 쿵
+      badge: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .09, .35, 'triangle', .55)),   // 배지 차임
+      step: () => tone(880 + Math.random() * 160, 0, .05, 'sine', .3),             // 준준이 총총
+      arrive: () => { tone(784, 0, .12, 'triangle', .5); tone(1175, .09, .2, 'triangle', .45); },   // 도착
+    };
+    (P[kind] || P.tap)(); } catch {}
+}
+document.addEventListener('click', e => { const b = e.target.closest('button, .chip, [data-go], label.st-import'); if (!b || b.disabled) return;
+  if (b.closest('#tabs, #mobile-nav, .pc-nav') || b.id === 'set-btn') return sfx('tab');
+  if (b.dataset.slike != null) return sfx('like');
+  if (b.closest('.soc-f') || b.type === 'submit') return sfx('send');
+  sfx('tap'); }, true);
+
+/* ---------------- 11/08 배경 음악 — Sunny Highway · Sunny Morning Adventure 번갈아 (기본 켜짐, 이 기기만) · 성장 앨범 재생 = Family Memory ---------------- */
+const BGM_LIST = [['music/bgm-highway.mp3', 'Sunny Highway Morning'], ['music/bgm-adventure.mp3', 'Sunny Morning Adventure']];
+const BGM = { a: null, i: 0, held: 0, fade: null };
+function bgmOn() { return LS.get('bgmOn', true) !== false; }
+function bgmVol() { return +LS.get('bgmVol', 40); }
+function bgmFade(to, ms = 900, done) { const a = BGM.a; if (!a) return; clearInterval(BGM.fade); const from = a.volume, n = Math.max(1, Math.round(ms / 60)); let k = 0;
+  BGM.fade = setInterval(() => { k++; a.volume = Math.max(0, Math.min(1, from + (to - from) * k / n)); if (k >= n) { clearInterval(BGM.fade); done?.(); } }, 60); }
+function bgmPlay() {
+  if (!bgmOn() || BGM.held || document.hidden || OFFLINE) return;
+  if (!BGM.a) { BGM.a = new Audio(); BGM.a.preload = 'auto'; BGM.a.addEventListener('ended', () => { BGM.i = (BGM.i + 1) % BGM_LIST.length; BGM.a.src = BGM_LIST[BGM.i][0]; BGM.a.play().catch(() => {}); });
+    BGM.i = Math.floor(Math.random() * BGM_LIST.length); BGM.a.src = BGM_LIST[BGM.i][0]; }
+  const a = BGM.a; if (!a.paused) return bgmFade(bgmVol() / 100 * .6, 400); a.volume = 0; a.play().then(() => bgmFade(bgmVol() / 100 * .6, 1600)).catch(() => {});
+}
+function bgmPause(ms = 700) { const a = BGM.a; if (!a || a.paused) return; bgmFade(0, ms, () => a.pause()); }
+function bgmHold(on) { BGM.held = Math.max(0, BGM.held + (on ? 1 : -1)); BGM.held ? bgmPause() : bgmPlay(); }   /* 성장 앨범 재생 중엔 멈춤 */
+['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, function first() { bgmPlay(); document.removeEventListener(ev, first, true); }, true));   // 브라우저: 첫 터치 뒤에만 소리
+document.addEventListener('visibilitychange', () => document.hidden ? bgmPause(200) : bgmPlay());
+function stampFx() { sfx('stamp');  if (REDUCE()) return; const im = document.createElement('img'); im.className = 'stampfx'; im.src = asset('assets/mark-stamp.png'); document.body.appendChild(im); setTimeout(() => im.remove(), 1200); }
 function confettiFx() { if (REDUCE()) return; const box = document.createElement('div'); box.className = 'confetti'; const cols = ['#ffbc00', '#288d9d', '#e8913a', '#d6336c', '#5cc3d1', '#7bc67b'];
   box.innerHTML = Array.from({ length: 48 }, (_, i) => `<i style="left:${Math.random() * 100}%;background:${cols[i % cols.length]};--dx:${(Math.random() * 160 - 80).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;animation-delay:${(Math.random() * .4).toFixed(2)}s"></i>`).join('');
   document.body.appendChild(box); setTimeout(() => box.remove(), 2600); }
@@ -4006,7 +4088,7 @@ function countUp(root) {                                           // 통계 숫
 function badgeCheck(bs) {                                          // 새로 딴 배지 → 반짝 + 꽃가루 (처음 실행 땐 조용히 기록만)
   const ok = bs.filter(b => b.ok).map(b => b.name), seen = LS.get('badgesSeen2', null);   /* 11/07 배지 개편 → 새 키 (처음엔 조용히) */
   if (!seen) { LS.set('badgesSeen2', ok); return []; }
-  const fresh = ok.filter(n => !seen.includes(n)); if (fresh.length) { LS.set('badgesSeen2', [...new Set([...seen, ...ok])]); setTimeout(() => { confettiFx(); toast(`🏅 새 배지! ${fresh.join(' · ')}`, 3500); }, 600); }
+  const fresh = ok.filter(n => !seen.includes(n)); if (fresh.length) { LS.set('badgesSeen2', [...new Set([...seen, ...ok])]); setTimeout(() => { confettiFx(); sfx('badge'); toast(`🏅 새 배지! ${fresh.join(' · ')}`, 3500); }, 600); }
   return fresh;
 }
 function mixHex(a, b, q) {                                         // 색 a → b 사이 (hex만, 아니면 b)
@@ -4048,6 +4130,79 @@ function jPos(segs, ms) {                                           // 여정 �
   return { hide: true };                                              // 끝나고 잠깐 쉼
 }
 const PLANE_HTML = () => `<span><svg viewBox="0 0 25 24" width="20" height="20"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)"/></svg></span>`;
+
+/* ---------------- 11/08 ▶ 준준트립 — 국내 지도에서 준준이들이 연도별 여행 순서대로 총총총 (버튼 누를 때만) ---------------- */
+function jjStops() {
+  const out = [], now = today(), ok = (lat, lng) => typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
+  for (const t of S.db.trips) { const r = tripRange(t); if (!r || t.country !== 'KR' || r[0] > now) continue;
+    const ps = tripVisits(t).map(e => e.p).filter(p => ok(p.lat, p.lng)), c = ps[0] || S.db.places.find(p => ok(p.lat, p.lng) && tripCity(t) && p.name.includes(tripCity(t)));
+    if (c) out.push({ d: r[0], ll: [c.lat, c.lng], name: tripName(t), sel: `[data-tlt="${t.id}"]` }); }
+  for (const p of S.db.places) { if (p.type !== 'spot' || (p.country || 'KR') !== 'KR' || !ok(p.lat, p.lng)) continue;
+    for (const v of p.visitLog || []) if (v.date && !v.trip && v.date <= now) out.push({ d: v.date, ll: [p.lat, p.lng], name: p.name, sel: `[data-tlp="${p.id}"]` }); }
+  for (const l of S.db.lived || []) if (l.from && (l.country || 'KR') === 'KR' && ok(l.lat, l.lng)) out.push({ d: String(l.from).length === 4 ? l.from + '-01-01' : l.from, ll: [l.lat, l.lng], name: '⌂ ' + l.name, sel: `[data-tll="${l.id}"]`, home: 1 });
+  return out.sort((a, b) => a.d.localeCompare(b.d));
+}
+const JJ_CHARS = [['face', '준준이 얼굴'], ['car', '흰 카니발'], ['carroof', '카니발 루프박스'], ['back', '형제 뒷모습']];   /* 11/08 설정에서 고르기 · 카니발 = ZED가 준 그림(배경 제거) */
+function jjChar() { const c = LS.get('jjChar', 'face'); return JJ_CHARS.some(x => x[0] === c) ? c : 'face'; }
+function jjJeju() { return LS.get('jjJeju', 'ship') === 'plane' ? 'plane' : 'ship'; }   /* 제주 가는 길: ⛴ 배 · ✈ 비행기(김포↔제주) */
+const JJ_SVG = {
+  car: '<svg viewBox="0 0 80 40" width="64" height="32" aria-hidden="true"><path d="M4 30V20c0-2 1-3 3-4l9-7c2-1.5 4-2 6-2h38c4 0 6 2 8 5l5 7c2 1 3 2 3 4v7z" fill="#fbfbfb" stroke="#3b3f45" stroke-width="1.6" stroke-linejoin="round"/><path d="M17 10h12v8H9zM32 10h13v8H32zM48 10h12c2 0 3 1 4 2l4 6H48z" fill="#2c3440"/><path d="M46 18v10M30 18v10" stroke="#9aa3ad" stroke-width="1"/><path d="M20 7h40" stroke="#6b737c" stroke-width="2" stroke-linecap="round"/><rect x="70" y="21" width="5" height="3" rx="1" fill="#ffd166"/><rect x="4" y="21" width="3" height="3" rx="1" fill="#e03131"/><circle cx="18" cy="30" r="6" fill="#23262b"/><circle cx="18" cy="30" r="2.6" fill="#c9ced4"/><circle cx="62" cy="30" r="6" fill="#23262b"/><circle cx="62" cy="30" r="2.6" fill="#c9ced4"/></svg>',
+  back: '<svg viewBox="0 0 64 56" width="58" height="51" aria-hidden="true"><g><path d="M8 54V40c0-6 4-10 10-10h4c6 0 10 4 10 10v14z" fill="#2f6fdb"/><rect x="12" y="34" width="16" height="16" rx="4" fill="#f08a1c"/><path d="M14 36v-4M26 36v-4" stroke="#b25f0c" stroke-width="2"/><circle cx="20" cy="22" r="9" fill="#3a2414"/><path d="M10 20c0-7 4-11 10-11s10 4 10 11z" fill="#1f5fbf"/><path d="M8 20h24" stroke="#174a96" stroke-width="2.4" stroke-linecap="round"/></g><g><path d="M33 54V42c0-5 3.5-9 9-9h3c5.5 0 9 4 9 9v12z" fill="#2e9d5b"/><rect x="36" y="37" width="14" height="13" rx="4" fill="#ffd166"/><path d="M38 39v-3M48 39v-3" stroke="#c9a12a" stroke-width="2"/><circle cx="43.5" cy="26" r="8" fill="#3a2414"/><path d="M35 24.5c0-6 3.5-9.5 8.5-9.5s8.5 3.5 8.5 9.5z" fill="#1f7a45"/><path d="M33.5 24.5h20" stroke="#175c34" stroke-width="2.2" stroke-linecap="round"/></g><path d="M30 46l4-1" stroke="#f2c9a6" stroke-width="3" stroke-linecap="round"/></svg>',
+  ship: '<svg viewBox="0 0 64 40" width="58" height="36" aria-hidden="true"><path d="M8 13h30l6 8H12z" fill="#fff" stroke="#3b3f45" stroke-width="1.4"/><rect x="16" y="6" width="14" height="7" rx="1.5" fill="#e8833a"/><path d="M18 9h10" stroke="#fff" stroke-width="1.6"/><path d="M2 21h60l-8 11H10z" fill="#2f6fdb" stroke="#1d4b98" stroke-width="1.4"/><circle cx="20" cy="26" r="1.8" fill="#fff"/><circle cx="30" cy="26" r="1.8" fill="#fff"/><circle cx="40" cy="26" r="1.8" fill="#fff"/><path d="M0 36c5 0 5-3 10-3s5 3 10 3 5-3 10-3 5 3 10 3 5-3 10-3 5 3 10 3" fill="none" stroke="#5cc3d1" stroke-width="2"/></svg>'
+};
+function jjCharHtml(kind) { return kind === 'ship' ? JJ_SVG.ship : kind === 'plane' ? `<svg class="jj-pl" viewBox="0 0 25 24" width="34" height="34" aria-hidden="true"><path d="${PLANE_D}" transform="translate(25,0) scale(-1,1)" fill="#fff" stroke="#0e3a4b" stroke-width="1.2"/></svg>` : kind === 'car' ? `<img class="jj-carimg" src="${asset('assets/car-carnival.png')}" alt="">` : kind === 'carroof' ? `<img class="jj-carimg" src="${asset('assets/car-carnival-roof.png')}" alt="">` : kind === 'back' ? JJ_SVG.back : `<img src="${asset('assets/mark-faces.png')}" alt="">`; }
+const JJ_AIR = [['김포공항', 37.5583, 126.7906], ['제주공항', 33.5104, 126.4914]];
+const JJ_PORTS = [['목포항', 34.7797, 126.3881], ['완도항', 34.3155, 126.758], ['녹동항', 34.524, 127.087]], JJ_JEJU = [33.5196, 126.5434];
+const jjIsJeju = ll => ll[0] < 33.7 && ll[1] > 125.9 && ll[1] < 127.1;
+async function jjLeg(a, b) {                                          // 11/08 한 구간: 도로(카카오 내비 길, 키 없으면 직선) · 제주 들고 날 때 = 가까운 항구까지 도로 → ⛴ 배 → 도로
+  const road = async (x, y) => (await lvRoads([[{ lat: x[0], lng: x[1] }, { lat: y[0], lng: y[1] }]]))[0];
+  const sea = (x, y) => { const mx = (x[0] + y[0]) / 2, my = (x[1] + y[1]) / 2 - .18; return Array.from({ length: 31 }, (_, k) => { const t = k / 30; return [(1 - t) * (1 - t) * x[0] + 2 * (1 - t) * t * mx + t * t * y[0], (1 - t) * (1 - t) * x[1] + 2 * (1 - t) * t * my + t * t * y[1]]; }); };
+  const ja = jjIsJeju(a), jb = jjIsJeju(b), segs = [];
+  if (ja === jb) { segs.push({ kind: 'road', pts: await road(a, b) }); return segs; }
+  if (jjJeju() === 'plane') { const g = [JJ_AIR[0][1], JJ_AIR[0][2]], c = [JJ_AIR[1][1], JJ_AIR[1][2]], air = (x, y) => { const mx = (x[0] + y[0]) / 2, my = (x[1] + y[1]) / 2 + .55; return Array.from({ length: 41 }, (_, k) => { const t = k / 40; return [(1 - t) * (1 - t) * x[0] + 2 * (1 - t) * t * mx + t * t * y[0], (1 - t) * (1 - t) * x[1] + 2 * (1 - t) * t * my + t * t * y[1]]; }); };
+    if (!ja) segs.push({ kind: 'road', pts: await road(a, g), to: '김포공항' }, { kind: 'air', pts: air(g, c), to: '제주공항' }, { kind: 'road', pts: await road(c, b) });
+    else segs.push({ kind: 'road', pts: await road(a, c), to: '제주공항' }, { kind: 'air', pts: air(c, g), to: '김포공항' }, { kind: 'road', pts: await road(g, b) });
+    return segs; }
+  const main = ja ? b : a, pt = JJ_PORTS.map(p => ({ p, d: haversine({ lat: p[1], lng: p[2] }, { lat: main[0], lng: main[1] }) })).sort((x, y) => x.d - y.d)[0].p, port = [pt[1], pt[2]];
+  if (!ja) { segs.push({ kind: 'road', pts: await road(a, port), to: pt[0] }, { kind: 'sea', pts: sea(port, JJ_JEJU), to: '제주항' }, { kind: 'road', pts: await road(JJ_JEJU, b) }); }
+  else { segs.push({ kind: 'road', pts: await road(a, JJ_JEJU), to: '제주항' }, { kind: 'sea', pts: sea(JJ_JEJU, port), to: pt[0] }, { kind: 'road', pts: await road(port, b) }); }
+  return segs;
+}
+function jjTrip(btn) {
+  const map = S.tmMap; if (S.jj) { S.jj.stop(); return; } if (!map || S.tmMode !== 'kr') return;
+  const stops = jjStops(); if (stops.length < 2) return toast('국내 기록이 2곳 이상 있어야 해요');
+  const wrap = map.getContainer().closest('.tm-mapw'), card = $('#tm-card'), ch = jjChar();
+  const me = L.marker(stops[0].ll, { interactive: false, zIndexOffset: 1200, icon: L.divIcon({ className: 'jj-mk', html: `<span class="jj-hop jj-${ch}">${jjCharHtml(ch)}</span><b class="jj-lbl"></b>`, iconSize: [60, 44], iconAnchor: [30, 38] }) }).addTo(map);
+  const yr = document.createElement('div'); yr.className = 'jj-year serif'; wrap?.appendChild(yr);
+  const trail = L.layerGroup().addTo(map);
+  btn.textContent = '■ 멈춤'; btn.classList.add('on'); if (!kakaoRestKey()) toast('카카오 키가 없으면 길 대신 직선으로 가요 (설정 › 카카오 REST)', 3500);
+  const legs = []; const legOf = k => legs[k] ||= jjLeg(stops[k].ll, stops[k + 1].ll).catch(() => [{ kind: 'road', pts: [stops[k].ll, stops[k + 1].ll] }]);
+  legOf(0); if (stops.length > 2) legOf(1);
+  const kmOf = pts => { const c = [0]; for (let j = 1; j < pts.length; j++) c.push(c[j - 1] + haversine({ lat: pts[j - 1][0], lng: pts[j - 1][1] }, { lat: pts[j][0], lng: pts[j][1] })); return c; };
+  const at = (pts, cum, f) => { const d = f * cum[cum.length - 1]; let j = 1; while (j < cum.length - 1 && cum[j] < d) j++; const s0 = cum[j - 1], s1 = cum[j] || s0 + 1e-9, r = Math.min(1, Math.max(0, (d - s0) / (s1 - s0))), p = pts[j - 1], q = pts[j] || p; return [[p[0] + (q[0] - p[0]) * r, p[1] + (q[1] - p[1]) * r], q[1] < p[1]]; };
+  let i = 0, phase = 'dwell', t0 = performance.now(), lastStep = 0, alive = true, segs = null, si = 0, seg = null, cum = null, D = 0, kind = '';
+  const el = () => me.getElement(), lblOf = () => el()?.querySelector('.jj-lbl'), hopEl = () => el()?.querySelector('.jj-hop');
+  const setKind = k => { if (k === kind) return; kind = k; const ck = k === 'sea' ? 'ship' : k === 'air' ? 'plane' : ch, h = hopEl(); if (h) { h.className = `jj-hop jj-${ck}`; h.innerHTML = jjCharHtml(ck); } };
+  const say = t => { const l = lblOf(); if (!l) return; if (t) { l.textContent = t; l.classList.add('on'); } else l.classList.remove('on'); };
+  const mark = k => { const st = stops[k]; card?.querySelectorAll('.tl-now').forEach(x => x.classList.remove('tl-now')); card?.querySelector(st.sel)?.classList.add('tl-now');
+    say(`${+st.d.slice(5, 7) && !st.home ? `${+st.d.slice(5, 7)}/${+st.d.slice(8, 10)} ` : ''}${st.name}`);
+    if (yr.textContent !== st.d.slice(0, 4)) { yr.textContent = st.d.slice(0, 4); yr.classList.remove('pop'); void yr.offsetWidth; yr.classList.add('pop'); } sfx('arrive'); };
+  const stop = () => { alive = false; S.jj = null; try { me.remove(); trail.remove(); } catch {} yr.remove(); card?.querySelectorAll('.tl-now').forEach(x => x.classList.remove('tl-now')); if (btn.isConnected) { btn.textContent = '▶ 준준트립'; btn.classList.remove('on'); } };
+  const startSeg = now => { seg = segs[si]; cum = kmOf(seg.pts); const km = cum[cum.length - 1]; D = seg.kind === 'sea' ? 4200 : seg.kind === 'air' ? 3800 : Math.max(1800, Math.min(5200, 1400 + km * 8)); t0 = now; setKind(seg.kind);
+    if (seg.kind === 'sea') say('⛴ 배 타고 ' + (seg.to || '')); else if (seg.kind === 'air') say('✈ 비행기 타고 ' + (seg.to || '')); else say(''); hopEl()?.classList.toggle('go', seg.kind === 'road'); hopEl()?.classList.toggle('sail', seg.kind === 'sea'); };
+  S.jj = { stop }; setKind('road'); mark(0);
+  const tick = now => { if (!alive) return; if (S.tmMap !== map || !document.body.contains(map.getContainer())) return stop();
+    if (phase === 'dwell') {
+      if (now - t0 > 1700) { if (i >= stops.length - 1) { toast(`준준트립 끝! 국내 ${stops.length}곳`, 3000); return stop(); } phase = 'wait'; legOf(i).then(r => { if (!alive) return; segs = r; si = 0; legOf(i + 1 < stops.length - 1 ? i + 1 : i); phase = 'go'; startSeg(performance.now()); }); } }
+    else if (phase === 'go') { const k = Math.min(1, (now - t0) / D), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, [ll, west] = at(seg.pts, cum, e);
+      me.setLatLng(ll); const fl = hopEl()?.firstElementChild; if (fl) { if (kind === 'air') { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), q0 = seg.pts[j - 1], q1 = seg.pts[j] || q0, pa = map.latLngToLayerPoint(q0), pb = map.latLngToLayerPoint(q1); fl.style.transform = `rotate(${Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI}deg)`; }
+        else { const carL = kind === 'road' && /^car/.test(ch); fl.style.transform = (ch === 'back' && kind === 'road') ? '' : (carL ? !west : west) ? 'scaleX(-1)' : ''; } }   // 카니발 그림은 왼쪽 보기 → 동쪽 갈 때 뒤집기 · 뒷모습은 그대로
+      if (seg.kind === 'road' && now - lastStep > 260) { sfx('step'); lastStep = now; }
+      if (k >= 1) { L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : seg.kind === 'air' ? '#8a4fd1' : '#ffbc00', weight: 3, opacity: .85, dashArray: seg.kind === 'road' ? '2 7' : '4 6', lineCap: 'round', interactive: false }).addTo(trail);
+        if (++si < segs.length) startSeg(now); else { i++; phase = 'dwell'; t0 = now; hopEl()?.classList.remove('go', 'sail'); setKind('road'); mark(i); } } }
+    requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
 function journeyFx(map, segs) {                                      // Leaflet: 한 명이 ✈/🚗 갈아타며 집 → 집
   if (REDUCE() || !segs.length) return; let kind = '';
   const m = L.marker(segs[0].pts?.[0] || [0, 0], { interactive: false, zIndexOffset: 900, icon: L.divIcon({ className: 'tm-plane tm-jr', html: '', iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(map);
@@ -4241,21 +4396,22 @@ function navTo(v) {
   if (!$('#sheet').hidden) { if (S.sheetDirty && !confirm('작성 중인 내용이 있습니다. 창을 닫고 이동할까요?')) return; closeSheet(); }
   $('#lb')?.remove(); if (S.tmFull) { S.tmFull = false; document.body.classList.remove('tm-full-on'); }
   if (v === 'trips') S.trip = null;
-  showView(v); window.scrollTo?.(0, 0); document.querySelector({ trips: '#view-trips', journal: '#view-journal', settings: '#view-settings', home: '#view-home' }[v] || '#main')?.scrollTo?.(0, 0);
+  showView(v); window.scrollTo?.(0, 0); document.querySelector({ trips: '#view-trips', journal: '#view-journal', food: '#view-food', settings: '#view-settings', home: '#view-home' }[v] || '#main')?.scrollTo?.(0, 0);
 }
 function showView(v) {
   const sheetState = v === 'map' ? 'peek' : v === 'list' ? '' : null;
   if (v === 'map' || v === 'list') v = 'explore';
   S.view = v; S.returnTo = null;
-  $$('#tabs button, #mobile-nav button').forEach(b => b.classList.toggle('on', b.dataset.view === v));
-  const pages = { home: '#view-home', explore: '#main', trips: '#view-trips', journal: '#view-journal', settings: '#view-settings' };
+  $$('#tabs button, #mobile-nav button, #set-btn').forEach(b => b.classList.toggle('on', b.dataset.view === v));
+  const pages = { home: '#view-home', explore: '#main', trips: '#view-trips', journal: '#view-journal', food: '#view-food', settings: '#view-settings' };
   for (const [k, sel] of Object.entries(pages)) $(sel).classList.toggle('on', k === v);
-  document.body.classList.toggle('at-home', v === 'home'); document.body.classList.toggle('at-explore', v === 'explore'); document.body.classList.toggle('at-trips', v === 'trips'); document.body.classList.toggle('at-settings', v === 'settings'); document.body.classList.toggle('at-journal', v === 'journal');
+  document.body.classList.toggle('at-home', v === 'home'); document.body.classList.toggle('at-explore', v === 'explore'); document.body.classList.toggle('at-trips', v === 'trips'); document.body.classList.toggle('at-settings', v === 'settings'); document.body.classList.toggle('at-journal', v === 'journal'); document.body.classList.toggle('at-food', v === 'food');
   if (v === 'explore') { setTimeout(() => map.invalidateSize(), 60); if (sheetState != null && $('#panel').setSheet) $('#panel').setSheet(sheetState); }
   if (v === 'home') { renderHome(); S.homeStale = false; } else fitPcHero();
   if (v === 'trips') renderTrips();
   if (v === 'settings') renderSettings();
   if (v === 'journal') openJournal({ page: true });
+  if (v === 'food') openJournal({ page: true, food: true });   /* 11/08 음식 탭 */
   $(pages[v]).scrollTop = 0;
 }
 
@@ -4263,6 +4419,7 @@ function showView(v) {
 function bindOnce() {
   $('#tabs').onclick = e => { const b = e.target.closest('button'); if (b) navTo(b.dataset.view); };
   $('#mobile-nav').onclick = e => { const b = e.target.closest('button'); if (b) navTo(b.dataset.view); };
+  $('#set-btn').onclick = () => navTo('settings');   /* 11/08 설정 → 오른쪽 위 ⚙ */
   $('#base-btn').onclick = e => { e.stopPropagation(); baseMenu(e.currentTarget); };
   $('#base-chip').onclick = e => { e.stopPropagation(); baseMenu(e.currentTarget); };
   $('#q-pc').oninput = $('#q-hdr').oninput = e => { S.q = e.target.value; $('#q').value = S.q; renderList(); if (S.view !== 'explore' && S.q) showView('explore'); };
@@ -4332,7 +4489,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); posWatch();   /* 11/07 사진 보이는 위치 */ initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, jjLeg, jjStops, jjChar, LS, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();

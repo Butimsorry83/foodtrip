@@ -16,8 +16,8 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
 <link rel="stylesheet" href="vendor/leaflet.css">
 <link rel="stylesheet" href="vendor/MarkerCluster.css">
-<link rel="stylesheet" href="tokens.css?v=20261108g">
-<link rel="stylesheet" href="style.css?v=20261108g">
+<link rel="stylesheet" href="tokens.css?v=20261108j">
+<link rel="stylesheet" href="style.css?v=20261108j">
 </head>
 <body>
 <div id="app">
@@ -29,8 +29,8 @@
       <button data-view="home">홈</button>
       <button data-view="explore">찾기</button>
       <button data-view="trips">여행</button>
+      <button data-view="food">음식</button>
       <button data-view="journal">발자취</button>
-      <button data-view="settings">설정</button>
     </nav>
     <div class="search">
       <input id="q-hdr" type="search" placeholder="휴양지·식당·메뉴 검색" autocomplete="off">
@@ -39,6 +39,7 @@
       <button id="base-btn" class="base-btn" title="거점 변경"><span class="base-ico">⌂</span> <span id="base-name">거점</span><span class="chev">▾</span></button>
       <button id="today-btn" class="icon-btn today" title="오늘 뭐 먹지">🍽</button>
       <button id="add-btn" class="icon-btn rw" title="장소 추가">＋</button>
+      <button id="set-btn" class="icon-btn" data-view="settings" title="설정"><svg class="i" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"></path></svg></button>
       <span id="sync" class="sync" title="저장 상태"></span>
     </div>
   </header>
@@ -79,6 +80,9 @@
   <!-- 기록 (우리 가족 기록 · 블로그형) -->
   <section id="view-journal" class="page"><div class="wrap" id="journal"></div></section>
 
+  <!-- 음식 (11/08 식당 기록 · 인스타/스크랩북) -->
+  <section id="view-food" class="page"><div class="wrap" id="food"></div></section>
+
   <!-- 설정 -->
   <section id="view-settings" class="page"><div class="wrap"><div class="settings" id="settings"></div></div></section>
 
@@ -86,8 +90,9 @@
     <button data-view="home"><svg class="i" viewBox="0 0 24 24"><path d="M4 10 12 4l8 6v10H4Z"></path><path d="M10 20v-6h4v6"></path></svg>홈</button>
     <button data-view="explore"><svg class="i" viewBox="0 0 24 24"><path d="m9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Z"></path></svg>찾기</button>
     <button data-view="trips"><svg class="i" viewBox="0 0 24 24"><path d="M3 15 21 8l-4 9-5-2-3 4v-5Z"></path></svg>여행</button>
+    <button data-view="food"><svg class="i" viewBox="0 0 24 24"><path d="M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M7 3v5"></path><path d="M17 21V3c-2 1-3 4-3 8h3"></path></svg>음식</button>
     <button data-view="journal"><svg class="i" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2Z"></path><path d="M4 19V5M9 8h6M9 12h4"></path></svg>발자취</button>
-    <button data-view="settings"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"></path></svg>설정</button>
+
   </nav>
   <div id="sheet" class="sheet" hidden>
     <div class="sheet-inner" id="sheet-inner"></div>
@@ -97,6 +102,6 @@
 
 <script src="vendor/leaflet.js"></script>
 <script src="vendor/leaflet.markercluster.js"></script>
-<script src="app.js?v=20261108g"></script>
+<script src="app.js?v=20261108j"></script>
 </body>
 </html>
