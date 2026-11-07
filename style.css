@@ -1204,3 +1204,15 @@ body.tm-full-on { overflow: hidden; }
   .bdg .bt { flex-direction: column; align-items: flex-start; gap: 1px; } .bdg .bt b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .bdg .bl { gap: 4px; } .bdg i { width: 24px; height: 24px; flex: none; }
 }
+
+/* 11/07 성장 앨범 재생 시작 연도 */
+.gy-pop { position: fixed; inset: 0; z-index: 3000; background: rgba(10, 20, 28, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.gy-box { background: var(--panel, #fff); color: var(--text-1, #10202a); border-radius: 18px; padding: 18px; width: min(440px, 100%); max-height: 86vh; overflow: auto; box-shadow: 0 18px 50px rgba(0,0,0,.25); }
+.gy-box > b { font-size: calc(16px * var(--fz, 1)); }
+.gy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; margin: 12px 0 14px; }
+.gy-grid button { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg-subtle); color: inherit; cursor: pointer; font: inherit; }
+.gy-grid button b { font: 700 calc(16px * var(--fz, 1)) var(--font-num, inherit); } .gy-grid button small { font-size: calc(11px * var(--fz, 1)); color: var(--text-3); }
+.gy-grid button:hover, .gy-grid button:focus-visible { border-color: var(--accent); background: var(--accent-soft, #fff4cc); outline: none; }
+.gy-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.gy-btns button { padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: inherit; font: inherit; cursor: pointer; }
+.gy-btns .pri { background: var(--accent); border-color: var(--accent); color: #10202a; font-weight: 700; }

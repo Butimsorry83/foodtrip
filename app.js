@@ -2915,7 +2915,7 @@ function openGrowth(opts) {
     if (b.dataset.act === 'grup') return isRO() ? goToken() : openGrowthUpload(who);
     if (b.dataset.grlv) { const l = (S.db.lived || []).find(x => x.id === b.dataset.grlv); if (l) return openLivedForm(l); }
     if (b.dataset.grv != null) { LS.set('grSb', b.dataset.grv === '1'); return openGrowth({ ...opts, gwho: who }); }
-    if (b.dataset.act === 'grplay') return growthPlay(who);
+    if (b.dataset.act === 'grplay') return growthPickYear(who);   /* 11/07 시작 연도 고르기 */
     if (b.dataset.act === 'grmusic') return openGrowthMusic(() => openGrowth({ page: true, gwho: who }));
     if (b.dataset.act === 'grbirth') return isRO() ? goToken() : openGrowthBirth();
     if (b.dataset.gr) { const list = growthEnts(who), k = list.findIndex(g => g.id === b.dataset.gr);
@@ -3692,10 +3692,22 @@ function openGrowthMusic(back) {
     if (b.dataset.mu) { const k = b.dataset.mu; $$('.mu').forEach(x => x.classList.toggle('on', x === b)); $('#mu-file').hidden = k !== 'file'; if (k !== 'file' || musicPref().path) { S.db.meta.growthMusic = { ...musicPref(), kind: k }; markDirty(); } if (k === 'file' && !musicPref().path) $('#mu-in').click(); return; }
     if (b.dataset.act === 'mutest') { test?.stop(); test = musicStart(); if (!test) return toast('음악 꺼짐'); b.textContent = '♪ 재생 중…'; setTimeout(() => { test?.stop(); test = null; b.textContent = '▶ 미리 듣기 (5초)'; }, 5000); } };
 }
-function growthPlay(who) {                                         // 연도순 재생 (전체 화면 · 자동 넘김)
+function growthPickYear(who) {                                     // 11/07 재생 시작 연도 고르기
+  const list = growthEnts(who); if (!list.length) return; const cnt = {}; list.forEach(g => { const y = (g.date || '').slice(0, 4) || '?'; cnt[y] = (cnt[y] || 0) + 1; });
+  const ys = Object.keys(cnt); if (ys.length < 2) return growthPlay(who);
+  document.querySelector('.gy-pop')?.remove(); const el = document.createElement('div'); el.className = 'gy-pop';
+  el.innerHTML = `<div class="gy-box" role="dialog" aria-label="시작 연도"><b>어느 해부터 볼까요?</b><p class="cap3">${who ? esc(who) + ' · ' : ''}사진 ${list.length}장 · 고른 해부터 끝까지 재생</p>
+    <div class="gy-grid">${ys.map((y, k) => `<button type="button" data-gy="${esc(y)}"${k === 0 ? ' class="on"' : ''}><b>${esc(y === '?' ? '날짜 없음' : y)}</b><small>${cnt[y]}장${who && y !== '?' && growthAge(who, y + '-12-31') ? ' · ' + esc(growthAge(who, y + '-12-31')) : ''}</small></button>`).join('')}</div>
+    <div class="gy-btns"><button type="button" data-gyx="1">취소</button><button type="button" class="pri" data-gy="${esc(ys[0])}">▶ 처음부터</button></div></div>`;
+  document.body.appendChild(el);
+  const close = () => { el.remove(); document.removeEventListener('keydown', key); }, key = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', key);
+  el.onclick = e => { const b = e.target.closest('button'); if (e.target === el || b?.dataset.gyx) return close(); if (!b?.dataset.gy) return; const y = b.dataset.gy; close(); growthPlay(who, y); };
+}
+function growthPlay(who, fromY) {                                   // 연도순 재생 (전체 화면 · 자동 넘김) · fromY = 시작 연도
   const list = growthEnts(who); if (!list.length) return;
   document.getElementById('grplay')?.remove(); const el = document.createElement('div'); el.id = 'grplay'; el.className = 'grplay'; document.body.appendChild(el);
-  let i = 0, on = true, tm = null, muted = !!LS.get('grMute', false);
+  let i = Math.max(0, fromY ? list.findIndex(g => ((g.date || '').slice(0, 4) || '?') === fromY) : 0), on = true, tm = null, muted = !!LS.get('grMute', false);
   let lastY = null; const mus = musicStart(); mus?.mute(muted);
   const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []); const newY = y && y !== lastY && !REDUCE(); lastY = y;
     el.innerHTML = `<div class="gp-img" style="background-image:url('${photoUrl(g.photo)}')"></div><div class="gp-cap"><b class="serif">${esc(y || '')}</b><span>${esc(names.map(n => n + (growthAge(n, g.date) ? ' ' + growthAge(n, g.date) : '')).join(' · '))}</span>${g.memo ? `<em class="hand">${esc(g.memo)}</em>` : ''}<small class="num">${esc((g.date || '').replace(/-/g, '.'))} · ${i + 1}/${list.length}</small></div>
@@ -3978,7 +3990,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, viaParse, tripRoute, enName, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, viaParse, tripRoute, enName, growthPickYear, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
