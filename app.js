@@ -3992,7 +3992,8 @@ function zoomSize(zm, w, h) {                                        // 틀(w×h
 }
 function posApply(root) {
   if (!(S.db?.meta?.photoPos || S.db?.meta?.photoZoom) || !root || root.nodeType !== 1) return;
-  const one = el => { if (el.tagName === 'IMG') { const p = posGet(el.getAttribute('src')); if (p && el.style.objectPosition !== p) el.style.objectPosition = p; return; }
+  const one = el => { if (el.closest('.ps-box, .lb')) return;   /* 11/07 편집 창 미리보기·사진 크게 보기는 건드리지 않음 (저장된 값으로 되돌려 고정되던 문제) */
+    if (el.tagName === 'IMG') { const p = posGet(el.getAttribute('src')); if (p && el.style.objectPosition !== p) el.style.objectPosition = p; return; }
     const bg = el.style?.backgroundImage; if (!bg || bg.indexOf('url(') < 0) return; const u = (bg.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]; if (!u) return;
     const p = posGet(u); if (p && el.style.backgroundPosition !== p) el.style.backgroundPosition = p;
     const zm = zoomGet(u); if (zm && zm.z !== 1 && !/gradient/.test(bg)) { const sz = zoomSize(zm, el.clientWidth, el.clientHeight); if (sz && el.style.backgroundSize !== sz) { el.style.backgroundSize = sz; el.style.backgroundRepeat = 'no-repeat'; } } };
