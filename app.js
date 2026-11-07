@@ -79,7 +79,8 @@ function regionsInDb() {
   for (const p of S.db.places) set.set(p.region, (set.get(p.region) || 0) + 1);
   return [...set.entries()];
 }
-function regionCountry(region) { const p = S.db.places.find(x => x.region === region); return p ? p.country : 'KR'; }
+function regionCountry(region) { if (/^cc:/.test(region || '')) return region.slice(3); const p = S.db.places.find(x => x.region === region); return p ? p.country : 'KR'; }
+const inRegion = (p, r) => /^cc:/.test(r) ? (p.country || 'KR') === r.slice(3) : p.region === r;   /* 11/07 'cc:VN' = 나라 전체 (홈 컬렉션) */
 function areaOf(p) { return [...new Set([p.do, p.si].filter(Boolean))].join(' '); }
 function today() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
 function toMin(hhmm) { const m = /^(\d{1,2}):?(\d{2})$/.exec((hhmm || '').trim()); return m ? (+m[1]) * 60 + (+m[2]) : null; }
@@ -410,7 +411,7 @@ function filtered() {
   const q = S.q.trim().toLowerCase();
   return S.db.places.filter(p => {
     if (S.scope !== 'all' && p.type !== S.scope) return false;
-    if (S.region !== 'all' && p.region !== S.region) return false;
+    if (S.region !== 'all' && !inRegion(p, S.region)) return false;
     for (const f of S.flags) {
       if (['봄', '여름', '가을', '겨울'].includes(f)) {
         if (p.type === 'spot' && !(p.seasons || []).includes(f)) return false;
@@ -462,7 +463,7 @@ function pickMenu(anchor, items, onPick) {                      // 칩 드롭다
 function renderTagChips() {
   const pool = TAGS[S.scope] || [...TAGS.spot, ...TAGS.restaurant, ...TAGS.mine];
   const cnt = new Map();
-  for (const p of S.db.places) if (S.region === 'all' || p.region === S.region) for (const t of p.tags || []) cnt.set(t, (cnt.get(t) || 0) + 1);
+  for (const p of S.db.places) if (S.region === 'all' || inRegion(p, S.region)) for (const t of p.tags || []) cnt.set(t, (cnt.get(t) || 0) + 1);
   for (const t of [...S.tags]) if (!pool.includes(t)) S.tags.delete(t);
   const shown = [...new Set(pool)].filter(t => cnt.get(t) || S.tags.has(t));
   const top = shown.slice().sort((a, b) => (cnt.get(b) || 0) - (cnt.get(a) || 0));
@@ -505,7 +506,7 @@ function emptyAct(act) {
   if (act === 'clear') { S.flags.clear(); S.tags.clear(); S.scope = 'all'; $$('#f-scope button').forEach(x => x.classList.toggle('on', x.dataset.v === 'all')); renderRegionChips(); renderTagChips(); renderList(); }
   if (act === 'km') { const nextKm = ({ 10: 30, 30: 60, 60: null })[S.radius] ?? null; S.radius = nextKm; LS.set('radius', S.radius); $$('#km-pills button').forEach(b => b.classList.toggle('on', S.radius != null && +b.dataset.km <= S.radius)); $('#fab-km').textContent = S.radius ? S.radius + 'km' : 'km'; $('#fab-km').classList.toggle('on', !!S.radius); renderList(); }
   if (act === 'allregion') { S.region = 'all'; LS.set('region', 'all'); renderRegionChips(); renderTagChips(); renderList(); fitToVisible(); }
-  if (act === 'newplace') { const foreign = /[A-Za-z]{3,}/.test(S.q); const rc = S.region && !['all', 'domestic'].includes(S.region) ? (S.db.places.find(x => x.region === S.region && x.country && x.country !== 'KR')?.country || regionCountry(S.region)) : null; /* 11/06 Italy 필터 중이면 이탈리아 */ const p = { id: uid(), type: foreign ? 'spot' : 'restaurant', country: rc && rc !== 'OTHER' && rc !== 'KR' ? rc : foreign ? 'OTHER' : S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : S.region, name: S.q.trim(), cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, tags: [], visitLog: [] }; openPlaceForm(p); if (p.name) setTimeout(() => $('#pf [data-act=psearch]')?.click(), 50); }
+  if (act === 'newplace') { const foreign = /[A-Za-z]{3,}/.test(S.q); const rc = S.region && !['all', 'domestic'].includes(S.region) ? (S.db.places.find(x => inRegion(x, S.region) && x.country && x.country !== 'KR')?.country || regionCountry(S.region)) : null; /* 11/06 Italy 필터 중이면 이탈리아 */ const p = { id: uid(), type: foreign ? 'spot' : 'restaurant', country: rc && rc !== 'OTHER' && rc !== 'KR' ? rc : foreign ? 'OTHER' : S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : /^cc:/.test(S.region) ? (S.db.places.find(x => x.country === S.region.slice(3))?.region || 'domestic') : S.region, name: S.q.trim(), cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {}, tags: [], visitLog: [] }; openPlaceForm(p); if (p.name) setTimeout(() => $('#pf [data-act=psearch]')?.click(), 50); }
 }
 function renderList() {
   const items = sorted(filtered());
@@ -753,7 +754,7 @@ function openHoursForm(p) {
 /* ---------------- 방문 기록 ---------------- */
 const FAMILY_DEFAULT = ['아빠', '엄마', '하준', '이준'];
 /* 11/06 지역 이름: 정해진 이름 → 해외 지역이 나라 이름(italy 등)이면 한글 나라 이름(이탈리아) → 첫 글자 대문자 */
-function regionLabel(r) { if (!r) return ''; if (REGION_LABEL[r]) return REGION_LABEL[r]; const cs = [...new Set((S.db?.places || []).filter(p => p.region === r && p.country && p.country !== 'KR').map(p => p.country))];
+function regionLabel(r) { if (!r) return ''; if (/^cc:/.test(r)) return ccKo(r.slice(3)) || r.slice(3); if (REGION_LABEL[r]) return REGION_LABEL[r]; const cs = [...new Set((S.db?.places || []).filter(p => p.region === r && p.country && p.country !== 'KR').map(p => p.country))];
   if (cs.length === 1) { const ko = ccKo(cs[0]), en = (regionEn(cs[0]) || '').toLowerCase().replace(/\s+/g, ''); if (ko && en === r.toLowerCase().replace(/[\s_-]+/g, '')) return ko; } return niceName(r); }
 const REL_RE = /(이모|이모부|고모|고모부|삼촌|숙모|외숙모|큰엄마|큰아빠|작은엄마|작은아빠|할머니|할아버지|사촌|조카|장모|장인|손님)/;
 function coreFamily() { const f = familyNames(), i = f.findIndex(x => REL_RE.test(x)); return i < 0 ? f : f.slice(0, Math.max(2, i)); }   /* 11/05 앞쪽 = 우리 가족 (첫 친척 이름 전까지) */
@@ -1852,8 +1853,9 @@ function tripAuto(t) { if ((t.items || []).length || t.country === 'KR') return 
   return cs.length > 1 ? { name: ccKo(t.country), en: regionEn(t.country), sub: cs.map(c => c.en).join(' · '), many: true } : { name: cs[0].name, en: cs[0].en, sub: '' }; }
 const tripName = t => t.cover || tripAuto(t)?.name || (!(t.items || []).length && t.title ? (t.title.replace(/^\s*\d{4}\s*/, '').trim() || tripCity(t)) : tripCity(t));
 function collectionsHtml(d, pc) {
-  const regions = regionsInDb();
-  const items = [...regions.map(([r, n]) => ({ act: `data-region="${r}"`, label: regionLabel(r), n, bg: r === 'domestic' ? 'var(--primary)' : 'var(--primary-2)' })),
+  const byCc = new Map(); for (const p of S.db.places) { const c = p.country || 'KR'; const o = byCc.get(c) || { n: 0, regs: new Set() }; o.n++; o.regs.add(p.region); byCc.set(c, o); }   /* 11/07 컬렉션 = 나라 기준 (나트랑 → 베트남) */
+  const regions = [...byCc.entries()].sort((a, b) => (a[0] === 'KR' ? -1 : b[0] === 'KR' ? 1 : b[1].n - a[1].n));
+  const items = [...regions.map(([c, o]) => ({ act: `data-region="${c === 'KR' ? 'domestic' : o.regs.size === 1 ? [...o.regs][0] : 'cc:' + c}"`, label: c === 'KR' ? '국내' : ccKo(c) || c, n: o.n, bg: c === 'KR' ? 'var(--primary)' : 'var(--primary-2)' })),
     ...['한식', '중식'].map(c => ({ act: `data-cuisine="${c}"`, label: c, n: d.rests.filter(p => cuisineOf(p).includes(c)).length, bg: `var(--cat-${CAT_VAR[c]})` })).filter(x => x.n)];
   const unv = S.db.places.filter(p => !p.visits).length;
   if (pc) return items.slice(0, 4).map(x => `<button ${x.act} style="background:${x.bg}"><b>${esc(x.label)}</b><span class="disp">${x.n}</span></button>`).join('') + `<button data-act="explore-unvisited" style="background:rgba(255,188,0,.9);color:#000"><b>미방문</b><span class="disp">${unv}</span></button>`;
@@ -1895,8 +1897,8 @@ function renderHomePhone(d) {
 function renderHomePC(d) {
   const n = d.feats.length, i = S.heroIdx; const feat = d.feats[i]; const fp = feat?.s;
   const dcard = (x, k) => { const p = x.s, im = imgOf(p), dd = distInfo(p); const inner = im ? `<div class="img" style="background-image:url('${im}')"></div>` : `<div class="img info"><div class="km">${dd ? fmtKm(dd.km) + '<small>km</small>' : '—'}</div><div class="min">${dd ? `${esc(baseShort())}에서 ${minText(dd.min)}` : '위치 없음'}</div></div>`;
-    if (k === 0) return `<div class="pc-feat"><div class="dcard" data-go="${p.id}"><div class="plate"></div>${inner}<div class="cap">${esc(p.name)}</div></div>${im ? `<span class="tagl">${familyPhoto(p) ? '우리 가족 사진' : '기본 사진 · 관광공사'}</span><button class="tagr" data-go="${p.id}">내 사진으로 바꾸기</button>${S.token || OFFLINE ? `<button class="tagr tagp" data-posu="${esc(im)}">⌖ 위치</button>` : ''}` : ''}</div>`;
-    return `<div class="pc-next" style="left:${1000 + (k - 1) * 293}px;animation-delay:${k * 80}ms"><button class="dcard sm" data-act="feat-go" data-k="${k}">${inner}<div class="cap">${esc(p.name)}</div></button></div>`; };
+    if (k === 0) return `<div class="pc-feat"><div class="dcard" data-go="${p.id}"><div class="plate"></div>${inner}<div class="cap" data-capgo="${p.id}" title="${esc(p.name)} 자세히">${esc(p.name)}</div></div>${im ? `<span class="tagl">${familyPhoto(p) ? '우리 가족 사진' : '기본 사진 · 관광공사'}</span><span class="tagrs">${S.token || OFFLINE ? `<button class="tagp" data-posu="${esc(im)}" title="사진 보이는 위치">⌖</button>` : ''}<button class="tagr" data-go="${p.id}">내 사진으로 바꾸기</button></span>` : ''}</div>`;
+    return `<div class="pc-next" style="left:${1000 + (k - 1) * 293}px;animation-delay:${k * 80}ms"><button class="dcard sm" data-act="feat-go" data-k="${k}">${inner}<div class="cap" data-capgo="${p.id}" title="${esc(p.name)} 자세히">${esc(p.name)}</div></button></div>`; };
   const logCard = ({ p, v }, big) => big ? `<button class="pc-log big" data-go="${p.id}" style="--cat:${catColor(p)}"><div class="h"><span class="cat">${esc(catDot(p))}</span>${esc(areaOf(p))} · 최근 기록</div>${(v.photo && photoUrl(v.photo)) || imgOf(p) ? `<div class="lc-img big" style="margin-top:14px"><img src="${(v.photo && photoUrl(v.photo)) || imgOf(p)}" alt=""></div>` : ''}<q>${esc(v.memo || p.name)}</q>${p.pros || p.signature ? `<p class="memo">${esc(p.pros || p.signature)}</p>` : ''}<div class="f"><div><b>${esc(p.name)}</b><p class="mono">${esc((v.date || '').replace(/-/g, '.'))} · <span class="st">★${v.rating || ''}</span> · ${p.visits}회</p></div><img class="stamp" src="${asset('assets/mark-stamp.png')}" alt=""></div><span class="add rw">+ 사진 추가</span></button>`
     : `<button class="pc-log" data-go="${p.id}" style="--cat:${catColor(p)}"><div class="h"><i></i>${esc(catDot(p))}<span class="st">${starsTxt(v.rating)}</span></div>${(v.photo && photoUrl(v.photo)) || imgOf(p) ? `<div class="lc-img"><img src="${(v.photo && photoUrl(v.photo)) || imgOf(p)}" alt=""></div>` : ''}<q>${esc(v.memo || areaOf(p))}</q><div class="f"><b>${esc(p.name)}</b><span class="mono">${esc((v.date || '').slice(5).replace('-', '.'))}</span></div></button>`;
   const visitCard = (p, big) => `<button class="pc-log${big ? ' big' : ''}" data-go="${p.id}" style="--cat:${catColor(p)}"><div class="h">${big ? `<span class="cat">${esc(catDot(p))}</span>` : `<i></i>${esc(catDot(p))}`}<span class="st">${starsTxt(ratingOf(p))}</span></div>${imgOf(p) ? `<div class="lc-img${big ? ' big' : ''}"${big ? ' style="margin-top:14px"' : ''}><img src="${imgOf(p)}" alt=""></div>` : ''}<q>${esc(p.pros || p.desc || p.signature || areaOf(p))}</q><div class="f"><b>${esc(p.name)}</b><span class="mono">방문 ${p.visits}회</span></div></button>`;
@@ -1987,6 +1989,7 @@ function renderHome() {
   fitPcHero(); seasonFx(el.querySelector(phone ? '.ph-hero' : '.pc-hero-wrap'), d.season);
   $('#hero-search').onsubmit = e => { e.preventDefault(); S.q = $('#hq').value.trim(); $('#q').value = S.q; S.region = 'all'; renderRegionChips(); renderTagChips(); renderList(); showView('explore'); fitToVisible(); };
   el.onclick = e => {
+    const cg = e.target.closest('[data-capgo]'); if (cg) return openDetail(cg.dataset.capgo);   /* 11/07 카드 아래 이름 = 그 장소 자세히 (사진은 넘기기 그대로) */
     const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.view) return navTo(b.dataset.view);
     if (b.dataset.act === 'heropick') return openHeroPicker(d.season);
@@ -2032,7 +2035,7 @@ function initSheetDrag() {
 /* ---------------- 추가/수정 폼 ---------------- */
 function openPlaceForm(p) {
   const isNew = !p || !placeById(p.id);
-  p = p || { id: uid(), type: 'restaurant', country: S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : S.region, name: '', cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {} };
+  p = p || { id: uid(), type: 'restaurant', country: S.region === 'domestic' || S.region === 'all' ? 'KR' : regionCountry(S.region), region: S.region === 'all' ? 'domestic' : /^cc:/.test(S.region) ? (S.db.places.find(x => x.country === S.region.slice(3))?.region || 'domestic') : S.region, name: '', cuisine: [], seasons: [], rating: 0, visits: 0, naver: {}, kakao: {} };
   const spots = S.db.places.filter(x => x.type === 'spot');
   const CU = p.country === 'KR' ? ['한식', '중식', '일식', '양식', '기타'] : ['현지', '해산물', '쌀국수', 'BBQ', '한식', '카페', '기타'];
   openSheet(`
@@ -2169,7 +2172,8 @@ async function geoSearch(q, country, area, wide) {
   if (googleKey()) { const g = await googleSearch(cc ? `${q} ${regionEn(cc)}` : q, null); if (g.length) return g; }   // 해외: 거점(덕소) 주변으로 좁히지 않음
   let r = await osmSearch(q, cc); if (!r.length && cc) r = await osmSearch(q, ''); return r;
 }
-function ccKo(cc) { return G_COUNTRY_KO[cc] || (S.geoWorld?.features.find(f => f.properties.cc === cc) || {}).properties?.n || regionEn(cc); }
+const KO_RGN = (() => { try { return new Intl.DisplayNames(['ko'], { type: 'region' }); } catch { return null; } })();
+function ccKo(cc) { return G_COUNTRY_KO[cc] || (S.geoWorld?.features.find(f => f.properties.cc === cc) || {}).properties?.n || (() => { try { const n = KO_RGN?.of(cc); return n && n !== cc ? n : null; } catch { return null; } })() || regionEn(cc); }   /* 11/07 지도 안 불러와도 한글 나라 이름 */
 function ccAt(lat, lng) { if (lat == null || !S.geoWorld) return ''; const f = S.geoWorld.features.find(f => geoHit(f.geometry, +lng, +lat)); return f ? f.properties.cc : ''; }
 function countryOptions(sel) {                                     // 나라 선택 (자주 + 전체 가나다)
   const all = (S.geoWorld?.features || []).map(f => [f.properties.cc, f.properties.n]).filter(([c]) => c && c.length === 2).sort((a, b) => a[1].localeCompare(b[1], 'ko'));
@@ -2248,7 +2252,7 @@ function renderTrips() {
     return legTxt + `<span class="num cap">${esc(it.time || '')}</span><div class="dotcol"><span class="dot" style="background:${color};box-shadow:0 0 0 1px ${color}"></span>${i < items.length - 1 ? '<span class="line"></span>' : ''}</div><div class="cardcol">${card}</div>`;
   }).join('');
   el.innerHTML = `
-    <div class="tp-hero" style="${tripCoverStyle(t)}"><div class="tp-top"><button class="back" data-act="back">‹</button><div style="display:flex;gap:6px"><button class="pill" data-act="tshare">↗</button>${/url\(/.test(tripCoverStyle(t)) && !/trip-cover-/.test(tripCoverStyle(t)) ? '<button class="pill rw" data-act="tpos" title="표지 보이는 위치">⌖ 위치</button>' : ''}<button class="pill rw" data-act="edit-trip">편집</button></div></div>
+    <div class="tp-hero" style="${tripCoverStyle(t)}"><div class="tp-top"><button class="back" data-act="back">‹</button><div style="display:flex;gap:6px"><button class="pill" data-act="tshare">↗</button>${/url\(/.test(tripCoverStyle(t)) && !/trip-cover-/.test(tripCoverStyle(t)) ? '<button class="pill rw pill-pos" data-act="tpos" title="표지 보이는 위치">⌖</button>' : ''}<button class="pill rw" data-act="edit-trip">편집</button></div></div>
       <div class="tp-title"><span class="serif">${esc(tripName(t))}</span><span class="num">${start ? `${md(start)}–${md(end)}` : t.year}${base ? ` · 거점 ${esc(base.name.replace(/\s*\(.*\)/, ''))}` : ''}</span></div></div>
     <div class="daytabs">${days.map((d, i) => { const m2 = d.match(/(\d{1,2})\/(\d{1,2})/); return `<button data-day="${i}" class="${i === S.tripDay ? 'on' : ''}">D${i + 1}<b class="num">${m2 ? `${m2[1].padStart(2, '0')}.${m2[2].padStart(2, '0')}` : esc(d)}</b></button>`; }).join('')}</div>
     ${tripPhotosHtml(t)}
@@ -3992,23 +3996,34 @@ function posWatch() {
   S._posObs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'src'] }); posApply(document.body);
   document.addEventListener('click', e => { const b = e.target.closest('[data-posu]'); if (b) { e.stopPropagation(); e.preventDefault(); openPosEditor(b.dataset.posu); } }, true);
 }
-function openPosEditor(url) {                                          // 초점 고르기: 사진 위 한 점 누르기 · PC 가로 / 폰 세로 미리보기
-  if (isRO()) return goToken(); if (!url) return; const k = posKey(url); let [x, y] = (posGet(url) || '50% 50%').split(' ').map(v => parseFloat(v));
+function openPosEditor(url) {                                          // 초점 고르기: 사진 위 한 점 누르기·끌기 · 확대해서 정확히 (휠·두 손가락·＋－) · PC 가로 / 폰 세로 미리보기
+  if (isRO()) return goToken(); if (!url) return; const k = posKey(url); let [x, y] = (posGet(url) || '50% 50%').split(' ').map(v => parseFloat(v)), z = 1;
   document.querySelector('.gy-pop')?.remove(); const el = document.createElement('div'); el.className = 'gy-pop'; document.body.appendChild(el);
-  el.innerHTML = `<div class="gy-box ps-box" role="dialog" aria-label="보이는 위치"><b>⌖ 보이는 위치</b><p class="cap3">꼭 보여야 할 곳(얼굴 등)을 누르거나 끌어 주세요 · 이 사진이 나오는 모든 화면에 적용</p>
-    <div class="ps-main"><span class="ps-in"><img src="${url}" alt="" draggable="false"><i class="ps-dot"></i></span></div>
+  el.innerHTML = `<div class="gy-box ps-box" role="dialog" aria-label="보이는 위치"><b>⌖ 보이는 위치</b><p class="cap3">꼭 보여야 할 곳(얼굴 등)을 누르거나 끌어 주세요 · 확대하면 더 정확하게 · 이 사진이 나오는 모든 화면에 적용</p>
+    <div class="ps-main"><span class="ps-in"><span class="ps-z"><img src="${url}" alt="" draggable="false"><i class="ps-dot"></i></span></span>
+      <div class="ps-zb"><button type="button" data-psz="1.6" title="확대">＋</button><span class="ps-zl">100%</span><button type="button" data-psz="0.625" title="축소">－</button></div></div>
     <div class="ps-prev"><div><span class="ps-w" style="background-image:url('${url}')"></span><small>PC 가로 · 여행 표지</small></div><div><span class="ps-t" style="background-image:url('${url}')"></span><small>폰·카드 세로</small></div><div><span class="ps-s" style="background-image:url('${url}')"></span><small>정사각</small></div></div>
     <div class="gy-btns"><button type="button" data-psc="1">가운데로</button><button type="button" data-psx="1">취소</button><button type="button" class="pri" data-psok="1">저장</button></div></div>`;
-  const main = el.querySelector('.ps-main'), dot = el.querySelector('.ps-dot');
-  const draw = () => { const p = `${x.toFixed(0)}% ${y.toFixed(0)}%`; dot.style.left = x + '%'; dot.style.top = y + '%'; el.querySelectorAll('.ps-prev span').forEach(s0 => { s0.style.backgroundPosition = p; }); };
-  const at = e => { const r = main.querySelector('img').getBoundingClientRect(), pt = e.touches ? e.touches[0] : e; x = Math.max(0, Math.min(100, (pt.clientX - r.left) / r.width * 100)); y = Math.max(0, Math.min(100, (pt.clientY - r.top) / r.height * 100)); draw(); };
-  let drag = false; main.onpointerdown = e => { drag = true; main.setPointerCapture?.(e.pointerId); at(e); }; main.onpointermove = e => { if (drag) at(e); }; main.onpointerup = () => { drag = false; };
-  draw();
+  const box = el.querySelector('.ps-in'), zz = el.querySelector('.ps-z'), img = zz.querySelector('img'), dot = el.querySelector('.ps-dot');
+  const view = () => { const w = box.clientWidth, h = box.clientHeight; let tx = w / 2 - x / 100 * w * z, ty = h / 2 - y / 100 * h * z;   // 확대하면 점이 가운데로 오게
+    tx = Math.min(0, Math.max(w - w * z, tx)); ty = Math.min(0, Math.max(h - h * z, ty)); zz.style.transform = z > 1 ? `translate(${tx}px,${ty}px) scale(${z})` : ''; dot.style.transform = `scale(${1 / z})`; el.querySelector('.ps-zl').textContent = Math.round(z * 100) + '%'; };
+  const draw = () => { const p = `${x.toFixed(1)}% ${y.toFixed(1)}%`; dot.style.left = x + '%'; dot.style.top = y + '%'; el.querySelectorAll('.ps-prev span').forEach(s0 => { s0.style.backgroundPosition = p; }); };
+  const zoom = f => { z = Math.max(1, Math.min(8, z * f)); if (z < 1.05) z = 1; view(); };
+  const at = e => { const r = img.getBoundingClientRect(); x = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)); y = Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100)); draw(); };
+  const pts = new Map(); let pin = null;
+  box.onpointerdown = e => { box.setPointerCapture?.(e.pointerId); pts.set(e.pointerId, e); if (pts.size === 2) { const [p1, p2] = [...pts.values()]; pin = { d: Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY), z }; } else at(e); };
+  box.onpointermove = e => { if (!pts.has(e.pointerId)) return; pts.set(e.pointerId, e);
+    if (pin && pts.size === 2) { const [p1, p2] = [...pts.values()]; z = Math.max(1, Math.min(8, pin.z * Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY) / pin.d)); view(); return; }
+    if (!pin) at(e); };
+  box.onpointerup = box.onpointercancel = e => { pts.delete(e.pointerId); if (pts.size < 2 && pin) { if (!pts.size) pin = null; } if (!pts.size) view(); };   // 손 떼면 점이 가운데로
+  box.addEventListener('wheel', e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.2 : 1 / 1.2); }, { passive: false });
+  img.onload = () => view(); draw(); view();
   const close = () => { el.remove(); document.removeEventListener('keydown', key, true); }, key = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   document.addEventListener('keydown', key, true);
   el.onclick = e => { e.stopPropagation(); const b = e.target.closest('button'); if (e.target === el) return close(); if (!b) return;
-    if (b.dataset.psc) { x = 50; y = 50; return draw(); } if (b.dataset.psx) return close();
-    if (b.dataset.psok) { const m = (S.db.meta.photoPos ||= {}); if (Math.abs(x - 50) < 1 && Math.abs(y - 50) < 1) delete m[k]; else m[k] = `${x.toFixed(0)}% ${y.toFixed(0)}%`; markDirty();
+    if (b.dataset.psz) return zoom(+b.dataset.psz);
+    if (b.dataset.psc) { x = 50; y = 50; z = 1; draw(); return view(); } if (b.dataset.psx) return close();
+    if (b.dataset.psok) { const m = (S.db.meta.photoPos ||= {}); if (Math.abs(x - 50) < .5 && Math.abs(y - 50) < .5) delete m[k]; else m[k] = `${x.toFixed(1)}% ${y.toFixed(1)}%`; markDirty();
       document.querySelectorAll('[style*="background-image"], img').forEach(n => { const u = n.tagName === 'IMG' ? n.getAttribute('src') : (n.style.backgroundImage.match(/url\(["']?([^"')]+)["']?\)/) || [])[1]; if (u && posKey(u) === k) { if (n.tagName === 'IMG') n.style.objectPosition = m[k] || ''; else n.style.backgroundPosition = m[k] || ''; } });
       toast('보이는 위치 저장 · 모든 화면에 적용'); close(); } };
 }

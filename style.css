@@ -1280,7 +1280,7 @@ body.tm-full-on { overflow: hidden; }
 .gf-list button { display: flex; align-items: center; gap: 8px; text-align: left; border: 1px solid var(--line); background: var(--panel); color: var(--text-3); border-radius: 10px; padding: 8px 10px; font: inherit; cursor: pointer; }
 .gf-list button.on { color: var(--text-1); } .gf-list button span { width: 18px; flex: none; } .gf-list button b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .gf-list small { color: var(--text-3); white-space: nowrap; font-size: calc(11px * var(--fz, 1)); }
 .btn-line.on { border-color: var(--accent); color: var(--accent-ink, var(--text-1)); }
-.pc-feat .tagr.tagp { top: 48px; }
+
 /* 11/07 사진 보이는 위치 */
 .ps-box { width: min(620px, 100%); }
 .ps-main .ps-in { position: relative; display: inline-block; line-height: 0; }
@@ -1300,3 +1300,18 @@ body.tm-full-on { overflow: hidden; }
 .lb .lb-z { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 3; width: auto; height: auto; border-radius: 999px; padding: 8px 16px; background: rgba(255,255,255,.92); color: #10202a; font-weight: 700; font-size: 13px; border: 0; cursor: pointer; }
 .lb .lb-z[hidden] { display: none; }
 .lb .x, .lb .pv, .lb .nx, .lb .lb-acts { z-index: 2; }
+/* 11/07 ⌖ 위치 — 작게, 한 줄 */
+.pc-feat .tagrs { position: absolute; right: 20px; top: 18px; display: flex; gap: 5px; align-items: center; }
+.pc-feat .tagrs .tagr { position: static; }
+.pc-feat .tagp { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: rgba(255,255,255,.55); color: var(--hero); font-size: 13px; line-height: 22px; cursor: pointer; opacity: .7; transition: opacity .15s, background .15s; }
+.pc-feat .tagp:hover { opacity: 1; background: #fff; }
+.tp-hero .pill-pos { opacity: .7; } .tp-hero .pill-pos:hover { opacity: 1; }
+.dcard .cap[data-capgo] { cursor: pointer; } .dcard .cap[data-capgo]:hover { text-decoration: underline; text-underline-offset: 4px; }
+/* 11/07 위치 편집 확대 */
+.ps-main { position: relative; }
+.ps-main .ps-in { overflow: hidden; touch-action: none; }
+.ps-main .ps-z { display: block; position: relative; transform-origin: 0 0; line-height: 0; }
+.ps-main .ps-z img { max-height: 46vh; }
+.ps-zb { position: absolute; right: 8px; bottom: 8px; display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,.55); border-radius: 999px; padding: 3px; line-height: 1; }
+.ps-zb button { width: 30px; height: 30px; border: 0; border-radius: 50%; background: rgba(255,255,255,.92); color: #10202a; font-size: 16px; font-weight: 800; cursor: pointer; }
+.ps-zl { color: #fff; font: 600 11px var(--font-num, inherit); min-width: 38px; text-align: center; }
