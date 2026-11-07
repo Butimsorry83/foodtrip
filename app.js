@@ -605,7 +605,7 @@ function openDetail(id) {
     <div class="d-sec"><div class="h"><b>${p.type === 'spot' ? '근처 식당' : '이 근처'}</b><button data-act="reco" ${hasCoord(p) ? '' : 'disabled'}>${p.type === 'spot' ? '추천 보기 →' : '다른 식당 추천 →'}</button></div></div>
     <div class="d-sec"><div class="h"><b>방문 기록</b><span style="display:flex;gap:12px">${(p.visitLog || []).length ? '<button data-act="journal">모아보기</button>' : ''}<button class="rw" data-act="visitlog">+ 기록 추가</button></span></div>
       ${(p.visitLog || []).length ? `<div class="tl-v">${p.visitLog.slice().reverse().map((v, ri) => { const i = p.visitLog.length - 1 - ri;
-        return `<div class="v${ri ? ' old' : ''}"><span class="dot"></span><div class="vh"><b class="mono">${esc((v.date || '').replace(/-/g, '.'))}</b><span class="st">${starsTxt(v.rating)}</span><button class="mini rw" data-vedit="${i}" title="편집">편집</button><button class="mini ghost rw" data-vdel="${i}" title="삭제">✕</button></div>${v.memo ? `<p>${esc(v.memo)}</p>` : ''}${(() => { const ph = visitPhotos(v); return ph.length ? `<div class="vstrip${ph.length === 1 ? ' one' : ''}">${ph.map((u, k) => `<button type="button" data-vlb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${ph.length > 1 && k === 0 ? `<span>${ph.length}장</span>` : ''}</button>`).join('')}</div>` : ''; })()}${!ri ? `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">` : ''}</div>`; }).join('')}</div>`
+        return `<div class="v${ri ? ' old' : ''}"><span class="dot"></span><div class="vh"><b class="mono">${esc((v.date || '').replace(/-/g, '.'))}</b><span class="st">${starsTxt(v.rating)}</span>${visitPhotos(v).length ? `<button class="mini rw" data-vgr="${i}" title="이 기록 사진을 성장 앨범에">🌱 성장앨범</button>` : ''}<button class="mini rw" data-vedit="${i}" title="편집">편집</button><button class="mini ghost rw" data-vdel="${i}" title="삭제">✕</button></div>${v.memo ? `<p>${esc(v.memo)}</p>` : ''}${(() => { const ph = visitPhotos(v); return ph.length ? `<div class="vstrip${ph.length === 1 ? ' one' : ''}">${ph.map((u, k) => `<button type="button" data-vlb="${i}" data-k="${k}"><img src="${u}" alt="" loading="lazy">${ph.length > 1 && k === 0 ? `<span>${ph.length}장</span>` : ''}</button>`).join('')}</div>` : ''; })()}${!ri ? `<img class="stamp" src="${asset('assets/mark-stamp.png')}" alt="">` : ''}</div>`; }).join('')}</div>`
       : `<div class="novisit"><img src="${asset('assets/mark-stamp.png')}" alt=""><div><b>아직 안 가본 곳</b><small>다녀오면 스탬프가 찍혀요</small></div></div>`}
     </div>
     ${rests.length ? `<div class="d-sec"><div class="h"><b>추천 식당 ${rests.length}</b></div><div class="sublist" style="margin:12px 0 0">${rests.map(x => `<button data-go="${x.id}"><span><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${catColor(x)};margin-right:6px"></span>${esc(x.name)}</span><span class="mono" style="color:var(--text-2)">${distInfo(x) ? fmtKm(distInfo(x).km) + 'km' : ''}</span></button>`).join('')}</div></div>` : ''}
@@ -640,6 +640,7 @@ function openDetail(id) {
     const tg = e.target.closest('[data-tag]');
     if (tg) { if (document.body.classList.contains('ro')) return; const t = tg.dataset.tag; const set = new Set(p.tags || []); set.has(t) ? set.delete(t) : set.add(t); p.tags = [...set]; tg.classList.toggle('tag'); tg.classList.toggle('off'); markDirty(); renderTagChips(); renderList(); return; }
     const vlb = e.target.closest('[data-vlb]'); if (vlb) { const v = p.visitLog[+vlb.dataset.vlb]; openLightbox(visitPhotos(v), +vlb.dataset.k, `${p.name} · ${(v.date || '').replace(/-/g, '.')}`, { raws: visitRaw(v), date: v.date, who: v.who }); return; }
+    const vgr = e.target.closest('[data-vgr]'); if (vgr) { openVisitGrowth(p.visitLog[+vgr.dataset.vgr]); return; }   /* 11/07 */
     const vedit = e.target.closest('[data-vedit]'); if (vedit) { openVisitForm(p, p.visitLog[+vedit.dataset.vedit]); return; }
     const vdel = e.target.closest('[data-vdel]');
     if (vdel) { if (vdel.dataset.confirm) { p.visitLog.splice(+vdel.dataset.vdel, 1); p.visits = Math.max(0, (p.visits || 1) - 1); markDirty(); openDetail(id); } else { vdel.dataset.confirm = 1; vdel.textContent = '삭제?'; } return; }
@@ -3696,32 +3697,87 @@ function growthPickYear(who) {                                     // 11/07 재�
   const list = growthEnts(who); if (!list.length) return; const cnt = {}; list.forEach(g => { const y = (g.date || '').slice(0, 4) || '?'; cnt[y] = (cnt[y] || 0) + 1; });
   const ys = Object.keys(cnt); if (ys.length < 2) return growthPlay(who);
   document.querySelector('.gy-pop')?.remove(); const el = document.createElement('div'); el.className = 'gy-pop';
-  el.innerHTML = `<div class="gy-box" role="dialog" aria-label="시작 연도"><b>어느 해부터 볼까요?</b><p class="cap3">${who ? esc(who) + ' · ' : ''}사진 ${list.length}장 · 고른 해부터 끝까지 재생</p>
+  const nShort = growthShort(list).length, opt = () => `<div class="gy-opt"><span>재생</span><div class="seg"><button type="button" data-gys="0" class="${LS.get('grShort', false) ? '' : 'on'}">전체 ${list.length}장</button><button type="button" data-gys="1" class="${LS.get('grShort', false) ? 'on' : ''}">하이라이트 ${nShort}장 <small>(해마다 10장)</small></button></div></div>
+    <div class="gy-opt"><span>속도</span><div class="seg">${GR_SPEED.map(([v, n]) => `<button type="button" data-gyv="${v}" class="${grSpeed() === v ? 'on' : ''}">${n}</button>`).join('')}</div></div>`;
+  el.innerHTML = `<div class="gy-box" role="dialog" aria-label="시작 연도"><b>어느 해부터 볼까요?</b><p class="cap3">${who ? esc(who) + ' · ' : ''}사진 ${list.length}장 · 고른 해부터 끝까지 재생</p><div class="gy-opts">${opt()}</div>
     <div class="gy-grid">${ys.map((y, k) => `<button type="button" data-gy="${esc(y)}"${k === 0 ? ' class="on"' : ''}><b>${esc(y === '?' ? '날짜 없음' : y)}</b><small>${cnt[y]}장${who && y !== '?' && growthAge(who, y + '-12-31') ? ' · ' + esc(growthAge(who, y + '-12-31')) : ''}</small></button>`).join('')}</div>
     <div class="gy-btns"><button type="button" data-gyx="1">취소</button><button type="button" class="pri" data-gy="${esc(ys[0])}">▶ 처음부터</button></div></div>`;
   document.body.appendChild(el);
   const close = () => { el.remove(); document.removeEventListener('keydown', key); }, key = e => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', key);
-  el.onclick = e => { const b = e.target.closest('button'); if (e.target === el || b?.dataset.gyx) return close(); if (!b?.dataset.gy) return; const y = b.dataset.gy; close(); growthPlay(who, y); };
+  el.onclick = e => { const b = e.target.closest('button'); if (e.target === el || b?.dataset.gyx) return close();
+    if (b?.dataset.gys) { LS.set('grShort', b.dataset.gys === '1'); el.querySelector('.gy-opts').innerHTML = opt(); return; }
+    if (b?.dataset.gyv) { LS.set('grSpeed', +b.dataset.gyv); el.querySelector('.gy-opts').innerHTML = opt(); return; }
+    if (!b?.dataset.gy) return; const y = b.dataset.gy; close(); growthPlay(who, y); };
 }
-function growthPlay(who, fromY) {                                   // 연도순 재생 (전체 화면 · 자동 넘김) · fromY = 시작 연도
-  const list = growthEnts(who); if (!list.length) return;
+const GR_SPEED = [[1, '보통'], [.6, '빠르게'], [.35, '아주 빠르게']];
+const grSpeed = () => { const v = +LS.get('grSpeed', 1); return GR_SPEED.some(x => x[0] === v) ? v : 1; };
+function growthShort(list, per = 10) {                              // 11/07 하이라이트: 해마다 최대 per장 (그해 전체에 고르게)
+  const by = {}; list.forEach(g => (by[(g.date || '').slice(0, 4) || '?'] ||= []).push(g));
+  return Object.values(by).flatMap(a => a.length <= per ? a : Array.from({ length: per }, (_, k) => a[Math.round(k * (a.length - 1) / (per - 1))]));
+}
+function growthSrcMap() {                                            // 11/07 사진 → 어느 방문 기록(장소·여행)에서 왔는지
+  const m = new Map(); for (const p of S.db.places) for (const v of p.visitLog || []) for (const ph of (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : [])) if (ph && !m.has(ph)) m.set(ph, { p, v }); return m;
+}
+function growthLoc(src) {                                             // 방문 기록 → 장소 제목 [키, 큰 영문, 부제, 좌표]
+  if (!src) return null; const { p, v } = src, t = v.trip && S.db.trips.find(x => x.id === v.trip);
+  if (t) return [t.id, ...tripTitleParts(t)];
+  const nm = p.city || p.name; return [p.id, enName(nm, p.country || 'KR'), [p.name, (v.date || '').replace(/-/g, '.')].filter(Boolean).join(' · '), hasCoord(p) ? fmtCoord(p) : ''];
+}
+function growthPlay(who, fromY) {                                   // 연도순 재생 (전체 화면 · 자동 넘김) · fromY = 시작 연도 · 11/07 하이라이트·속도·여행지 이름 효과
+  const all = growthEnts(who); if (!all.length) return; const list = LS.get('grShort', false) ? growthShort(all) : all;
+  const src = growthSrcMap(), locOf = g => growthLoc(src.get(g.photo));
   document.getElementById('grplay')?.remove(); const el = document.createElement('div'); el.id = 'grplay'; el.className = 'grplay'; document.body.appendChild(el);
-  let i = Math.max(0, fromY ? list.findIndex(g => ((g.date || '').slice(0, 4) || '?') === fromY) : 0), on = true, tm = null, muted = !!LS.get('grMute', false);
-  let lastY = null; const mus = musicStart(); mus?.mute(muted);
-  const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []); const newY = y && y !== lastY && !REDUCE(); lastY = y;
-    el.innerHTML = `<div class="gp-img" style="background-image:url('${photoUrl(g.photo)}')"></div><div class="gp-cap"><b class="serif">${esc(y || '')}</b><span>${esc(names.map(n => n + (growthAge(n, g.date) ? ' ' + growthAge(n, g.date) : '')).join(' · '))}</span>${g.memo ? `<em class="hand">${esc(g.memo)}</em>` : ''}<small class="num">${esc((g.date || '').replace(/-/g, '.'))} · ${i + 1}/${list.length}</small></div>
+  let i = Math.max(0, fromY ? list.findIndex(g => ((g.date || '').slice(0, 4) || '?') === fromY) : 0), on = true, tm = null, muted = !!LS.get('grMute', false), sp = grSpeed();
+  let lastY = null, lastK = null, shownI = -1; const mus = musicStart(); mus?.mute(muted);
+  const draw = () => { const g = list[i], y = (g.date || '').slice(0, 4), names = who ? [who] : (g.who || []), fresh = shownI !== i; shownI = i;
+    const newY = fresh && y && y !== lastY && !REDUCE(); if (fresh) lastY = y;
+    const L0 = locOf(g), newL = fresh && L0 && L0[0] !== lastK && !REDUCE(); if (fresh) lastK = L0 ? L0[0] : null;
+    const off = newY ? 1.55 : 0, latin = L0 && /^[\x20-\x7E·]+$/.test(L0[1]);
+    el.innerHTML = `<div class="gp-img" style="background-image:url('${photoUrl(g.photo)}')"></div><div class="gp-cap"><b class="serif">${esc(y || '')}</b><span>${esc(names.map(n => n + (growthAge(n, g.date) ? ' ' + growthAge(n, g.date) : '')).join(' · '))}</span>${g.memo ? `<em class="hand">${esc(g.memo)}</em>` : ''}<small class="num">${esc((g.date || '').replace(/-/g, '.'))}${L0 ? ' · ' + esc(L0[2].split(' · ')[0]) : ''} · ${i + 1}/${list.length}</small></div>
       <div class="gp-bar"><i style="width:${(i + 1) / list.length * 100}%"></i></div>
       ${newY ? `<div class="gp-title"><div class="big">${[...y].map((c, k) => `<span style="animation-delay:${(k * .07).toFixed(2)}s">${c}</span>`).join('')}</div><div class="sub">${esc(names.map(n => (n + (growthAge(n, g.date) ? ' · ' + growthAge(n, g.date) : ''))).join('  '))}</div></div>` : ''}
-      <div class="gp-ctl"><button data-gp="-1">‹</button><button data-gp="0">${on ? '❚❚' : '▶'}</button><button data-gp="1">›</button>${mus ? `<button data-gp="m" title="음악">${muted ? '🔇' : '🔊'}</button>` : ''}<button data-gp="x">✕</button></div>`;
+      ${newL ? `<div class="gp-loc" style="animation-delay:${off}s,${(off + 1.9).toFixed(2)}s"><div class="big${latin ? '' : ' ko'}">${[...L0[1]].map((c, k) => `<span style="animation-delay:${(off + k * .05).toFixed(2)}s">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</div>${L0[2] ? `<div class="sub" style="animation-delay:${(off + .55).toFixed(2)}s">${esc(L0[2])}</div>` : ''}${L0[3] ? `<div class="crd" style="animation-delay:${(off + .8).toFixed(2)}s">${esc(L0[3])}</div>` : ''}</div>` : ''}
+      <div class="gp-ctl"><button data-gp="-1">‹</button><button data-gp="0">${on ? '❚❚' : '▶'}</button><button data-gp="1">›</button><button data-gp="s" title="속도">${sp === 1 ? '×1' : sp === .6 ? '×1.7' : '×3'}</button>${mus ? `<button data-gp="m" title="음악">${muted ? '🔇' : '🔊'}</button>` : ''}<button data-gp="x">✕</button></div>`;
     const nx = list[i + 1]; if (nx) new Image().src = photoUrl(nx.photo); };
   const go = d => { i = Math.max(0, Math.min(list.length - 1, i + d)); draw(); };
-  const tick = () => { clearTimeout(tm); if (!on) return; tm = setTimeout(() => { if (i >= list.length - 1) { on = false; draw(); return; } go(1); tick(); }, el.querySelector('.gp-title') ? 4000 : 2800); };
+  const wait = () => { const t = !!el.querySelector('.gp-title'), l = !!el.querySelector('.gp-loc'); return (t && l ? 4000 : t ? 1200 : l ? 2400 : 0) + 2800 * sp; };   // 제목 효과 시간은 그대로, 사진 시간만 속도 반영
+  const tick = () => { clearTimeout(tm); if (!on) return; tm = setTimeout(() => { if (i >= list.length - 1) { on = false; draw(); return; } go(1); tick(); }, wait()); };
   const close = () => { clearTimeout(tm); mus?.stop(); el.remove(); document.removeEventListener('keydown', key); };
   const key = e => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight') { go(1); tick(); } else if (e.key === 'ArrowLeft') { go(-1); tick(); } else if (e.key === ' ') { e.preventDefault(); on = !on; draw(); tick(); } };
   document.addEventListener('keydown', key);
-  el.onclick = e => { const b = e.target.closest('[data-gp]'); if (!b) return; const a = b.dataset.gp; if (a === 'x') return close(); if (a === 'm') { muted = !muted; LS.set('grMute', muted); mus?.mute(muted); return draw(); } if (a === '0') { on = !on; draw(); return tick(); } go(+a); tick(); };
+  el.onclick = e => { const b = e.target.closest('[data-gp]'); if (!b) return; const a = b.dataset.gp; if (a === 'x') return close(); if (a === 'm') { muted = !muted; LS.set('grMute', muted); mus?.mute(muted); return draw(); }
+    if (a === 's') { const k = GR_SPEED.findIndex(x => x[0] === sp); sp = GR_SPEED[(k + 1) % GR_SPEED.length][0]; LS.set('grSpeed', sp); toast(`재생 속도: ${GR_SPEED.find(x => x[0] === sp)[1]}`); draw(); return tick(); }
+    if (a === '0') { on = !on; draw(); return tick(); } go(+a); tick(); };
   draw(); tick();
+}
+function openVisitGrowth(v) {                                       // 11/07 방문 기록 → 성장 앨범 (사진 여러 장 한 번에 · 날짜는 기록 날짜)
+  if (isRO()) return goToken(); if (!v) return;
+  const raws = (v.photos && v.photos.length ? v.photos : v.photo ? [v.photo] : []).filter(x => x && !/^local:/.test(x)); if (!raws.length) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
+  const by = (S.db.meta.family || {}).birthYear || {}, y = +(v.date || '').slice(0, 4), fam = familyNames(), born = n => !by[n] || !y || by[n] <= y;
+  const sel = new Set(((v.who || []).filter(n => fam.includes(n)).length ? v.who : coreFamily()).filter(n => fam.includes(n) && born(n)));
+  const inGr = ph => new Set((S.db.growth || []).filter(g => g.photo === ph).flatMap(g => g.who || []));
+  const done = ph => sel.size && [...sel].every(n => inGr(ph).has(n));
+  const pick = new Set(raws.filter(ph => !done(ph)));
+  document.querySelector('.gy-pop')?.remove(); const el = document.createElement('div'); el.className = 'gy-pop'; document.body.appendChild(el);
+  const draw = () => { el.innerHTML = `<div class="gy-box vg-box" role="dialog" aria-label="성장 앨범에 넣기"><b>🌱 성장 앨범에 넣기</b><p class="cap3">${esc((v.date || '날짜 없음').replace(/-/g, '.'))} · 기록 날짜로 들어가요 · 이미 넣은 사진은 ✓</p>
+    <div class="chips vg-who">${fam.map(n => `<button type="button" class="chip${sel.has(n) ? ' on' : ''}" data-vgn="${esc(n)}" ${born(n) ? '' : 'disabled'}>${esc(n)}${born(n) ? '' : ' <small>출생 전</small>'}</button>`).join('')}</div>
+    <div class="vg-bar"><span class="cap3">사진 ${pick.size}/${raws.length}장 선택</span><button type="button" class="lnk" data-vga="1">${pick.size === raws.length ? '전체 해제' : '전체 선택'}</button></div>
+    <div class="vg-grid">${raws.map((ph, k) => `<button type="button" class="${pick.has(ph) ? 'on' : ''}" data-vgp="${k}"><img src="${photoUrl(ph)}" alt="" loading="lazy">${done(ph) ? '<em>✓</em>' : ''}<i></i></button>`).join('')}</div>
+    <div class="gy-btns"><button type="button" data-vgx="1">취소</button><button type="button" class="pri" data-vgok="1" ${sel.size && pick.size ? '' : 'disabled'}>🌱 ${pick.size}장 넣기</button></div></div>`; };
+  draw();
+  const close = () => { el.remove(); document.removeEventListener('keydown', key); }, key = e => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', key);
+  el.onclick = e => { const b = e.target.closest('button'); if (e.target === el) return close(); if (!b || b.disabled) return;
+    if (b.dataset.vgn) { const n = b.dataset.vgn; sel.has(n) ? sel.delete(n) : sel.add(n); return draw(); }
+    if (b.dataset.vgp) { const ph = raws[+b.dataset.vgp]; pick.has(ph) ? pick.delete(ph) : pick.add(ph); return draw(); }
+    if (b.dataset.vga) { if (pick.size === raws.length) pick.clear(); else raws.forEach(ph => pick.add(ph)); return draw(); }
+    if (b.dataset.vgx) return close();
+    if (b.dataset.vgok) { S.db.growth ||= []; let add = 0, upd = 0;
+      for (const ph of raws.filter(x => pick.has(x))) { const g = S.db.growth.find(x => x.photo === ph);
+        if (g) { const before = (g.who || []).length; g.who = [...new Set([...(g.who || []), ...sel])]; if (g.who.length > before) upd++; }
+        else { S.db.growth.push({ id: uid('g'), who: [...sel], date: v.date || null, photo: ph, memo: null }); add++; } }
+      markDirty(); toast(`🌱 ${[...sel].join('·')} · ${add}장 추가${upd ? ` · ${upd}장 사람 추가` : ''}`, 3000); close(); } };
 }
 function growthAddFromVisit(path, date, anchor, who0) {   /* 방문 기록 사진 → 성장 앨범 (같은 파일 재사용) · 11/06 여러 명 고르기 창(화면 안에 뜸) */
   if (isRO()) return goToken(); if (!path || /^local:/.test(path)) return toast('이 기기에만 있는 사진은 넣을 수 없어요');
@@ -3752,12 +3808,13 @@ function locTitle(big, sub, coord) {                               // 화면 가
   el.innerHTML = `<div class="big${latin ? '' : ' ko'}">${[...big].map((c, i) => `<span style="animation-delay:${(i * .05).toFixed(2)}s">${c === ' ' ? '&nbsp;' : esc(c)}</span>`).join('')}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${coord ? `<div class="crd">${esc(coord)}</div>` : ''}`;
   el.onclick = () => el.remove(); document.body.appendChild(el); setTimeout(() => el.remove(), 2400);
 }
-function tripTitle(t) {
+function tripTitleParts(t) {                                       // 여행 → [큰 영문, 부제, 좌표] (여행 열 때 · 성장 앨범 재생 때 같이 씀)
   const au = t.cover ? null : tripAuto(t), c = t.cover || tripCity(t), en = t.en || (au ? au.en : enName(c, t.country));
   const { start, end } = tripDates(t); const d = x => x ? `${x.getFullYear()}.${String(x.getMonth() + 1).padStart(2, '0')}.${String(x.getDate()).padStart(2, '0')}` : '';
   const loc = (t.lat != null ? { lat: t.lat, lng: t.lng } : null) || (t.items || []).map(i => i.place_id && placeById(i.place_id)).find(p => p && hasCoord(p)) || S.db.bases.find(b => b.country === t.country && hasCoord(b)) || (S.geoWorld && geoCenter(t.country));
-  locTitle(en, [t.country === 'KR' ? (/[가-힣]/.test(c) ? c : 'KOREA') : au?.many ? au.sub : regionEn(t.country), start ? d(start) + (end && +end !== +start ? ' — ' + d(end).slice(5) : '') : t.year].filter(Boolean).join(' · '), fmtCoord(loc));
+  return [en, [t.country === 'KR' ? (/[가-힣]/.test(c) ? c : 'KOREA') : au?.many ? au.sub : regionEn(t.country), start ? d(start) + (end && +end !== +start ? ' — ' + d(end).slice(5) : '') : t.year].filter(Boolean).join(' · '), fmtCoord(loc)];
 }
+function tripTitle(t) { locTitle(...tripTitleParts(t)); }
 function stampFx() { if (REDUCE()) return; const im = document.createElement('img'); im.className = 'stampfx'; im.src = asset('assets/mark-stamp.png'); document.body.appendChild(im); setTimeout(() => im.remove(), 1200); }
 function confettiFx() { if (REDUCE()) return; const box = document.createElement('div'); box.className = 'confetti'; const cols = ['#ffbc00', '#288d9d', '#e8913a', '#d6336c', '#5cc3d1', '#7bc67b'];
   box.innerHTML = Array.from({ length: 48 }, (_, i) => `<i style="left:${Math.random() * 100}%;background:${cols[i % cols.length]};--dx:${(Math.random() * 160 - 80).toFixed(0)}px;--r:${(Math.random() * 720 - 360).toFixed(0)}deg;animation-delay:${(Math.random() * .4).toFixed(2)}s"></i>`).join('');
@@ -3990,7 +4047,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, viaParse, tripRoute, enName, growthPickYear, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
