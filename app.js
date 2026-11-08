@@ -2648,7 +2648,7 @@ function tripPhotosHtml(t) {
   const ps = tripAllPhotos(t), noItems = !(t.items || []).length, vs = tripVisits(t);
   if (!ps.length && !noItems) return '';
   return `<div class="tp-gal">${noItems ? `<div class="tp-simple"><b>${esc(t.title || tripCity(t))}</b><p class="cap">${esc([t.start ? t.start.replace(/-/g, '.') + (t.end && t.end !== t.start ? ' — ' + t.end.slice(5).replace('-', '.') : '') : t.year, tripCity(t), ccKo(t.country)].filter(Boolean).join(' · '))}</p>${t.memo ? `<p class="serif tp-memo">“${esc(t.memo)}”</p>` : ''}</div>` : ''}
-    ${ps.length ? `<div class="seg tp-view"><button data-tpsb="0" class="${tpSb() ? '' : 'on'}">▦ 모아보기</button><button data-tpsb="1" class="${tpSb() ? 'on' : ''}">📒 스크랩북</button>${(t.photos || []).length ? `<button data-tpost="${t.id}">💬 인스타${socOf('t:' + t.id).filter(c => c.k === 'c').length ? ' ' + socOf('t:' + t.id).filter(c => c.k === 'c').length : ''}</button>` : ''}</div>` + (tpSb() ? tripScrap(t, ps, vs) : `<div class="tp-ph">${ps.map((x, i) => `<button data-tplb="${i}" style="background-image:url('${photoUrl(x.path)}')"><small>${esc((x.date || '').slice(5).replace('-', '.'))}</small></button>`).join('')}</div>`) : '<div class="help">사진이 아직 없어요 — 아래 「📷 사진 추가」</div>'}
+    ${ps.length ? `<div class="seg tp-view"><button data-tpsb="0" class="${tpSb() ? '' : 'on'}">▦ 모아보기</button><button data-tpsb="1" class="${tpSb() ? 'on' : ''}">📒 스크랩북</button>${ps.length ? `<button data-tpost="${t.id}">💬 인스타${socOf('t:' + t.id).filter(c => c.k === 'c').length ? ' ' + socOf('t:' + t.id).filter(c => c.k === 'c').length : ''}</button>` : ''}</div>` + (tpSb() ? tripScrap(t, ps, vs) : `<div class="tp-ph">${ps.map((x, i) => `<button data-tplb="${i}" style="background-image:url('${photoUrl(x.path)}')"><small>${esc((x.date || '').slice(5).replace('-', '.'))}</small></button>`).join('')}</div>`) : '<div class="help">사진이 아직 없어요 — 아래 「📷 사진 추가」</div>'}
     ${vs.length ? `<div class="tp-vis"><span class="cap3">이 여행의 기록 ${vs.length}</span>${vs.sort((a, b) => (a.v.date || '').localeCompare(b.v.date || '')).map(({ p, v }) => `<button class="chip" data-go="${p.id}">${esc(p.name)} <small>${esc((v.date || '').slice(5).replace('-', '.'))}</small></button>`).join('')}</div>` : ''}</div>`;
 }
 function openItemForm(t) {
@@ -2984,14 +2984,14 @@ ${lines}`;
   try { await navigator.clipboard.writeText(txt); toast(`여행기 재료 ${list.length}건 복사 · 클로드 대화에 붙여넣으세요`, 3500); }
   catch { const w = document.createElement('textarea'); w.value = txt; document.body.appendChild(w); w.select(); try { document.execCommand('copy'); toast('여행기 재료 복사'); } catch { prompt('아래를 복사하세요', txt); } w.remove(); }
 }
-const jrTabs = on => `<div class="jr-tabs"><button class="${on === 'album' ? 'on' : ''}" data-jtab="album">📷 앨범</button><button class="${on === 'growth' ? 'on' : ''}" data-jtab="growth">🌱 성장 앨범</button></div>`;
+const jrTabs = on => `<div class="jr-tabs"><button class="${on === 'album' ? 'on' : ''}" data-jtab="album">📷 앨범</button><button class="${on === 'growth' ? 'on' : ''}" data-jtab="growth">🌱 성장 앨범</button><button class="${on === 'game' ? 'on' : ''}" data-jtab="game">🎮 놀이</button></div>`;
 function openGrowth(opts) {
   const who = opts.gwho || ''; S.gwho = who; const box = opts.page ? $('#journal') : null; grIncApply(who);   /* 11/07 포함 체크한 여행의 새 사진 */
   const n = growthEnts(who).length;
   const html = `<div class="jr-sheet"><div class="hd">${opts.page ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">사진 ${n} · 연도순</p><b>${who ? esc(who) + ' 성장 앨범' : '우리 가족 성장 앨범'}</b></div>${jrTabs('growth')}</div><div class="jr-feed gr-feed">${growthHtml(who)}</div></div>`;
   if (box) box.innerHTML = html; else openSheet(html);
   (box || $('#sheet-inner')).onclick = e => { const b = e.target.closest('button'); if (!b) return;
-    if (b.dataset.jtab) return openJournal({ page: opts.page, growth: b.dataset.jtab === 'growth', gwho: who });
+    if (b.dataset.jtab) return openJournal({ page: opts.page, growth: b.dataset.jtab === 'growth', games: b.dataset.jtab === 'game', gwho: who });
     if (b.dataset.act === 'back') return closeSheet();
     if (b.dataset.grwho != null) return openGrowth({ ...opts, gwho: b.dataset.grwho });
     if (b.dataset.act === 'grup') return isRO() ? goToken() : openGrowthUpload(who);
@@ -3071,7 +3071,8 @@ function bpHtml(o) {   // o: { to, toCode, toSub, date, meal, km, rate, memo, wh
 }
 function routeStrip(to, km) { return `<div class="jr-route"><span>${esc(bpHome().ko.replace(/^집\s*\(|\)$/g, ''))}</span><i><img src="${asset('assets/mark-faces.png')}" alt=""></i><b>${esc(to)}${km != null ? ' ' + km.toLocaleString() + 'km' : ''}</b></div>`; }
 function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스타 글 보기(발자취 글 상세)와 같은 모양 + 좋아요·댓글 (social t:'t:<여행id>') */
-  const ps = (t.photos || []).filter(x => x.path), r = tripRange(t), who = [...new Set(ps.flatMap(x => x.who || []))];
+  const own = (t.photos || []).filter(x => x.path), ps = own.length ? [...own, ...tripAllPhotos(t).filter(x => !own.some(o => o.path === x.path))] : tripAllPhotos(t), r = tripRange(t);   /* 11/08 여행 사진 없어도 그 여행 기록 사진으로 인스타 */
+  const who = [...new Set([...own.flatMap(x => x.who || []), ...tripVisits(t).flatMap(e => e.v.who || [])])];
   const cv = Math.max(0, ps.findIndex(x => x.path === t.coverPhoto)), list = cv ? [ps[cv], ...ps.filter((_, i) => i !== cv)] : ps, urls = list.map(x => photoUrl(x.path));
   const dow = d => { const x = new Date(d + 'T00:00:00'); return isNaN(x) ? '' : ` (${DAYS[x.getDay()]})`; }, ov = t.country && t.country !== 'KR';
   const page = !!opts.page, box = page ? $('#journal') : null;
@@ -3091,6 +3092,107 @@ function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스
     if (b.dataset.pn) { const phs = [...b.parentElement.querySelectorAll('.jr-ph')], k = phs.findIndex(x => x.classList.contains('on')); phs[k]?.classList.remove('on'); phs[(k + +b.dataset.pn + phs.length) % phs.length].classList.add('on'); return; }
     if (b.dataset.k != null) return openLightbox(urls, +b.dataset.k, `${tripName(t)} ${t.year || ''}`, { raws: list.map(x => x.path), dates: list.map(x => x.date) }); };
 }
+
+/* ---------------- 11/08 🎮 준준 놀이터 — 우리 사진·장소로 하는 미니게임 4종 (점수는 이 기기에 · 사람별 최고점) ----------------
+ * 여기 어디게? (사진 → 장소 4지선다) · 지도 콕! (장소 이름 → 국내 지도에 찍기, 거리 점수) · 사진 짝 맞추기 · 여행 빙고 (시·도 4×4)
+ */
+const GM_LIST = [['where', '📍 여기 어디게?', '우리 사진 보고 어디인지 맞히기 · 10문제'], ['pin', '🗺 지도 콕!', '장소 이름 보고 지도에 콕 · 5문제 · 가까울수록 점수'], ['pair', '🃏 사진 짝 맞추기', '같은 사진 두 장 찾기 · 적게 뒤집을수록 좋아요'], ['bingo', '🎯 여행 빙고', '가 본 시·도로 빙고 · 새로 가면 칸이 채워져요']];
+const gmRand = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
+function gmWho() { const f = familyNames(), w = LS.get('gmWho', ''); return f.includes(w) ? w : (f.includes('하준') ? '하준' : f[0] || '나'); }
+function gmBest(g, who = gmWho()) { return (LS.get('gmBest', {})[g] || {})[who] ?? null; }
+function gmSave(g, score, lowerBetter) { const all = LS.get('gmBest', {}), w = gmWho(), cur = (all[g] ||= {})[w]; const better = cur == null || (lowerBetter ? score < cur : score > cur); if (better) { all[g][w] = score; LS.set('gmBest', all); } return better; }
+function gmPhotos() {                                                 // 사진 문제 재료: { url, name, date, kind, id }
+  const out = [];
+  for (const p of S.db.places) for (const v of p.visitLog || []) for (const u of visitPhotos(v)) out.push({ url: u, name: p.name, date: v.date || '', id: 'p:' + p.id, kind: p.type });
+  for (const t of S.db.trips) for (const x of t.photos || []) { const u = photoUrl(x.path); if (u) out.push({ url: u, name: tripName(t), date: x.date || '', id: 't:' + t.id, kind: 'trip' }); }
+  return out;
+}
+function openGames(opts = {}) {
+  const page = !!opts.page, box = page ? $('#journal') : null, g = opts.game || '';
+  const head = `<div class="jr-sheet gm"><div class="hd">${page ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">우리 사진·장소로 하는 놀이</p><b>준준 놀이터</b></div>${jrTabs('game')}</div>`;
+  const who = gmWho(), fam = familyNames();
+  const whoBar = `<div class="gm-who"><span class="cap3">누가 할까?</span>${fam.map(n => `<button type="button" class="${n === who ? 'on' : ''}" data-gmwho="${esc(n)}" style="--c:${famHex(n)}">${esc(n)}</button>`).join('')}</div>`;
+  const menu = `<div class="gm-feed">${whoBar}<div class="gm-list">${GM_LIST.map(([k, n, d]) => { const b = gmBest(k); return `<button type="button" class="gm-card" data-gm="${k}"><b>${n}</b><span>${d}</span><small>${b == null ? '아직 기록 없음' : `${esc(who)} 최고 ${k === 'pair' ? b + '번 뒤집기' : k === 'bingo' ? b + '줄' : b + '점'}`}</small></button>`; }).join('')}</div></div>`;
+  (page ? (h => { box.innerHTML = h; }) : openSheet)(head + (g ? '<div class="gm-feed" id="gm-area"></div>' : menu) + '</div>');
+  const root = page ? box : $('#sheet-inner');
+  root.onclick = e => { const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.jtab) return openJournal({ page, growth: b.dataset.jtab === 'growth', games: b.dataset.jtab === 'game' });
+    if (b.dataset.act === 'back') return closeSheet();
+    if (b.dataset.gmwho) { LS.set('gmWho', b.dataset.gmwho); return openGames(opts); }
+    if (b.dataset.gm) return openGames({ ...opts, game: b.dataset.gm });
+    if (b.dataset.gmback != null) { S.gmStop?.(); return openGames({ page }); } };
+  if (!g) return;
+  const area = $('#gm-area'), back = `<button type="button" class="gm-back" data-gmback>‹ 놀이 목록</button>`;
+  ({ where: gmWhere, pin: gmPin, pair: gmPair, bingo: gmBingo })[g]?.(area, back, () => openGames({ ...opts }));
+}
+function gmEnd(area, back, title, score, unit, best, again, extra = '') {
+  sfx('badge'); if (best) confettiFx();
+  area.innerHTML = `${back}<div class="gm-end"><img src="${asset('assets/mark-faces.png')}" alt=""><b>${esc(title)}</b><p class="gm-score num">${score}<small>${unit}</small></p><p class="cap3">${best ? `🎉 ${esc(gmWho())} 새 최고 기록!` : `${esc(gmWho())} 최고 ${gmBest(again.g)}${unit}`}</p>${extra}<button type="button" class="btn-pri" id="gm-again">한 번 더</button></div>`;
+  $('#gm-again').onclick = again.fn;
+}
+function gmWhere(area, back, again) {                                 // 📍 여기 어디게?
+  const all = gmPhotos(), names = [...new Set(all.map(x => x.name))]; if (names.length < 4) { area.innerHTML = back + '<div class="help">사진 있는 장소가 4곳 이상 있어야 해요</div>'; return; }
+  const qs = gmRand(names).slice(0, 10).map(n => { const ph = gmRand(all.filter(x => x.name === n))[0], wrong = gmRand(names.filter(x => x !== n)).slice(0, 3); return { ...ph, opts: gmRand([n, ...wrong]) }; });
+  let i = 0, score = 0, streak = 0;
+  const draw = () => { const q = qs[i];
+    area.innerHTML = `${back}<div class="gm-q"><div class="gm-top"><span class="num">${i + 1} / ${qs.length}</span><b class="num">${score}점</b>${streak > 1 ? `<span class="gm-streak">🔥 ${streak}연속</span>` : ''}</div>
+      <div class="gm-ph" style="background-image:url('${q.url}')"></div><p class="gm-ask">여기 어디게?</p><div class="gm-opts">${q.opts.map((o, k) => `<button type="button" data-ans="${k}">${esc(o)}</button>`).join('')}</div><p class="gm-hint cap3" id="gm-hint"></p></div>`;
+    area.querySelectorAll('[data-ans]').forEach(btn => btn.onclick = () => { if (area.dataset.lock) return; area.dataset.lock = 1; const ok = q.opts[+btn.dataset.ans] === q.name;
+      area.querySelectorAll('[data-ans]').forEach(x => { if (q.opts[+x.dataset.ans] === q.name) x.classList.add('ok'); else if (x === btn) x.classList.add('no'); });
+      if (ok) { streak++; score += 100 + Math.min(streak - 1, 5) * 20; sfx('arrive'); } else { streak = 0; sfx('stamp'); }
+      $('#gm-hint').textContent = `${ok ? '딩동댕! ' : '아쉬워요 · '}${q.name}${q.date ? ' · ' + q.date.replace(/-/g, '.') : ''}`;
+      setTimeout(() => { delete area.dataset.lock; i++; if (i < qs.length) draw(); else gmEnd(area, back, '여기 어디게? 끝!', score, '점', gmSave('where', score), { g: 'where', fn: again }); }, ok ? 1100 : 1900); }); };
+  draw();
+}
+function gmPin(area, back, again) {                                   // 🗺 지도 콕!
+  const ok = p => (p.country || 'KR') === 'KR' && typeof p.lat === 'number' && ((p.visits || 0) > 0 || (p.visitLog || []).length);
+  const pool = gmRand(S.db.places.filter(ok)); if (pool.length < 3 || !window.L) { area.innerHTML = back + '<div class="help">다녀온 국내 장소(좌표 있는 곳)가 3곳 이상 있어야 해요</div>'; return; }
+  const qs = pool.slice(0, 5); let i = 0, score = 0, map = null, guess = null, layer = null;
+  S.gmStop = () => { try { map?.remove(); } catch {} };
+  const draw = async () => { const q = qs[i], ph = (q.visitLog || []).flatMap(v => visitPhotos(v))[0];
+    area.innerHTML = `${back}<div class="gm-q"><div class="gm-top"><span class="num">${i + 1} / ${qs.length}</span><b class="num">${score}점</b></div>
+      <div class="gm-pinq">${ph ? `<span class="gm-pinph" style="background-image:url('${ph}')"></span>` : ''}<div><p class="gm-ask" style="margin:0">「${esc(q.name)}」 어디 있게?</p><p class="cap3">지도를 눌러 콕 찍고 「여기!」</p></div></div>
+      <div class="gm-map" id="gm-map"></div><div class="gm-pinbar"><span class="cap3" id="gm-hint">아직 안 찍었어요</span><button type="button" class="btn-pri" id="gm-go" disabled>여기!</button></div></div>`;
+    await loadGeo(); if (!$('#gm-map')) return; try { map?.remove(); } catch {}
+    map = L.map('gm-map', { zoomControl: true, attributionControl: false, zoomSnap: .25, minZoom: 5.5, maxZoom: 11 });
+    const kr = L.geoJSON(S.geoKr, { style: () => ({ color: '#ffffff', weight: 1.2, fillColor: '#cfe3d2', fillOpacity: 1 }), interactive: false }).addTo(map);
+    map.fitBounds(kr.getBounds(), { padding: [10, 10] }); layer = L.layerGroup().addTo(map); guess = null;
+    map.on('click', e => { if (area.dataset.lock) return; guess = e.latlng; layer.clearLayers(); L.marker(guess, { icon: L.divIcon({ className: 'gm-mk', html: `<img src="${asset('assets/mark-faces.png')}" alt="">`, iconSize: [40, 28], iconAnchor: [20, 26] }) }).addTo(layer); sfx('tap'); $('#gm-go').disabled = false; $('#gm-hint').textContent = '여기 맞아요? 「여기!」를 눌러요'; });
+    $('#gm-go').onclick = () => { if (!guess || area.dataset.lock) return; area.dataset.lock = 1; const km = haversine({ lat: guess.lat, lng: guess.lng }, q), pt = Math.max(0, Math.round(1000 * Math.exp(-km / 100)));
+      score += pt; L.circleMarker([q.lat, q.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#e8833a', fillOpacity: 1 }).addTo(layer); L.polyline([guess, [q.lat, q.lng]], { color: '#e8833a', weight: 3, dashArray: '4 6' }).addTo(layer);
+      map.fitBounds(L.latLngBounds([guess, [q.lat, q.lng]]).pad(.5), { maxZoom: 10 }); sfx(pt >= 600 ? 'arrive' : 'stamp');
+      $('#gm-hint').innerHTML = `<b>${fmtKm(km)}km</b> 차이 · <b>+${pt}점</b> ${pt >= 900 ? '🎯 거의 정답!' : pt >= 600 ? '👏 가까워요' : ''}`; const go = $('#gm-go'); go.disabled = false; go.textContent = i + 1 < qs.length ? '다음 ›' : '결과 보기';
+      go.onclick = () => { delete area.dataset.lock; i++; if (i < qs.length) draw(); else { S.gmStop(); gmEnd(area, back, '지도 콕! 끝!', score, '점', gmSave('pin', score), { g: 'pin', fn: again }); } }; };
+  };
+  draw();
+}
+function gmPair(area, back, again, n0) {                              // 🃏 사진 짝 맞추기
+  const n = n0 || LS.get('gmPairN', 6), pics = gmRand([...new Set(gmPhotos().map(x => x.url))]).slice(0, n);
+  if (pics.length < 4) { area.innerHTML = back + '<div class="help">사진이 4장 이상 있어야 해요</div>'; return; }
+  const cards = gmRand([...pics, ...pics].map((u, k) => ({ u, k })));
+  let open = [], done = 0, moves = 0, t0 = Date.now();
+  area.innerHTML = `${back}<div class="gm-q"><div class="gm-top"><span>뒤집기 <b class="num" id="gm-mv">0</b>번</span><div class="seg gm-lv">${[6, 8, 10].map(k => `<button type="button" data-lv="${k}" class="${k === pics.length ? 'on' : ''}">${k}쌍</button>`).join('')}</div></div>
+    <div class="gm-pair c${pics.length}">${cards.map((c, j) => `<button type="button" class="gm-cd" data-cd="${j}" aria-label="카드 ${j + 1}"><span class="bk"><img src="${asset('assets/mark-faces.png')}" alt=""></span><span class="fr" style="background-image:url('${c.u}')"></span></button>`).join('')}</div></div>`;
+  area.querySelectorAll('[data-lv]').forEach(b => b.onclick = () => { LS.set('gmPairN', +b.dataset.lv); gmPair(area, back, again, +b.dataset.lv); });
+  area.querySelectorAll('[data-cd]').forEach(b => b.onclick = () => { if (b.classList.contains('up') || open.length >= 2) return; b.classList.add('up'); sfx('tap'); open.push(b);
+    if (open.length < 2) return; moves++; $('#gm-mv').textContent = moves; const [a, c] = open, same = cards[+a.dataset.cd].u === cards[+c.dataset.cd].u;
+    setTimeout(() => { if (same) { a.classList.add('done'); c.classList.add('done'); done++; sfx('like'); if (done === pics.length) { const sec = Math.round((Date.now() - t0) / 1000); gmEnd(area, back, '짝 맞추기 성공!', moves, '번', gmSave('pair', moves, true), { g: 'pair', fn: again }, `<p class="cap3">${pics.length}쌍 · ${sec}초</p>`); } }
+      else { a.classList.remove('up'); c.classList.remove('up'); } open = []; }, same ? 350 : 850); });
+}
+function gmBingo(area, back) {                                        // 🎯 여행 빙고 (시·도 4×4)
+  let board = LS.get('gmBingo', null); if (!Array.isArray(board) || board.length !== 16 || board.some(k => !DO_KEYS.includes(k))) { board = gmRand(DO_KEYS.filter(k => k !== '세종')).slice(0, 16); LS.set('gmBingo', board); }
+  const s = travelStats(), got = k => !!s.doCnt[k];
+  const L4 = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15], [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [0, 5, 10, 15], [3, 6, 9, 12]];
+  const lines = L4.filter(l => l.every(i => got(board[i]))), near = L4.map(l => l.filter(i => !got(board[i]))).filter(m => m.length === 1).map(m => board[m[0]]);
+  const hot = new Set(lines.flat()), tip = [...new Set(near)].slice(0, 3).map(k => { const p = S.db.places.filter(x => (x.country || 'KR') === 'KR' && doKey(x) === k && x.type === 'spot').sort((a, b) => (b.rating || 0) - (a.rating || 0))[0]; return `<li><b>${esc(k)}</b>만 가면 빙고!${p ? ` <button type="button" class="lnk" data-go="${p.id}">추천: ${esc(p.name)} ›</button>` : ''}</li>`; });
+  gmSave('bingo', lines.length);
+  area.innerHTML = `${back}<div class="gm-q"><div class="gm-top"><b>빙고 <span class="num">${lines.length}</span>줄</b><span class="cap3">가 본 시·도 ${board.filter(got).length} / 16</span><button type="button" class="lnk" id="gm-shuf">↻ 판 섞기</button></div>
+    <div class="gm-bingo">${board.map((k, i) => `<div class="gm-bc${got(k) ? ' on' : ''}${hot.has(i) ? ' line' : ''}"><span>${esc(k)}</span>${got(k) ? `<img src="${asset('assets/mark-stamp.png')}" alt="가 봤어요">` : ''}</div>`).join('')}</div>
+    ${tip.length ? `<ul class="gm-tip">${tip.join('')}</ul>` : `<p class="cap3" style="margin-top:12px">${lines.length ? '🎉 멋져요! 다른 판도 섞어 보세요' : '여행을 다녀오면 칸에 도장이 찍혀요'}</p>`}</div>`;
+  if (lines.length) { confettiFx(); sfx('badge'); }
+  $('#gm-shuf').onclick = () => { LS.set('gmBingo', null); gmBingo(area, back); };
+  area.querySelectorAll('[data-go]').forEach(b => b.onclick = e => { e.stopPropagation(); openDetail(b.dataset.go); });
+}
 function openGrowthEdit(g, done) {   /* 11/06 성장 앨범 사진 편집: 날짜 · 사진 속 사람 · 메모 · 앨범에서 빼기 */
   const who = new Set(g.who || []), by = (S.db.meta.family || {}).birthYear || {};
   const warn = () => { const y = +($('#ge-date')?.value || '').slice(0, 4); const bad = [...who].filter(n => by[n] && y && y < by[n]); $('#ge-warn').textContent = bad.length ? `⚠ ${bad.join('·')}는 ${y}년에 아직 안 태어났어요 — 날짜를 확인해 주세요` : ''; };
@@ -3109,6 +3211,7 @@ function openGrowthEdit(g, done) {   /* 11/06 성장 앨범 사진 편집: 날�
 }
 function openJournal(opts = {}) {
   if (opts.growth) return openGrowth(opts);
+  if (opts.games) return openGames(opts);   /* 11/08 🎮 놀이 */
   const kind = opts.kind || 'all', who = opts.who || '';
   const t = opts.tripId && S.db.trips.find(x => x.id === opts.tripId);
   let ents = S.db.places.flatMap(p => (p.visitLog || []).map(v => ({ p, v })));
@@ -3163,7 +3266,7 @@ function openJournal(opts = {}) {
   if (album && opts.page && !food) drawTravelCard();
   (box || $('#sheet-inner')).onclick = e => { const b = e.target.closest('button'); if (!b) return;
     if (b.dataset.pn) { const phs = [...b.parentElement.querySelectorAll('.jr-ph')], k = phs.findIndex(x => x.classList.contains('on')); phs[k]?.classList.remove('on'); phs[(k + +b.dataset.pn + phs.length) % phs.length].classList.add('on'); return; }   // PC 글 상세 사진 넘김
-    if (b.dataset.jtab) return openJournal({ page: opts.page, growth: b.dataset.jtab === 'growth', gwho: S.gwho || '' });
+    if (b.dataset.jtab) return openJournal({ page: opts.page, growth: b.dataset.jtab === 'growth', games: b.dataset.jtab === 'game', gwho: S.gwho || '' });
     if (b.dataset.sbset != null) { const on = b.dataset.sbset === '1'; LS.set('jrSb', on); return openJournal({ ...opts, sb: on, pg: 0 }); }
     if (b.dataset.sbpg != null) { openJournal({ ...opts, sb: true, pg: +b.dataset.sbpg, turn: +b.dataset.sbpg > pg ? 'n' : 'p' }); (opts.page ? $(VJ) : $('#sheet-inner'))?.scrollTo?.(0, 0); return; }
     if (b.dataset.act === 'storykit') return copyStoryKit(sb ? [ents[pg]] : ents, t);
@@ -4261,7 +4364,7 @@ function jjTrip(btn) {
         if (!/^car/.test(ch)) { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), q0 = seg.pts[j - 1], q1 = seg.pts[j] || q0, pa = map.latLngToLayerPoint(q0), pb = map.latLngToLayerPoint(q1), ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI + 90;
           L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'jj-fp', html: `<i style="transform:rotate(${ang.toFixed(0)}deg)${(fpN++ % 2) ? ' translateX(4px)' : ' translateX(-4px)'}"></i>`, iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(trail); } }   // 11/08 걷는 친구 = 발자국 · 차 = 타이어 자국(선)
       if (k >= 1) { if (seg.kind === 'road' && /^car/.test(ch)) { L.polyline(seg.pts, { color: '#3a3a3a', weight: 6, opacity: .55, dashArray: '7 3', interactive: false }).addTo(trail); L.polyline(seg.pts, { color: '#f4efe6', weight: 2, opacity: .9, interactive: false }).addTo(trail); }
-        else if (seg.kind !== 'road') L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : '#8a4fd1', weight: 3, opacity: .85, dashArray: '4 6', lineCap: 'round', interactive: false }).addTo(trail);
+        else if (seg.kind !== 'road') L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : '#ff7a59',   /* 11/08 비행기 = 코랄 (이사 보라와 구분) */ weight: 3, opacity: .85, dashArray: '4 6', lineCap: 'round', interactive: false }).addTo(trail);
         if (++si < segs.length) startSeg(now); else { i++; phase = 'dwell'; t0 = now; hopEl()?.classList.remove('go', 'sail'); setKind('road'); mark(i); } } }
     requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
@@ -4552,7 +4655,7 @@ async function checkNewVersion() {                                 // 11/07 새 
 }
 (async function main() {
   checkNewVersion(); applyTheme(); posWatch();   /* 11/07 사진 보이는 위치 */ initMap(); bindOnce(); initBackNav(); bindTripDrop(); fxObserve(); setTimeout(() => loadGeo(), 1500);   /* 나라 목록·국가 판별용 경계 미리 받기 */ matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { applyTheme(); S.homeStale = true; });
-  window.JJ = { S, openPlanner, jjLeg, jjStops, jjChar, LS, openJjPicker, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
+  window.JJ = { S, renderTrips, openPlanner, jjLeg, jjStops, jjChar, LS, openJjPicker, openVisitForm, placeById, openPosEditor, openTripEdit, openGrowthFilter, growthEnts, growthEntsAll, isBiz, openTripForm, openGrowth, openHowto, openGrowthPicker, growthPlay, growthShort, viaParse, tripRoute, enName, growthPickYear, openVisitGrowth, travelStats, tripWho, arcColorOf, tripTitle, regionLabel, openLivedForm, tieVisitTrip, draftStory, josa, openVisitForm, openDetail, openPlaceForm, openTripEdit, tripName, tripAuto, get map() { return map; } };   // 콘솔 디버그용
   await load();
   boot(false);
 })();
