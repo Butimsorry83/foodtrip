@@ -166,6 +166,9 @@ async function load() {
       (p.visitLog ||= []).push({ id: uid('v'), date: '2022-10-08', dateEnd: null, meal: '', rating: null, memo: null, story: null, who: coreFamily(), photos: ph, photo: ph[0], trip: null }); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); p.visits = (p.visits || 0) + 1;
       setTimeout(() => toast('안성팜랜드 2022.10.08 기록 복구 (사진 33장) · 별점·메모는 편집에서', 4500), 2200); }
     S.db.meta.lostFix1 = today(); markDirty(); }
+  if (S.token && !OFFLINE && !S.db.meta.typeFix2) { let n = 0;   /* 11/08 1회: 여러 날(여행) 기록이 있는 식당 → 휴양지 (삼척시 사례) */
+    for (const p of S.db.places) if (p.type === 'restaurant' && (p.visitLog || []).some(v => v.dateEnd && v.dateEnd > (v.date || ''))) { p.type = 'spot'; n++; }
+    S.db.meta.typeFix2 = today(); if (n) { markDirty(); setTimeout(() => toast(`여행 기록이 식당으로 들어간 곳 ${n}곳을 휴양지로 고쳤어요`, 3500), 4200); } }
   if (S.token && !OFFLINE && !S.db.meta.typeFix1) { let n = 0;   /* 11/08 1회: 식당으로 잘못 저장된 여행지·호텔 → 휴양지 (음식 탭 분리) */
     for (const id of ['pmw452b528slt', 'pmw4vhw0agwsa', 'pmw4y97bspojr', 'pmw52l828rjdr', 'pmw52szbnys92', 'pmw53vqxpdj1f', 'pmw5wj7s60mjh', 'pmw5wous41a90', 'pmw5zgqyuoseb', 'pmw5zjq35cp3m', 'pmw5zopcuq4cu']) { const p = placeById(id); if (p && p.type === 'restaurant') { p.type = 'spot'; n++; } }
     S.db.meta.typeFix1 = today(); markDirty(); if (n) setTimeout(() => toast(`식당으로 잘못 들어간 여행지 ${n}곳을 휴양지로 고쳤어요`, 3500), 3800); }
@@ -846,6 +849,7 @@ function openVisitForm(p, edit, back) {                          // 시안 07: �
       { const p2 = placeById(p.id); if (p2 && p2 !== p) { if (edit) edit = (p2.visitLog || []).find(v => v.id === edit.id) || edit; p = p2; } }   /* 11/07 사진 올리는 동안 다른 기기 저장과 합쳐지면 장소 객체가 바뀜 → 새 객체에 기록 (기록이 사라지던 문제) */
       let ui = 0; for (const ph of st.photos) { if (ph.path) entry.photos.push(ph.path); else if (up[ui]) entry.photos.push(up[ui++].path); }
       entry.photo = entry.photos[0] || null;
+      if (p.type === 'restaurant' && entry.dateEnd && entry.dateEnd > (entry.date || '')) { p.type = 'spot'; setTimeout(() => toast('여러 날 여행이라 유형을 휴양지로 바꿨어요', 3000), 1800); }   /* 11/08 삼척시 사례 */
       if ($('#vtie')?.checked) { const tt = tieVisitTrip(p, { ...edit, ...entry, trip: edit?.trip }); if (tt) { entry.trip = tt.id; setTimeout(() => toast(`✈ 「${tt.title || tripCity(tt)}」 여행에 묶음`, 3000), 900); } } else entry.trip = null;
       if (edit) { Object.assign(edit, entry); p.visitLog.sort((a, b) => (a.date || '').localeCompare(b.date || '')); markDirty(); toast('기록 수정'); return back ? back() : openDetail(p.id); }
       p.visitLog ||= []; entry.id ||= uid('v'); p.visitLog.push(entry); p.visits = (p.visits || 0) + 1;
@@ -2125,7 +2129,7 @@ function openPlaceForm(p) {
       await loadGeo(); const hits = await geoSearch($('#pq').value.trim() || f.address.value.trim() || f.name.value, f.country.value, f.si.value, isNew);
       b.textContent = '검색';
       f._hits = hits; f._picked = null;
-      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (isNew && h.src === '카카오' && f.type && !isMine(p)) { const ty = /^(FD6|CE7)$/.test(h.gc || '') ? 'restaurant' : 'spot'; if (f.type.value !== ty) { f.type.value = ty; toast(ty === 'spot' ? '유형 자동: 휴양지' : '유형 자동: 식당'); } }   /* 11/08 카카오 분류로 식당/휴양지 자동 */ if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; }, isNew ? sp => { closeSheet(); openDetail(sp.id); toast(`이미 저장된 곳 · 「${sp.name}」`); } : null);
+      showHits($('#phits'), hits, h => { f._picked = h; const pk = $('#pf-picked'); if (pk) { pk.hidden = false; pk.innerHTML = `✓ <b>${esc(h.name)}</b> <span>${esc(h.address || '')}</span>`; } if (!f.name.value.trim() || f.name.value.trim() === $('#pq').value.trim()) f.name.value = h.name; f.lat.value = h.lat;   /* 검색어(italy firenze) 대신 실제 장소 이름(Firenze) */ f.lng.value = h.lng; const c2 = ccAt(h.lat, h.lng); if (c2 && c2 !== f.country.value && f.country.querySelector(`option[value="${c2}"]`)) { f.country.value = c2; toast(`나라 자동: ${G_COUNTRY_KO[c2] || regionEn(c2)}`); } if (h.address) f.address.value = h.address; if (h.phone) f.phone.value = h.phone; if (isNew && f.type && !isMine(p)) { const ty = h.src === '카카오' ? (/^(FD6|CE7)$/.test(h.gc || '') ? 'restaurant' : 'spot') : /(시|군|구|도|섬|읍|면|해변|해수욕장|공원|산|호텔|리조트)$/.test(String(h.name || '').trim()) ? 'spot' : f.type.value; if (f.type.value !== ty) { f.type.value = ty; toast(ty === 'spot' ? '유형 자동: 휴양지' : '유형 자동: 식당'); } }   /* 11/08 카카오 분류로 식당/휴양지 자동 */ if (h.src === '구글') f._google = { rating: h.rating, reviews: h.reviews, url: h.url }; else if (h.url) f.kakao_url.value = h.url; }, isNew ? sp => { closeSheet(); openDetail(sp.id); toast(`이미 저장된 곳 · 「${sp.name}」`); } : null);
     }
   });
   $('#pq').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); f.querySelector('[data-act=psearch]').click(); } });   /* 11/05 검색칸 엔터 = 검색 (저장 X) */
@@ -3221,7 +3225,8 @@ function openJournal(opts = {}) {
   let ents = S.db.places.flatMap(p => (p.visitLog || []).map(v => ({ p, v })));
   if (opts.placeId) ents = ents.filter(e => e.p.id === opts.placeId);
   const food = !!opts.food, gen = !opts.placeId && !opts.tripId;   /* 11/08 음식 탭 = 식당 기록만 · 발자취 = 식당 빼고 */
-  if (gen) ents = ents.filter(e => food ? e.p.type === 'restaurant' : e.p.type !== 'restaurant');
+  const isFood = e => e.p.type === 'restaurant' && !(e.v.dateEnd && e.v.dateEnd > (e.v.date || ''));   /* 11/08 여러 날(여행) 기록은 식당이어도 발자취로 */
+  if (gen) ents = ents.filter(e => food ? isFood(e) : !isFood(e));
   if (t) { const ids = new Set(t.items.map(i => i.place_id).filter(Boolean)); const { start, end } = tripDates(t);
     const iso = d => d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : null; const a = iso(start), z = iso(end);
     ents = ents.filter(e => (a && z ? e.v.date >= a && e.v.date <= z : true) && (ids.has(e.p.id) || (a && z && e.p.region === (t.plan?.region || tripRegion(t))))); }
