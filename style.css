@@ -1507,10 +1507,18 @@ body.tm-full-on { overflow: hidden; }
 .gm-who { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 14px; }
 .gm-who button { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--text-1); font-weight: 600; white-space: nowrap; cursor: pointer; }
 .gm-who button.on { background: var(--c); border-color: var(--c); color: #fff; }
-.gm-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-@media (max-width: 600px) { .gm-list { grid-template-columns: minmax(0, 1fr); } }
-.gm-card { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; box-shadow: var(--sh-card); color: var(--text-1); }
-.gm-card b { font-size: calc(18px * var(--fz, 1)); } .gm-card span { font-size: calc(13px * var(--fz, 1)); color: var(--text-2); } .gm-card small { font-size: calc(12px * var(--fz, 1)); color: var(--primary); font-weight: 700; }
+.gm-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }   /* 11/08 1열 · 그림 + 설명 */
+.gm-card { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 18px; padding: 16px; display: flex; flex-direction: row; align-items: center; gap: 18px; cursor: pointer; box-shadow: var(--sh-card); color: var(--text-1); }
+.gm-art { flex: none; width: 170px; height: 128px; border-radius: 14px; background: #fbf4ea; display: flex; align-items: center; justify-content: center; }
+.gm-art svg { width: 150px; height: 112px; }
+.gm-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.gm-card b { font-size: calc(19px * var(--fz, 1)); } .gm-txt > span { font-size: calc(14px * var(--fz, 1)); color: var(--text-2); line-height: 1.5; word-break: keep-all; }
+.gm-txt ul { margin: 0; padding-left: 18px; font-size: calc(13px * var(--fz, 1)); color: var(--text-2); line-height: 1.6; word-break: keep-all; }
+.gm-card small { font-size: calc(12px * var(--fz, 1)); color: var(--primary); font-weight: 700; }
+.gm-txt em { font-style: normal; align-self: flex-start; margin-top: 4px; padding: 6px 14px; border-radius: 999px; background: var(--primary); color: #fff; font-weight: 700; font-size: calc(13px * var(--fz, 1)); }
+@media (max-width: 600px) { .gm-card { flex-direction: column; align-items: stretch; gap: 12px; } .gm-art { width: 100%; height: 120px; } }
+.leaflet-tooltip.gm-dolbl { background: transparent; border: 0; box-shadow: none; padding: 0; font-size: 11px; font-weight: 800; color: #3a2414; text-shadow: 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
+.leaflet-tooltip.gm-dolbl::before { display: none; }
 .gm-card:hover { transform: translateY(-2px); transition: transform .15s; }
 .gm-back { border: 0; background: none; color: var(--text-2); font-size: calc(14px * var(--fz, 1)); padding: 4px 0 10px; cursor: pointer; }
 .gm-q { display: flex; flex-direction: column; gap: 12px; }

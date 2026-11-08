@@ -2882,6 +2882,7 @@ function renderSettings() {
       <div class="st-sl"><span>음악 크기</span><input type="range" min="0" max="100" step="5" value="${bgmVol()}" id="st-bgmv" aria-label="음악 크기"><b id="st-bgmv-n">${bgmVol()}</b></div>
       <div class="st-sl"><span>효과음</span><input type="range" min="0" max="100" step="5" value="${sfxVol()}" id="st-sfxv" aria-label="효과음 크기"><b id="st-sfxv-n">${sfxVol() || '끔'}</b></div>
       <button data-act="jjchar"><span style="flex:1;text-align:left">▶ 준준트립 · 누가 달릴까?<p class="cap3">국내 지도 버튼 누르면 이 친구가 길 따라 이동</p></span><span class="cap">${esc((JJ_CHARS.find(c => c[0] === jjChar()) || JJ_CHARS[0])[1])}${/^car/.test(jjChar()) ? ' · ' + esc(jjCarColor()[1]) : ''} ›</span></button>
+      <button data-act="gmclear"><span style="flex:1;text-align:left">🎮 놀이 기록 지우기<p class="cap3">발자취 › 놀이 최고점 · 이 기기만 · 사람별 또는 전체</p></span><span class="cap">${Object.values(LS.get('gmBest', {})).reduce((n, o) => n + Object.keys(o || {}).length, 0)}개 ›</span></button>
       <button data-act="jjjeju"><span style="flex:1;text-align:left">제주 가는 길<p class="cap3">배 = 목포·완도·녹동항 · 비행기 = 김포공항 출발</p></span><span class="cap">${jjJeju() === 'plane' ? '✈ 비행기' : '⛴ 배'} ›</span></button>
     </div>
     <div class="gt">저장</div>
@@ -2910,7 +2911,9 @@ function renderSettings() {
     if (act === 'season') pickMenu(b, [['auto', `자동 (지금은 ${seasonNow()})`, seasonPref() === 'auto'], ...['봄', '여름', '가을', '겨울'].map(x => [x, x, seasonPref() === x])], v => { LS.set('season', v); S.homeStale = true; renderSettings(); });
     if (act === 'trash') openTrash();
     if (act === 'bgm') { LS.set('bgmOn', !bgmOn()); bgmOn() ? bgmPlay() : bgmPause(); return renderSettings(); }   /* 11/08 */
-    if (act === 'jjjeju' || act === 'jjchar') return openJjPicker();   /* 11/08 그림 보며 고르기 */
+    if (act === 'jjjeju' || act === 'jjchar') return openJjPicker();
+    if (act === 'gmclear') { const all = LS.get('gmBest', {}), who = [...new Set(Object.values(all).flatMap(o => Object.keys(o || {})))]; if (!who.length) return toast('지울 놀이 기록이 없어요');   /* 11/08 */
+      return pickMenu(b, [['*', '모든 사람 기록 지우기', false], ...who.map(w => [w, w + ' 기록만 지우기', false])], v => { if (!confirm(v === '*' ? '모든 놀이 기록을 지울까요?' : `${v} 놀이 기록을 지울까요?`)) return; if (v === '*') LS.set('gmBest', {}); else { for (const g in all) delete all[g][v]; LS.set('gmBest', all); } toast('놀이 기록을 지웠어요'); renderSettings(); }); }   /* 11/08 그림 보며 고르기 */
     if (act === 'theme') pickMenu(b, [['auto', '시스템 따라', themePref() === 'auto'], ['light', '라이트', themePref() === 'light'], ['dark', '다크', themePref() === 'dark']], v => { LS.set('theme', v); applyTheme(); renderSettings(); });
     if (act === 'naver') { const v = prompt('네이버 MY플레이스 리스트 링크', S.db.meta.naverListUrl || ''); if (v == null) return; if (v.trim() && v.trim() === (S.db.meta.naverListUrl || '')) { window.open(v.trim(), '_blank', 'noopener'); return; } S.db.meta.naverListUrl = v.trim(); markDirty(); renderSettings(); }
     if (act === 'reload') { S.sha = null; await load(); boot(true); toast('다시 불러옴'); }
@@ -3096,7 +3099,15 @@ function openTripPost(t, opts = {}) {   /* 11/08 여행 사진 — 기존 인스
 /* ---------------- 11/08 🎮 준준 놀이터 — 우리 사진·장소로 하는 미니게임 4종 (점수는 이 기기에 · 사람별 최고점) ----------------
  * 여기 어디게? (사진 → 장소 4지선다) · 지도 콕! (장소 이름 → 국내 지도에 찍기, 거리 점수) · 사진 짝 맞추기 · 여행 빙고 (시·도 4×4)
  */
-const GM_LIST = [['where', '📍 여기 어디게?', '우리 사진 보고 어디인지 맞히기 · 10문제'], ['pin', '🗺 지도 콕!', '장소 이름 보고 지도에 콕 · 5문제 · 가까울수록 점수'], ['pair', '🃏 사진 짝 맞추기', '같은 사진 두 장 찾기 · 적게 뒤집을수록 좋아요'], ['bingo', '🎯 여행 빙고', '가 본 시·도로 빙고 · 새로 가면 칸이 채워져요']];
+const GM_LIST = [   /* 11/08 빙고 뺌 (ZED: 게임이 아님) · 그림 + 설명 카드 1열 */
+  ['where', '여기 어디게?', '우리 가족 사진 한 장이 나와요. 어디서 찍은 사진인지 4개 중에서 골라요.', ['10문제 · 맞히면 100점', '연속으로 맞히면 🔥 보너스', '틀리면 정답과 날짜를 알려 줘요']],
+  ['pin', '지도 콕!', '우리가 다녀온 장소 이름이 나와요. 지도에서 그 장소가 있는 시·도를 콕 눌러요.', ['5문제 · 시·도 맞히면 100점', '가까이 찍을수록 보너스 점수', '지도에 시·도 이름이 보여요']],
+  ['pair', '사진 짝 맞추기', '카드를 두 장씩 뒤집어 같은 우리 사진을 찾아요. 적게 뒤집을수록 잘한 거예요.', ['6쌍 · 8쌍 · 10쌍 고르기', '다 찾으면 걸린 시간도 보여 줘요', '기록 = 가장 적게 뒤집은 횟수']]];
+const GM_ART = {
+  where: '<svg viewBox="0 0 160 120" aria-hidden="true"><rect x="22" y="14" width="96" height="84" rx="6" fill="#fff" stroke="#3a2414" stroke-width="3" transform="rotate(-6 70 56)"/><rect x="30" y="22" width="80" height="56" rx="3" fill="#8fd0e8" transform="rotate(-6 70 56)"/><path d="M34 74l22-22 14 14 10-10 26 22z" fill="#5fb36b" transform="rotate(-6 70 56)"/><circle cx="92" cy="36" r="7" fill="#ffd166" transform="rotate(-6 70 56)"/><circle cx="122" cy="72" r="26" fill="#ff8a3d" stroke="#3a2414" stroke-width="3"/><text x="122" y="84" text-anchor="middle" font-size="34" font-weight="900" fill="#fff" font-family="sans-serif">?</text></svg>',
+  pin: '<svg viewBox="0 0 160 120" aria-hidden="true"><path d="M62 10c10 4 14 12 22 14s14 10 12 20 6 16 2 26-14 12-10 22-8 18-20 16-14-10-24-8-12-10-6-20-4-16 0-26 4-20 10-28 6-18 14-16z" fill="#cfe3d2" stroke="#3a2414" stroke-width="3"/><path d="M58 40l12 6 10-4M50 62l18 2 14 8M54 84l16-4" fill="none" stroke="#fff" stroke-width="2.4"/><g transform="translate(96 30)"><path d="M18 0C8 0 0 8 0 18c0 13 18 32 18 32s18-19 18-32C36 8 28 0 18 0z" fill="#e8833a" stroke="#3a2414" stroke-width="3"/><circle cx="18" cy="18" r="7" fill="#fff"/></g><path d="M100 96c8-6 18-6 26 0" fill="none" stroke="#e8833a" stroke-width="3" stroke-dasharray="4 5"/></svg>',
+  pair: '<svg viewBox="0 0 160 120" aria-hidden="true"><rect x="16" y="22" width="52" height="72" rx="8" fill="#0f4c5c" stroke="#3a2414" stroke-width="3" transform="rotate(-10 42 58)"/><circle cx="42" cy="58" r="12" fill="#ffd166" transform="rotate(-10 42 58)"/><rect x="56" y="18" width="52" height="72" rx="8" fill="#fff" stroke="#3a2414" stroke-width="3"/><rect x="62" y="24" width="40" height="44" rx="4" fill="#8fd0e8"/><path d="M62 68l14-14 10 8 16-16v22z" fill="#5fb36b"/><rect x="96" y="26" width="52" height="72" rx="8" fill="#fff" stroke="#3a2414" stroke-width="3" transform="rotate(10 122 62)"/><rect x="102" y="32" width="40" height="44" rx="4" fill="#8fd0e8" transform="rotate(10 122 62)"/><path d="M102 76l14-14 10 8 16-16v22z" fill="#5fb36b" transform="rotate(10 122 62)"/><path d="M86 104l6 6 12-14" fill="none" stroke="#2e9d5b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+};
 const gmRand = a => { const b = a.slice(); for (let i = b.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [b[i], b[j]] = [b[j], b[i]]; } return b; };
 function gmWho() { const f = familyNames(), w = LS.get('gmWho', ''); return f.includes(w) ? w : (f.includes('하준') ? '하준' : f[0] || '나'); }
 function gmBest(g, who = gmWho()) { return (LS.get('gmBest', {})[g] || {})[who] ?? null; }
@@ -3112,7 +3123,7 @@ function openGames(opts = {}) {
   const head = `<div class="jr-sheet gm"><div class="hd">${page ? '' : '<button class="back" data-act="back">‹</button>'}<div style="flex:1;min-width:0"><p class="cap3">우리 사진·장소로 하는 놀이</p><b>준준 놀이터</b></div>${jrTabs('game')}</div>`;
   const who = gmWho(), fam = familyNames();
   const whoBar = `<div class="gm-who"><span class="cap3">누가 할까?</span>${fam.map(n => `<button type="button" class="${n === who ? 'on' : ''}" data-gmwho="${esc(n)}" style="--c:${famHex(n)}">${esc(n)}</button>`).join('')}</div>`;
-  const menu = `<div class="gm-feed">${whoBar}<div class="gm-list">${GM_LIST.map(([k, n, d]) => { const b = gmBest(k); return `<button type="button" class="gm-card" data-gm="${k}"><b>${n}</b><span>${d}</span><small>${b == null ? '아직 기록 없음' : `${esc(who)} 최고 ${k === 'pair' ? b + '번 뒤집기' : k === 'bingo' ? b + '줄' : b + '점'}`}</small></button>`; }).join('')}</div></div>`;
+  const menu = `<div class="gm-feed">${whoBar}<div class="gm-list">${GM_LIST.map(([k, n, d, how]) => { const b = gmBest(k); return `<button type="button" class="gm-card" data-gm="${k}"><span class="gm-art">${GM_ART[k]}</span><span class="gm-txt"><b>${n}</b><span>${d}</span><ul>${how.map(h => `<li>${h}</li>`).join('')}</ul><small>${b == null ? '아직 기록 없음' : `${esc(who)} 최고 ${k === 'pair' ? b + '번 뒤집기' : b + '점'}`}</small><em>시작하기 ›</em></span></button>`; }).join('')}</div></div>`;
   (page ? (h => { box.innerHTML = h; }) : openSheet)(head + (g ? '<div class="gm-feed" id="gm-area"></div>' : menu) + '</div>');
   const root = page ? box : $('#sheet-inner');
   root.onclick = e => { const b = e.target.closest('button'); if (!b) return;
@@ -3123,7 +3134,7 @@ function openGames(opts = {}) {
     if (b.dataset.gmback != null) { S.gmStop?.(); return openGames({ page }); } };
   if (!g) return;
   const area = $('#gm-area'), back = `<button type="button" class="gm-back" data-gmback>‹ 놀이 목록</button>`;
-  ({ where: gmWhere, pin: gmPin, pair: gmPair, bingo: gmBingo })[g]?.(area, back, () => openGames({ ...opts }));
+  ({ where: gmWhere, pin: gmPin, pair: gmPair })[g]?.(area, back, () => openGames({ ...opts }));
 }
 function gmEnd(area, back, title, score, unit, best, again, extra = '') {
   sfx('badge'); if (best) confettiFx();
@@ -3144,25 +3155,32 @@ function gmWhere(area, back, again) {                                 // 📍 �
       setTimeout(() => { delete area.dataset.lock; i++; if (i < qs.length) draw(); else gmEnd(area, back, '여기 어디게? 끝!', score, '점', gmSave('where', score), { g: 'where', fn: again }); }, ok ? 1100 : 1900); }); };
   draw();
 }
-function gmPin(area, back, again) {                                   // 🗺 지도 콕!
+function gmPin(area, back, again) {                                   // 🗺 지도 콕! — 시·도 이름 보이는 지도에서 그 장소가 있는 시·도 누르기 (11/08 ZED: 정확한 위치는 아무도 못 찍음)
   const ok = p => (p.country || 'KR') === 'KR' && typeof p.lat === 'number' && ((p.visits || 0) > 0 || (p.visitLog || []).length);
-  const pool = gmRand(S.db.places.filter(ok)); if (pool.length < 3 || !window.L) { area.innerHTML = back + '<div class="help">다녀온 국내 장소(좌표 있는 곳)가 3곳 이상 있어야 해요</div>'; return; }
-  const qs = pool.slice(0, 5); let i = 0, score = 0, map = null, guess = null, layer = null;
+  if (!window.L) { area.innerHTML = back + '<div class="help">지도를 불러오지 못했어요</div>'; return; }
+  let map = null, i = 0, score = 0, qs = [];
   S.gmStop = () => { try { map?.remove(); } catch {} };
-  const draw = async () => { const q = qs[i], ph = (q.visitLog || []).flatMap(v => visitPhotos(v))[0];
+  const draw = async () => { if (!qs.length) { await loadGeo(); const byDo = {}; for (const p of gmRand(S.db.places.filter(ok))) { const k = doKey(p); if (k && !byDo[k]) byDo[k] = p; } qs = gmRand(Object.values(byDo)).slice(0, 5);   // 문제마다 다른 시·도
+      if (qs.length < 3) { area.innerHTML = back + '<div class="help">다녀온 국내 장소가 3개 시·도 이상 있어야 해요</div>'; return; } }
+    const q = qs[i], ans = doKey(q), ph = (q.visitLog || []).flatMap(v => visitPhotos(v))[0];
     area.innerHTML = `${back}<div class="gm-q"><div class="gm-top"><span class="num">${i + 1} / ${qs.length}</span><b class="num">${score}점</b></div>
-      <div class="gm-pinq">${ph ? `<span class="gm-pinph" style="background-image:url('${ph}')"></span>` : ''}<div><p class="gm-ask" style="margin:0">「${esc(q.name)}」 어디 있게?</p><p class="cap3">지도를 눌러 콕 찍고 「여기!」</p></div></div>
-      <div class="gm-map" id="gm-map"></div><div class="gm-pinbar"><span class="cap3" id="gm-hint">아직 안 찍었어요</span><button type="button" class="btn-pri" id="gm-go" disabled>여기!</button></div></div>`;
-    await loadGeo(); if (!$('#gm-map')) return; try { map?.remove(); } catch {}
-    map = L.map('gm-map', { zoomControl: true, attributionControl: false, zoomSnap: .25, minZoom: 5.5, maxZoom: 11 });
-    const kr = L.geoJSON(S.geoKr, { style: () => ({ color: '#ffffff', weight: 1.2, fillColor: '#cfe3d2', fillOpacity: 1 }), interactive: false }).addTo(map);
-    map.fitBounds(kr.getBounds(), { padding: [10, 10] }); layer = L.layerGroup().addTo(map); guess = null;
-    map.on('click', e => { if (area.dataset.lock) return; guess = e.latlng; layer.clearLayers(); L.marker(guess, { icon: L.divIcon({ className: 'gm-mk', html: `<img src="${asset('assets/mark-faces.png')}" alt="">`, iconSize: [40, 28], iconAnchor: [20, 26] }) }).addTo(layer); sfx('tap'); $('#gm-go').disabled = false; $('#gm-hint').textContent = '여기 맞아요? 「여기!」를 눌러요'; });
-    $('#gm-go').onclick = () => { if (!guess || area.dataset.lock) return; area.dataset.lock = 1; const km = haversine({ lat: guess.lat, lng: guess.lng }, q), pt = Math.max(0, Math.round(1000 * Math.exp(-km / 100)));
-      score += pt; L.circleMarker([q.lat, q.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#e8833a', fillOpacity: 1 }).addTo(layer); L.polyline([guess, [q.lat, q.lng]], { color: '#e8833a', weight: 3, dashArray: '4 6' }).addTo(layer);
-      map.fitBounds(L.latLngBounds([guess, [q.lat, q.lng]]).pad(.5), { maxZoom: 10 }); sfx(pt >= 600 ? 'arrive' : 'stamp');
-      $('#gm-hint').innerHTML = `<b>${fmtKm(km)}km</b> 차이 · <b>+${pt}점</b> ${pt >= 900 ? '🎯 거의 정답!' : pt >= 600 ? '👏 가까워요' : ''}`; const go = $('#gm-go'); go.disabled = false; go.textContent = i + 1 < qs.length ? '다음 ›' : '결과 보기';
-      go.onclick = () => { delete area.dataset.lock; i++; if (i < qs.length) draw(); else { S.gmStop(); gmEnd(area, back, '지도 콕! 끝!', score, '점', gmSave('pin', score), { g: 'pin', fn: again }); } }; };
+      <div class="gm-pinq">${ph ? `<span class="gm-pinph" style="background-image:url('${ph}')"></span>` : ''}<div><p class="gm-ask" style="margin:0">「${esc(q.name)}」 어느 시·도에 있게?</p><p class="cap3">지도에서 시·도를 눌러요 · 가까이 누를수록 보너스</p></div></div>
+      <div class="gm-map" id="gm-map"></div><div class="gm-pinbar"><span class="cap3" id="gm-hint">시·도를 눌러 보세요</span><button type="button" class="btn-pri" id="gm-go" style="display:none">다음 ›</button></div></div>`;
+    try { map?.remove(); } catch {}
+    map = L.map('gm-map', { zoomControl: true, attributionControl: false, zoomSnap: .25, minZoom: 5.5, maxZoom: 10 });
+    let done = false; const lays = {};
+    const kr = L.geoJSON(S.geoKr, { style: () => ({ color: '#ffffff', weight: 1.4, fillColor: '#cfe3d2', fillOpacity: 1 }),
+      onEachFeature: (f, ly) => { lays[f.properties.k] = ly; ly.bindTooltip(f.properties.k, { permanent: true, direction: 'center', className: 'gm-dolbl' });
+        ly.on('mouseover', () => { if (!done) ly.setStyle({ fillColor: '#ffd98a' }); }); ly.on('mouseout', () => { if (!done) ly.setStyle({ fillColor: '#cfe3d2' }); });
+        ly.on('click', e => { if (done) return; done = true; const pick = f.properties.k, right = pick === ans, km = haversine({ lat: e.latlng.lat, lng: e.latlng.lng }, q), bonus = right ? Math.max(0, Math.round(50 * (1 - km / 60))) : 0, pt = (right ? 100 : 0) + bonus;
+          score += pt; ly.setStyle({ fillColor: right ? '#8fd19e' : '#f4a3a3' }); if (!right) lays[ans]?.setStyle({ fillColor: '#8fd19e' });
+          L.marker(e.latlng, { icon: L.divIcon({ className: 'gm-mk', html: `<img src="${asset('assets/mark-faces.png')}" alt="">`, iconSize: [40, 28], iconAnchor: [20, 26] }) }).addTo(map);
+          L.circleMarker([q.lat, q.lng], { radius: 9, color: '#fff', weight: 3, fillColor: '#e8833a', fillOpacity: 1 }).addTo(map).bindTooltip(q.name, { permanent: true, direction: 'top', offset: [0, -8] });
+          sfx(right ? 'arrive' : 'stamp');
+          $('#gm-hint').innerHTML = right ? `<b>딩동댕! ${esc(ans)}</b> · +${pt}점${bonus ? ` (가까움 보너스 ${bonus})` : ''}` : `아쉬워요 · 정답은 <b>${esc(ans)}</b>`;
+          const go = $('#gm-go'); go.style.display = ''; go.textContent = i + 1 < qs.length ? '다음 ›' : '결과 보기';
+          go.onclick = () => { i++; if (i < qs.length) draw(); else { S.gmStop(); gmEnd(area, back, '지도 콕! 끝!', score, '점', gmSave('pin', score), { g: 'pin', fn: again }); } }; }); } }).addTo(map);
+    map.fitBounds(kr.getBounds(), { padding: [8, 8] });
   };
   draw();
 }
@@ -3178,20 +3196,6 @@ function gmPair(area, back, again, n0) {                              // 🃏 �
     if (open.length < 2) return; moves++; $('#gm-mv').textContent = moves; const [a, c] = open, same = cards[+a.dataset.cd].u === cards[+c.dataset.cd].u;
     setTimeout(() => { if (same) { a.classList.add('done'); c.classList.add('done'); done++; sfx('like'); if (done === pics.length) { const sec = Math.round((Date.now() - t0) / 1000); gmEnd(area, back, '짝 맞추기 성공!', moves, '번', gmSave('pair', moves, true), { g: 'pair', fn: again }, `<p class="cap3">${pics.length}쌍 · ${sec}초</p>`); } }
       else { a.classList.remove('up'); c.classList.remove('up'); } open = []; }, same ? 350 : 850); });
-}
-function gmBingo(area, back) {                                        // 🎯 여행 빙고 (시·도 4×4)
-  let board = LS.get('gmBingo', null); if (!Array.isArray(board) || board.length !== 16 || board.some(k => !DO_KEYS.includes(k))) { board = gmRand(DO_KEYS.filter(k => k !== '세종')).slice(0, 16); LS.set('gmBingo', board); }
-  const s = travelStats(), got = k => !!s.doCnt[k];
-  const L4 = [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15], [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15], [0, 5, 10, 15], [3, 6, 9, 12]];
-  const lines = L4.filter(l => l.every(i => got(board[i]))), near = L4.map(l => l.filter(i => !got(board[i]))).filter(m => m.length === 1).map(m => board[m[0]]);
-  const hot = new Set(lines.flat()), tip = [...new Set(near)].slice(0, 3).map(k => { const p = S.db.places.filter(x => (x.country || 'KR') === 'KR' && doKey(x) === k && x.type === 'spot').sort((a, b) => (b.rating || 0) - (a.rating || 0))[0]; return `<li><b>${esc(k)}</b>만 가면 빙고!${p ? ` <button type="button" class="lnk" data-go="${p.id}">추천: ${esc(p.name)} ›</button>` : ''}</li>`; });
-  gmSave('bingo', lines.length);
-  area.innerHTML = `${back}<div class="gm-q"><div class="gm-top"><b>빙고 <span class="num">${lines.length}</span>줄</b><span class="cap3">가 본 시·도 ${board.filter(got).length} / 16</span><button type="button" class="lnk" id="gm-shuf">↻ 판 섞기</button></div>
-    <div class="gm-bingo">${board.map((k, i) => `<div class="gm-bc${got(k) ? ' on' : ''}${hot.has(i) ? ' line' : ''}"><span>${esc(k)}</span>${got(k) ? `<img src="${asset('assets/mark-stamp.png')}" alt="가 봤어요">` : ''}</div>`).join('')}</div>
-    ${tip.length ? `<ul class="gm-tip">${tip.join('')}</ul>` : `<p class="cap3" style="margin-top:12px">${lines.length ? '🎉 멋져요! 다른 판도 섞어 보세요' : '여행을 다녀오면 칸에 도장이 찍혀요'}</p>`}</div>`;
-  if (lines.length) { confettiFx(); sfx('badge'); }
-  $('#gm-shuf').onclick = () => { LS.set('gmBingo', null); gmBingo(area, back); };
-  area.querySelectorAll('[data-go]').forEach(b => b.onclick = e => { e.stopPropagation(); openDetail(b.dataset.go); });
 }
 function openGrowthEdit(g, done) {   /* 11/06 성장 앨범 사진 편집: 날짜 · 사진 속 사람 · 메모 · 앨범에서 빼기 */
   const who = new Set(g.who || []), by = (S.db.meta.family || {}).birthYear || {};
@@ -4343,7 +4347,7 @@ function jjTrip(btn) {
   legOf(0); if (stops.length > 2) legOf(1);
   const kmOf = pts => { const c = [0]; for (let j = 1; j < pts.length; j++) c.push(c[j - 1] + haversine({ lat: pts[j - 1][0], lng: pts[j - 1][1] }, { lat: pts[j][0], lng: pts[j][1] })); return c; };
   const at = (pts, cum, f) => { const d = f * cum[cum.length - 1]; let j = 1; while (j < cum.length - 1 && cum[j] < d) j++; const s0 = cum[j - 1], s1 = cum[j] || s0 + 1e-9, r = Math.min(1, Math.max(0, (d - s0) / (s1 - s0))), p = pts[j - 1], q = pts[j] || p; return [[p[0] + (q[0] - p[0]) * r, p[1] + (q[1] - p[1]) * r], q[1] < p[1]]; };
-  let fpN = 0, i = 0, phase = 'dwell', t0 = performance.now(), lastStep = 0, alive = true, segs = null, si = 0, seg = null, cum = null, D = 0, kind = '';
+  let skL = null, skR = null, skP = null, fpN = 0, i = 0, phase = 'dwell', t0 = performance.now(), lastStep = 0, alive = true, segs = null, si = 0, seg = null, cum = null, D = 0, kind = '';
   const el = () => me.getElement(), lblOf = () => el()?.querySelector('.jj-lbl'), hopEl = () => el()?.querySelector('.jj-hop');
   const setKind = k => { if (k === kind) return; kind = k; const ck = k === 'sea' ? 'ship' : k === 'air' ? 'plane' : ch, h = hopEl(); if (h) { h.className = `jj-hop jj-${ck}`; h.innerHTML = jjCharHtml(ck); } };
   const say = t => { const l = lblOf(); if (!l) return; if (t) { l.textContent = t; l.classList.add('on'); } else l.classList.remove('on'); };
@@ -4351,7 +4355,8 @@ function jjTrip(btn) {
     say(`${+st.d.slice(5, 7) && !st.home ? `${+st.d.slice(5, 7)}/${+st.d.slice(8, 10)} ` : ''}${st.name}`);
     if (yr.textContent !== st.d.slice(0, 4)) { yr.textContent = st.d.slice(0, 4); yr.classList.remove('pop'); void yr.offsetWidth; yr.classList.add('pop'); } sfx('arrive'); };
   const stop = () => { alive = false; S.jj = null; try { me.remove(); trail.remove(); } catch {} yr.remove(); card?.querySelectorAll('.tl-now').forEach(x => x.classList.remove('tl-now')); if (btn.isConnected) { btn.textContent = '▶ 준준트립'; btn.classList.remove('on'); } };
-  const startSeg = now => { seg = segs[si]; cum = kmOf(seg.pts); const km = cum[cum.length - 1]; D = seg.kind === 'sea' ? 4200 : seg.kind === 'air' ? 3800 : Math.max(1800, Math.min(5200, 1400 + km * 8)); t0 = now; setKind(seg.kind);
+  const startSeg = now => { seg = segs[si]; cum = kmOf(seg.pts); const km = cum[cum.length - 1]; D = seg.kind === 'sea' ? 8400 : seg.kind === 'air' ? 7600 : Math.max(3600, Math.min(10400, 2800 + km * 16)); t0 = now; setKind(seg.kind);   // 11/08 절반 속도 (ZED: 너무 빠름)
+    skL = skR = skP = null; if (seg.kind === 'road' && /^car/.test(ch)) { const o = { color: '#9a938b', weight: 3, opacity: .5, lineCap: 'butt', dashArray: '26 3 9 2', interactive: false }; skL = L.polyline([], o).addTo(trail); skR = L.polyline([], o).addTo(trail); }   // 차 = 두 줄 스키드 마크(연한 회색)
     if (seg.kind === 'sea') say('⛴ 배 타고 ' + (seg.to || '')); else if (seg.kind === 'air') say('✈ 비행기 타고 ' + (seg.to || '')); else say(''); hopEl()?.classList.toggle('go', seg.kind === 'road'); hopEl()?.classList.toggle('sail', seg.kind === 'sea'); };
   S.jj = { stop }; setKind('road'); mark(0);
   const tick = now => { if (!alive) return; if (S.tmMap !== map || !document.body.contains(map.getContainer())) return stop();
@@ -4360,11 +4365,12 @@ function jjTrip(btn) {
     else if (phase === 'go') { const k = Math.min(1, (now - t0) / D), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2, [ll, west] = at(seg.pts, cum, e);
       me.setLatLng(ll); const fl = hopEl()?.firstElementChild; if (fl) { if (kind === 'air') { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), q0 = seg.pts[j - 1], q1 = seg.pts[j] || q0, pa = map.latLngToLayerPoint(q0), pb = map.latLngToLayerPoint(q1); fl.style.transform = `rotate(${Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI}deg)`; }
         else { const carL = kind === 'road' && /^car/.test(ch); fl.style.transform = (ch === 'back' && kind === 'road') ? '' : (carL ? !west : west) ? 'scaleX(-1)' : ''; } }   // 카니발 그림은 왼쪽 보기 → 동쪽 갈 때 뒤집기 · 뒷모습은 그대로
-      if (seg.kind === 'road' && now - lastStep > 260) { sfx('step'); lastStep = now;
+      if (skL) { const p = map.latLngToLayerPoint(ll); if (!skP || Math.hypot(p.x - skP.x, p.y - skP.y) > 2) { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), pa = map.latLngToLayerPoint(seg.pts[j - 1]), pb = map.latLngToLayerPoint(seg.pts[j] || seg.pts[j - 1]), dx = pb.x - pa.x, dy = pb.y - pa.y, ln = Math.hypot(dx, dy) || 1, nx = -dy / ln * 4, ny = dx / ln * 4;
+          skL.addLatLng(map.layerPointToLatLng(L.point(p.x + nx, p.y + ny))); skR.addLatLng(map.layerPointToLatLng(L.point(p.x - nx, p.y - ny))); skP = p; } }
+      if (seg.kind === 'road' && now - lastStep > (/^car/.test(ch) ? 420 : 260)) { sfx('step'); lastStep = now;
         if (!/^car/.test(ch)) { const j = Math.min(seg.pts.length - 1, Math.round(e * (seg.pts.length - 1)) + 1), q0 = seg.pts[j - 1], q1 = seg.pts[j] || q0, pa = map.latLngToLayerPoint(q0), pb = map.latLngToLayerPoint(q1), ang = Math.atan2(pb.y - pa.y, pb.x - pa.x) * 180 / Math.PI + 90;
-          L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'jj-fp', html: `<i style="transform:rotate(${ang.toFixed(0)}deg)${(fpN++ % 2) ? ' translateX(4px)' : ' translateX(-4px)'}"></i>`, iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(trail); } }   // 11/08 걷는 친구 = 발자국 · 차 = 타이어 자국(선)
-      if (k >= 1) { if (seg.kind === 'road' && /^car/.test(ch)) { L.polyline(seg.pts, { color: '#3a3a3a', weight: 6, opacity: .55, dashArray: '7 3', interactive: false }).addTo(trail); L.polyline(seg.pts, { color: '#f4efe6', weight: 2, opacity: .9, interactive: false }).addTo(trail); }
-        else if (seg.kind !== 'road') L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : '#ff7a59',   /* 11/08 비행기 = 코랄 (이사 보라와 구분) */ weight: 3, opacity: .85, dashArray: '4 6', lineCap: 'round', interactive: false }).addTo(trail);
+          L.marker(ll, { interactive: false, keyboard: false, icon: L.divIcon({ className: 'jj-fp', html: `<i style="transform:rotate(${ang.toFixed(0)}deg)${(fpN++ % 2) ? ' translateX(4px)' : ' translateX(-4px)'}"></i>`, iconSize: [14, 14], iconAnchor: [7, 7] }) }).addTo(trail); } }   // 걷는 친구 = 발자국 · 차 = 짧은 타이어 자국(두 줄) 콕콕 (11/08 선 → 자국)
+      if (k >= 1) { if (seg.kind !== 'road') L.polyline(seg.pts, { color: seg.kind === 'sea' ? '#3d86d6' : '#ff7a59',   /* 11/08 비행기 = 코랄 (이사 보라와 구분) */ weight: 3, opacity: .85, dashArray: '4 6', lineCap: 'round', interactive: false }).addTo(trail);
         if (++si < segs.length) startSeg(now); else { i++; phase = 'dwell'; t0 = now; hopEl()?.classList.remove('go', 'sail'); setKind('road'); mark(i); } } }
     requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
