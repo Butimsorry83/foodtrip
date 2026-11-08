@@ -131,8 +131,8 @@ function links(p) {
 
 /* ---------------- 데이터 로드/저장 ---------------- */
 async function ghGet() {
-  const url = `https://api.github.com/repos/${S.repo}/contents/${CFG.path}?ref=${CFG.branch}`;
-  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token, Accept: 'application/vnd.github+json' } });
+  const url = `https://api.github.com/repos/${S.repo}/contents/${CFG.path}?ref=${CFG.branch}&t=${Date.now()}`;   /* 11/08 캐시된 옛 파일 방지 */
+  const r = await fetch(url, { cache: 'no-store', headers: { Authorization: 'Bearer ' + S.token, Accept: 'application/vnd.github+json' } });
   if (!r.ok) throw new Error('GitHub ' + r.status);
   const j = await r.json();
   const txt = new TextDecoder().decode(Uint8Array.from(atob(j.content.replace(/\n/g, '')), c => c.charCodeAt(0)));
@@ -233,7 +233,12 @@ function mergeItem(base, mine, theirs) {                       // 같은 id: 내
   if (same(mine, base)) return theirs; if (same(theirs, base)) return mine;
   const out = { ...theirs };
   for (const k of new Set([...Object.keys(mine), ...Object.keys(base)])) {
-    if (k === 'visitLog') { const ids = new Set(); out.visitLog = [...(theirs.visitLog || []), ...(mine.visitLog || [])].filter(v => { const key = v.id || (v.date + '|' + (v.memo || '') + '|' + (v.who || []).join(',')); if (ids.has(key)) return false; ids.add(key); return true; }).sort((a, b) => (a.date || '').localeCompare(b.date || '')); out.visits = Math.max(mine.visits || 0, theirs.visits || 0, out.visitLog.length); continue; }
+    if (k === 'visitLog') {   /* 11/08 같은 기록은 3-way(필드별) — 전엔 상대 것 우선이라 사진 순서·수정이 되돌아감 */
+      const key = v => v.id || (v.date + '|' + (v.memo || '') + '|' + (v.who || []).join(',')), mp = L => new Map((L || []).map(v => [key(v), v]));
+      const B = mp(base.visitLog), M = mp(mine.visitLog), T = mp(theirs.visitLog), lst = [];
+      for (const [id, t] of T) { const m = M.get(id), b = B.get(id); if (m) lst.push(mergeItem(b, m, t)); else if (!b || !same(b, t)) lst.push(t); }
+      for (const [id, m] of M) if (!T.has(id)) { const b = B.get(id); if (!b || !same(b, m)) lst.push(m); }
+      out.visitLog = lst.sort((a, b) => (a.date || '').localeCompare(b.date || '')); out.visits = Math.max(mine.visits || 0, theirs.visits || 0, out.visitLog.length); continue; }
     if (k === 'tags') { out.tags = [...new Set([...(theirs.tags || []), ...(mine.tags || []).filter(t => !(base.tags || []).includes(t) || (theirs.tags || []).includes(t))])].filter(t => (mine.tags || []).includes(t) || !(base.tags || []).includes(t)); continue; }
     if (k === 'visits' && 'visitLog' in out) continue;
     if (!same(mine[k], base[k])) out[k] = mine[k];              // 내가 바꾼 필드는 내 것
@@ -277,6 +282,7 @@ async function save() {
   saving = true; dirty = false; setSync('busy');
   try {
     let remote = null; try { remote = await ghGet(); } catch {}
+    S.shaSeen ||= new Set(); if (remote && remote.sha !== S.sha && S.shaSeen.has(remote.sha)) remote = null;   /* 11/08 방금 내가 덮어쓴 옛 버전이 늦게 읽힘 → 병합하지 않음 (수정이 되돌아가던 원인) */
     if (remote && remote.sha !== S.sha) {                        // 다른 기기가 먼저 저장 → 3-way 병합 후 저장
       const merged = mergeDb(S.baseDb, S.db, migrate(remote.db)); const nBefore = S.db.places.length;
       S.db = merged; S.sha = remote.sha; S.baseDb = clone(remote.db);
@@ -296,7 +302,7 @@ async function save() {
       S.sha = null; saving = false; S.retry = (S.retry || 0) + 1; if (S.retry <= 2) return save(); throw new Error('저장 경합 반복 — 잠시 후 다시');
     }
     if (!r.ok) throw new Error('저장 실패 ' + r.status);
-    const j = await r.json(); S.sha = j.content.sha; S.baseDb = clone(S.db); S.retry = 0; setSync('ok');
+    const j = await r.json(); S.shaSeen.add(S.sha); S.sha = j.content.sha; S.baseDb = clone(S.db); S.retry = 0; setSync('ok');
   } catch (e) { console.error(e); setSync('err'); toast(e.message + ' — 1분 후 자동 재시도', 4000); clearTimeout(S.retryT); S.retryT = setTimeout(() => { if (!saving) save(); }, 60000); }
   saving = false; if (dirty) markDirty();
 }
