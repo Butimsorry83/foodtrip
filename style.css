@@ -1559,3 +1559,5 @@ body.tm-full-on { overflow: hidden; }
 .gm-feed { width: 100%; box-sizing: border-box; align-self: stretch; }
 .leaflet-container .leaflet-marker-pane .gm-mk img { width: 40px !important; height: auto !important; }
 .gm-pinbar .btn-pri { flex: 0 0 auto; width: auto; padding-left: 22px; padding-right: 22px; } .gm-pinbar .cap3 { min-width: 0; font-size: calc(13px * var(--fz, 1)); }
+/* 11/27 여행 만들기: 식사는 번호 대신 🍴 (휴양지만 ①②) */
+.pl-row .num.rk.ml { font-size: 13px; line-height: 1; opacity: .9; }
